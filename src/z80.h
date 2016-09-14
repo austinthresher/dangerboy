@@ -18,39 +18,29 @@ byte z80_last_op;
 word z80_last_pc;
 
 // Registers
-byte z80_A;
-byte z80_B;
-byte z80_C;
-byte z80_D;
-byte z80_E;
-byte z80_H;
-byte z80_L;
-byte z80_F;
-
-word z80_PC; // Program Counter
-word z80_SP; // Stack Counter
-
-byte z80_delayed_enable_interrupt;
-bool z80_interrupts_enabled;
-bool z80_halt;
-bool z80_stop;
-
-tick z80_last_clock;
-tick z80_total_clock;
-
-tick z80_div_timer;
-tick z80_tima_timer;
-
-char *z80_rom_fname;
-
+byte  z80_A;
+byte  z80_B;
+byte  z80_C;
+byte  z80_D;
+byte  z80_E;
+byte  z80_H;
+byte  z80_L;
+byte  z80_F;
+byte  z80_delayed_enable_interrupt;
+word  z80_PC; // Program Counter
+word  z80_SP; // Stack Counter
+bool  z80_interrupts_enabled;
+bool  z80_halt;
+bool  z80_stop;
+tick  z80_ticks;
+tick  z80_dt;
+tick  z80_div_timer;
+tick  z80_tima_timer;
+char* z80_rom_fname;
 void (*z80_opcodes[0x100])();
 
-byte z80_goodcodes[0x100];
-
-void z80_init(char *romname);
-
 tick z80_execute_step();
-
+void z80_init(char* romname);
 void z80_reset();
 void z80_clear_flags();
 void z80_set_flag_zero(bool tf);
@@ -71,17 +61,17 @@ byte z80_get_flag_operation();
 
 void z80_CB();
 
-void z80_RLC(byte *inp);
-void z80_RRC(byte *inp);
-void z80_RL(byte *inp);
-void z80_RR(byte *inp);
-void z80_SLA(byte *inp);
-void z80_SRA(byte *inp);
-void z80_SWAP(byte *inp);
-void z80_SRL(byte *inp);
-void z80_BIT(byte *inp, byte bit);
-void z80_RES(byte *inp, byte bit);
-void z80_SET(byte *inp, byte bit);
+void z80_RLC(byte* inp);
+void z80_RRC(byte* inp);
+void z80_RL(byte* inp);
+void z80_RR(byte* inp);
+void z80_SLA(byte* inp);
+void z80_SRA(byte* inp);
+void z80_SWAP(byte* inp);
+void z80_SRL(byte* inp);
+void z80_BIT(byte* inp, byte bit);
+void z80_RES(byte* inp, byte bit);
+void z80_SET(byte* inp, byte bit);
 
 //////////////////////////////////////////////////////
 //
@@ -89,7 +79,7 @@ void z80_SET(byte *inp, byte bit);
 //
 //////////////////////////////////////////////////////
 
-void z80_LOAD(byte *reg, byte data);
+void z80_LOAD(byte* reg, byte data);
 void z80_STORE(byte hi, byte lo, byte data);
 byte z80_FETCH(byte hi, byte lo);
 
@@ -193,7 +183,7 @@ void z80_LD_nn_SP();    /*0x08*/
 ///////////////////////////////////////////////////
 
 void z80_PUSH(byte hi, byte low);
-void z80_POP(byte *hi, byte *low);
+void z80_POP(byte* hi, byte* low);
 
 void z80_PUSHAF(); /*F5*/
 void z80_PUSHBC(); /*C5*/
@@ -279,9 +269,9 @@ void z80_RET_NC();
 void z80_RET_C();
 void z80_RETI();
 
-void z80_ADD16(byte *a_hi, byte *a_low, byte b_hi, byte b_low);
-void z80_INC16(byte *hi, byte *low);
-void z80_DEC16(byte *hi, byte *low);
+void z80_ADD16(byte* a_hi, byte* a_low, byte b_hi, byte b_low);
+void z80_INC16(byte* hi, byte* low);
+void z80_DEC16(byte* hi, byte* low);
 
 void z80_ADD16_HL_BC(); /*0x09*/
 void z80_ADD16_HL_DE(); /*0x19*/
@@ -359,8 +349,8 @@ void z80_SBC_A_n();
 //
 ////////////////////////////////////////////////
 
-void z80_INC(byte *reg);
-void z80_DEC(byte *reg);
+void z80_INC(byte* reg);
+void z80_DEC(byte* reg);
 
 void z80_INC_A();
 void z80_INC_B();

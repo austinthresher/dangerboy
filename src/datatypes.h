@@ -11,9 +11,9 @@
 #define tick uint64_t
 #define sbyte int8_t
 
-#define ERROR(...)                                                             \
-  printf("Error at %s:%d: ", __FILE__, __LINE__);                              \
-  printf(__VA_ARGS__);                                                         \
-  exit(1)
+#define ERROR(...)                                 \
+   printf("Error at %s:%d: ", __FILE__, __LINE__); \
+   printf(__VA_ARGS__);                            \
+   exit(1)
 
 #endif

@@ -21,17 +21,17 @@
 #define COLOR_DARK 0x7C
 #define COLOR_BLACK 0x00
 
-byte gpu_mode; // This mode needs to be written to 0xFF41
-byte gpu_scanline;
-byte gpu_window_scanline;
-byte gpu_window_y;
-byte gpu_last_scanline;
-byte *gpu_vram;
-bool gpu_draw_frame;
-bool gpu_hit_stat_interrupt;
-bool gpu_blankscreen;
-bool gpu_ready_to_draw;
-tick gpu_timer;
+byte  gpu_mode; // This mode needs to be written to 0xFF41
+byte  gpu_scanline;
+byte  gpu_window_scanline;
+byte  gpu_window_y;
+byte  gpu_last_scanline;
+byte* gpu_vram;
+bool  gpu_draw_frame;
+bool  gpu_hit_stat_interrupt;
+bool  gpu_blankscreen;
+bool  gpu_ready_to_draw;
+tick  gpu_timer;
 
 void gpu_init();
 void gpu_reset();
