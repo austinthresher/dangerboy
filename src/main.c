@@ -11,7 +11,7 @@ int main(int argc, char* args[]) {
    }
 
    SDL_Init(SDL_INIT_EVERYTHING);
-   SDL_WM_SetCaption("CBrick", "CBrick");
+   SDL_WM_SetCaption("Danger Boy", "Danger Boy");
    SDL_Surface* screen = SDL_SetVideoMode(160, 144, 32, SDL_HWSURFACE);
    SDL_Surface* gb_screen =
       SDL_CreateRGBSurface(SDL_HWSURFACE, 160, 144, 32, 0x00FF0000, 0x0000FF00,
