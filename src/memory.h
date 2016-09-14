@@ -15,14 +15,14 @@ byte mem_dpad;
 byte mem_buttons;
 byte mem_input_last_write;
 
-byte* mem_ram;
-byte* mem_rom;
-byte* mem_ram_bank;
+byte *mem_ram;
+byte *mem_rom;
+byte *mem_ram_bank;
 
-char* mem_rom_name;
+char *mem_rom_name;
 
 void mem_init();
-void mem_load_image(char* fname);
+void mem_load_image(char *fname);
 void mem_get_rom_info();
 void mem_wb(word addr, byte val);
 void mem_ww(word addr, word val);

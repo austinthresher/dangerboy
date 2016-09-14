@@ -4,29 +4,34 @@
 #include "datatypes.h"
 #include "z80.h"
 
-static const byte gpu_mode_hblank =
-   0; // HBlank, takes 204 clocks, done 144 times per vblank
-static const byte gpu_mode_vblank = 1; // VBlank, takes 4560 clocks
-static const byte gpu_mode_scan_OAM =
-   2; // Object attribute memory access, takes 80 clocks
-static const byte gpu_mode_scan_VRAM =
-   3; // Vram, takes 172 clocks. This is the end of a scanline
-static const byte gpu_c_white = 0xFE;
-static const byte gpu_c_lite  = 0xC6;
-static const byte gpu_c_dark  = 0x7C;
-static const byte gpu_c_black = 0x00;
+// HBlank. Lasts 204 ticks.
+#define GPU_MODE_HBLANK 0
 
-byte  gpu_mode; // This mode needs to be written to 0xFF41
-byte  gpu_scanline;
-byte  gpu_window_scanline;
-byte  gpu_window_y;
-byte  gpu_last_scanline;
-byte* gpu_vram;
-bool  gpu_draw_frame;
-bool  gpu_hit_stat_interrupt;
-bool  gpu_blankscreen;
-bool  gpu_ready_to_draw;
-tick  gpu_timer;
+// VBlank. Lasts 4560 ticks.
+#define GPU_MODE_VBLANK 1
+
+// Object attribute memory access. Lasts 80 ticks
+#define GPU_MODE_SCAN_OAM 2
+
+// VRAM access. Lasts 172 ticks. This is done at the last scanline.
+#define GPU_MODE_SCAN_VRAM 3
+
+#define COLOR_WHITE 0xFE
+#define COLOR_LITE 0xC6
+#define COLOR_DARK 0x7C
+#define COLOR_BLACK 0x00
+
+byte gpu_mode; // This mode needs to be written to 0xFF41
+byte gpu_scanline;
+byte gpu_window_scanline;
+byte gpu_window_y;
+byte gpu_last_scanline;
+byte *gpu_vram;
+bool gpu_draw_frame;
+bool gpu_hit_stat_interrupt;
+bool gpu_blankscreen;
+bool gpu_ready_to_draw;
+tick gpu_timer;
 
 void gpu_init();
 void gpu_reset();
