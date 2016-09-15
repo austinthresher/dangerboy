@@ -510,7 +510,7 @@ void z80_STORE(byte hi, byte lo, byte data) {
 
 byte z80_FETCH(byte hi, byte lo) {
    z80_dt = 8;
-   return mem_rb((hi << 8) | lo);
+   return mem_rb((((word)hi) << 8) | lo);
 }
 
 void z80_LOAD(byte* reg, byte data) {
@@ -1339,7 +1339,7 @@ void z80_RES(byte* inp, byte bit) {
 
    if (inp == NULL) {
       z80_STORE(z80_H, z80_L, t);
-      z80_dt = 12;
+      z80_dt = 16;
    } else {
       *inp = t;
    }
@@ -1794,12 +1794,11 @@ void z80_EI() {
 void z80_ADD(byte inp) {
    // This is used to figure out if z80_A will overflow,
    // and sets the carry flag if so
-   word temp_result = z80_A;
+   word temp_result = z80_A + inp;
    z80_set_flag_halfcarry(((z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
    z80_set_flag_operation(false);
-   temp_result += inp;
-   z80_A += inp;
-   z80_set_flag_carry(temp_result > 0xFF);
+   z80_A = temp_result & 0x00FF;
+   z80_set_flag_carry(temp_result & 0xFF00);
    z80_set_flag_zero(z80_A == 0);
    z80_dt = 4;
 }
@@ -1807,15 +1806,16 @@ void z80_ADD(byte inp) {
 void z80_ADC(byte inp) {
    // This is used to figure out if z80_A will overflow,
    // and sets the carry flag if so
-   word temp_result = z80_A;
-   z80_set_flag_halfcarry(
-      (z80_get_flag_carry() + (z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
    z80_set_flag_operation(false);
-   temp_result += inp;
-   temp_result += z80_get_flag_carry();
+   byte carry = z80_get_flag_carry();
+   word temp_result = z80_A + inp + carry;
+   z80_set_flag_halfcarry((z80_A & 0x0F) + carry > 0x0F);
+   z80_A += carry;
+   if(!z80_get_flag_halfcarry()) {
+      z80_set_flag_halfcarry((z80_A & 0x0F) + (inp & 0x0F) > 0x0F);
+   }
    z80_A += inp;
-   z80_A += z80_get_flag_carry();
-   z80_set_flag_carry(temp_result > 0xFF);
+   z80_set_flag_carry(temp_result & 0xFF00);
    z80_set_flag_zero(z80_A == 0);
    z80_dt = 4;
 }
@@ -1824,9 +1824,7 @@ void z80_SUB(byte inp) {
    z80_set_flag_halfcarry((z80_A & 0x0F) < (inp & 0x0F));
    z80_set_flag_carry(z80_A < inp);
    z80_set_flag_operation(true);
-
    z80_A -= inp;
-
    z80_set_flag_zero(z80_A == 0);
    z80_dt = 4;
 }
@@ -1836,24 +1834,16 @@ void z80_SBC(byte inp) {
    z80_set_flag_halfcarry(false);
    z80_set_flag_carry(false);
 
-   if ((z80_A & 0x0F) < carry) {
-      z80_set_flag_halfcarry(true);
-   }
-   if (z80_A < carry) {
-      z80_set_flag_carry(true);
-   }
-
+   z80_set_flag_halfcarry((z80_A & 0x0F) < carry);
+   z80_set_flag_carry(z80_A < carry);
    z80_A -= carry;
-
-   if ((z80_A & 0x0F) < (inp & 0x0F)) {
-      z80_set_flag_halfcarry(true);
+   if (!z80_get_flag_halfcarry()) {
+      z80_set_flag_halfcarry((z80_A & 0x0F) < (inp & 0x0F));
    }
-   if (z80_A < inp) {
-      z80_set_flag_carry(true);
+   if (!z80_get_flag_carry()) { 
+      z80_set_flag_carry(z80_A < inp);
    }
-
    z80_A -= inp;
-
    z80_set_flag_operation(true);
    z80_set_flag_zero(z80_A == 0);
    z80_dt = 4;
@@ -2016,7 +2006,6 @@ void z80_SBC_A_n() {
 void z80_INC(byte* reg) {
    z80_set_flag_halfcarry(((*reg) & 0x0F) + 1 > 0x0F);
    z80_set_flag_operation(false);
-   // z80_set_flag_carry((*reg) == 0xFF);
    (*reg)++;
    z80_set_flag_zero((*reg) == 0);
    z80_dt = 4;
@@ -2024,7 +2013,6 @@ void z80_INC(byte* reg) {
 
 void z80_DEC(byte* reg) {
    z80_set_flag_halfcarry(((*reg) & 0x0F) == 0);
-   // z80_set_flag_carry((*reg) == 0);
    (*reg)--;
    z80_set_flag_zero((*reg) == 0);
    z80_set_flag_operation(true);
@@ -2157,7 +2145,7 @@ void z80_CPL() {
 }
 
 void z80_CCF() {
-   z80_set_flag_carry(1 - z80_get_flag_carry() == 1);
+   z80_set_flag_carry(1 - z80_get_flag_carry() == 1); // TODO: What...?
    z80_set_flag_operation(false);
    z80_set_flag_halfcarry(false);
    z80_dt = 4;
@@ -2181,27 +2169,28 @@ void z80_STOP() {
 }
 
 void z80_DAA() {
-   z80_dt    = 4;
-   word temp = z80_A;
-   if (z80_get_flag_operation() == 0) {
-      if (z80_get_flag_halfcarry() == 1 || ((temp & 0x0F) > 0x09)) {
-         temp += 0x06;
+   z80_dt = 4;
+   if (!z80_get_flag_operation()) {
+      if (z80_get_flag_halfcarry() || ((z80_A & 0x0F) > 0x09)) {
+         z80_A += 0x06;
+         z80_set_flag_halfcarry(false);
       }
-      if (z80_get_flag_carry() == 1 || (temp > 0x9F)) {
-         temp += 0x60;
+      if (z80_get_flag_carry() || (z80_A > 0x99)) {
+         z80_A += 0x60;
+         z80_set_flag_carry(true);
       }
    } else {
-      if (z80_get_flag_halfcarry() == 1) {
-         temp = (temp - 0x06) & 0xFF;
+      if (z80_get_flag_carry() && z80_get_flag_halfcarry()) {
+         z80_A += 0x9A;
+         z80_set_flag_halfcarry(false);
       }
-      if (z80_get_flag_carry() == 1) {
-         temp -= 0x60;
+      else if (z80_get_flag_halfcarry()) {
+         z80_A += 0xFA;
+         z80_set_flag_halfcarry(false);
+      }
+      else if (z80_get_flag_carry()) {
+         z80_A += 0xA0;
       }
    }
-
-   z80_set_flag_carry((temp & 0xFF00) != 0);
-   z80_set_flag_operation(false);
-   temp &= 0x00FF;
-   z80_set_flag_zero(temp == 0);
-   z80_A = (byte)temp;
+   z80_set_flag_zero(z80_A == 0);
 }
