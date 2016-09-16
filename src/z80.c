@@ -357,10 +357,6 @@ void z80_clear_flags() {
    FLAG_Z = FLAG_C = FLAG_H = FLAG_N = false;
 }
 
-
-
-
-
 tick z80_execute_step() {
    if (!z80_halt && !z80_stop) {
       z80_dt      = 1;
@@ -423,7 +419,7 @@ tick z80_execute_step() {
          if (overflow) {
             mem_wb(0xFF05, (mem_rb(0xFF05) + 1) & 0xFF);
             if (mem_rb(0xFF05) == 0) {
-               mem_wb(0xFF0F, mem_rb(0xFF0F) | z80_interrupt_tima);
+               mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_TIMA);
                mem_wb(0xFF05, mem_rb(0xFF06));
             }
          }
@@ -433,7 +429,6 @@ tick z80_execute_step() {
    // Check interrupts
    byte int_IE = mem_rb(0xFFFF);
    byte int_IF = mem_rb(0xFF0F);
-
    byte irq = int_IE & int_IF;
 
    if (int_IF != 0) {
@@ -443,18 +438,18 @@ tick z80_execute_step() {
 
    if (z80_interrupts_enabled) {
       byte target = 0x00;
-      if ((irq & z80_interrupt_vblank) != 0) {
+      if ((irq & INT_VBLANK) != 0) {
          target = 0x40;
-         mem_wb(0xFF0F, int_IF & ~z80_interrupt_vblank);
-      } else if ((irq & z80_interrupt_stat) != 0) {
+         mem_wb(0xFF0F, int_IF & ~INT_VBLANK);
+      } else if ((irq & INT_STAT) != 0) {
          target = 0x48;
-         mem_wb(0xFF0F, int_IF & ~z80_interrupt_stat);
-      } else if ((irq & z80_interrupt_tima) != 0) {
+         mem_wb(0xFF0F, int_IF & ~INT_STAT);
+      } else if ((irq & INT_TIMA) != 0) {
          target = 0x50;
-         mem_wb(0xFF0F, int_IF & ~z80_interrupt_tima);
-      } else if ((irq & z80_interrupt_input) != 0) {
+         mem_wb(0xFF0F, int_IF & ~INT_TIMA);
+      } else if ((irq & INT_INPUT) != 0) {
          target = 0x60;
-         mem_wb(0xFF0F, int_IF & ~z80_interrupt_input);
+         mem_wb(0xFF0F, int_IF & ~INT_INPUT);
       }
       if (target != 0x00) {
          z80_interrupts_enabled = false;
@@ -469,8 +464,8 @@ tick z80_execute_step() {
 }
 
 void z80_NI() {
-   ERROR("Invalid instruction at PC %04X, potentially opcode %02X ", z80_PC,
-         mem_rb(z80_PC - 1));
+   ERROR("Invalid instruction at PC %04X, potentially opcode %02X ",
+         z80_PC, mem_rb(z80_PC - 1));
 }
 
 void z80_NOP() {
@@ -806,6 +801,7 @@ void z80_LDA_AT_nn() {
    z80_dt = 16;
 }
 
+// 0x02
 void z80_LD_AT_BC_A() {
    z80_STORE(z80_B, z80_C, z80_A);
 }
@@ -863,6 +859,7 @@ void z80_LD_A_n() {
    z80_dt = 12;
 }
 
+// 0x01
 void z80_LDBC_nn() {
    z80_LOAD(&z80_C, mem_rb(z80_PC++));
    z80_LOAD(&z80_B, mem_rb(z80_PC++));
@@ -1298,7 +1295,6 @@ void z80_SRL(byte* inp) {
 
    SET_FLAG_C(t & 0x01);
    t >>= 1;
-
    SET_FLAG_Z(t == 0);
    SET_FLAG_N(false);
    SET_FLAG_H(false);
@@ -1359,7 +1355,7 @@ void z80_SET(byte* inp, byte bit) {
    z80_dt = 8;
    if (inp == NULL) {
       z80_STORE(z80_H, z80_L, t);
-      z80_dt = 12;
+      z80_dt = 16;
    } else {
       *inp = t;
    }
@@ -1464,7 +1460,8 @@ void z80_JP_AT_HL() {
 }
 
 void z80_JR_n() {
-   z80_PC += (sbyte)mem_rb(z80_PC++);
+   sbyte offset = mem_rb(z80_PC++);
+   z80_PC += offset;
    z80_dt = 12;
 }
 
@@ -1516,7 +1513,7 @@ void z80_CALL_nn() {
 
 void z80_CALL_NZ_nn() {
    z80_dt = 12;
-   if (GET_FLAG_Z == 0) {
+   if (!GET_FLAG_Z) {
       z80_CALL();
    } else {
       z80_PC += 2;
@@ -1525,7 +1522,7 @@ void z80_CALL_NZ_nn() {
 
 void z80_CALL_Z_nn() {
    z80_dt = 12;
-   if (GET_FLAG_Z == 1) {
+   if (GET_FLAG_Z) {
       z80_CALL();
    } else {
       z80_PC += 2;
@@ -1534,7 +1531,7 @@ void z80_CALL_Z_nn() {
 
 void z80_CALL_NC_nn() {
    z80_dt = 12;
-   if (GET_FLAG_C == 0) {
+   if (!GET_FLAG_C) {
       z80_CALL();
    } else {
       z80_PC += 2;
@@ -1543,7 +1540,7 @@ void z80_CALL_NC_nn() {
 
 void z80_CALL_C_nn() {
    z80_dt = 12;
-   if (GET_FLAG_C == 1) {
+   if (GET_FLAG_C) {
       z80_CALL();
    } else {
       z80_PC += 2;
@@ -1631,28 +1628,28 @@ void z80_RET() {
 
 void z80_RET_NZ() {
    z80_dt = 8;
-   if (GET_FLAG_Z == 0) {
+   if (!GET_FLAG_Z) {
       z80_RETURN();
    }
 }
 
 void z80_RET_Z() {
    z80_dt = 8;
-   if (GET_FLAG_Z == 1) {
+   if (GET_FLAG_Z) {
       z80_RETURN();
    }
 }
 
 void z80_RET_NC() {
    z80_dt = 8;
-   if (GET_FLAG_C == 0) {
+   if (!GET_FLAG_C) {
       z80_RETURN();
    }
 }
 
 void z80_RET_C() {
    z80_dt = 8;
-   if (GET_FLAG_C == 1) {
+   if (GET_FLAG_C) {
       z80_RETURN();
    }
 }
@@ -1660,6 +1657,7 @@ void z80_RET_C() {
 void z80_RETI() {
    z80_interrupts_enabled = true;
    z80_RETURN();
+   z80_dt = 16;
 }
 
 // 16 bit math
@@ -1717,12 +1715,13 @@ void z80_ADD16_SP_n() {
    byte  t   = mem_rb(z80_PC++);
    sbyte off = (sbyte)t;
    z80_clear_flags();
-   SET_FLAG_C(0xFF - (z80_SP & 0x00ff) < t);
-   SET_FLAG_H(0x0F - (z80_SP & 0x0F) < (t & 0x0F));
+   SET_FLAG_H((z80_SP & 0xF) + (t & 0xF) > 0xF);
+   SET_FLAG_C(((z80_SP & 0xFF) + t > 0xFF));
    z80_SP += off;
    z80_dt = 16;
 }
 
+// 0x03
 void z80_INC16_BC() {
    z80_INC16(&z80_B, &z80_C);
 }
@@ -1801,8 +1800,8 @@ void z80_ADD(byte inp) {
    word temp_result = z80_A + inp;
    SET_FLAG_H(((z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
    SET_FLAG_N(false);
-   z80_A = temp_result & 0x00FF;
-   SET_FLAG_C(temp_result & 0xFF00);
+   z80_A = temp_result & 0xFF;
+   SET_FLAG_C(temp_result & 0x100);
    SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
@@ -2192,7 +2191,7 @@ void z80_DAA() {
    }
 
    SET_FLAG_H(false);
-   SET_FLAG_C(a & 0xFF00);
+   SET_FLAG_C(a & 0x0100);
    SET_FLAG_Z(a == 0);
    z80_A = 0xFF & a;
 }

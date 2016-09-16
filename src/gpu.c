@@ -47,7 +47,7 @@ void gpu_execute_step(tick ticks) {
 
       gpu_scanline++;
       if (mem_rb(0xFF41) & 0x40 && gpu_scanline == mem_rb(0xFF45)) {
-         mem_wb(0xFF0F, mem_rb(0xFF0F) | z80_interrupt_stat);
+         mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_STAT);
       }
 
       // The screen has 144 scanlines, we've now completed 0-143
@@ -80,7 +80,7 @@ void gpu_execute_step(tick ticks) {
           (gpu_mode == GPU_MODE_VBLANK && (stat_reg & 0x10) != 0) ||
           (gpu_mode == GPU_MODE_SCAN_OAM && (stat_reg & 0x20) != 0) ||
           (gpu_scanline == mem_rb(0xFF45) && (stat_reg & 0x40) != 0)) {
-         mem_wb(0xFF0F, mem_rb(0xFF0F) | z80_interrupt_stat);
+         mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_STAT);
       }
    }
 
@@ -88,7 +88,7 @@ void gpu_execute_step(tick ticks) {
       // TODO: Does anything need to be done here?
    } else if (gpu_mode == GPU_MODE_VBLANK) {
       if (!gpu_draw_frame) {
-         mem_wb(0xFF0F, mem_rb(0xFF0F) | z80_interrupt_vblank);
+         mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_VBLANK);
          if ((mem_rb(0xFF40) & 0x80) == 0) {
             gpu_blankscreen = true;
          } else {
