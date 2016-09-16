@@ -4,10 +4,10 @@
 #include "datatypes.h"
 #include "memory.h"
 
-#define z80_flag_carry 0x10
-#define z80_flag_halfcarry 0x20
-#define z80_flag_operation 0x40
-#define z80_flag_zero 0x80
+#define BITMASK_C 0x10
+#define BITMASK_H 0x20
+#define BITMASK_N 0x40
+#define BITMASK_Z 0x80
 #define z80_interrupt_vblank 0x01
 #define z80_interrupt_stat 0x02
 #define z80_interrupt_tima 0x04
@@ -25,7 +25,6 @@ byte  z80_D;
 byte  z80_E;
 byte  z80_H;
 byte  z80_L;
-byte  z80_F;
 byte  z80_delayed_enable_interrupt;
 word  z80_PC; // Program Counter
 word  z80_SP; // Stack Counter

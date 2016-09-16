@@ -1,5 +1,20 @@
 #include "z80.h"
 
+#define GET_FLAG_C FLAG_C
+#define GET_FLAG_H FLAG_H
+#define GET_FLAG_Z FLAG_Z
+#define GET_FLAG_N FLAG_N
+
+#define SET_FLAG_C(v) FLAG_C = (v)
+#define SET_FLAG_H(v) FLAG_H = (v)
+#define SET_FLAG_N(v) FLAG_N = (v)
+#define SET_FLAG_Z(v) FLAG_Z = (v)
+
+static bool FLAG_C;
+static bool FLAG_H;
+static bool FLAG_Z;
+static bool FLAG_N;
+
 void z80_init(char* romname) {
    z80_interrupts_enabled       = false;
    z80_delayed_enable_interrupt = 0;
@@ -295,12 +310,17 @@ void z80_reset() {
    z80_C     = 0x13;
    z80_D     = 0x00;
    z80_E     = 0xD8;
-   z80_F     = 0xB0;
    z80_SP    = 0xFFFE;
    z80_H     = 0x01;
    z80_L     = 0x4D;
    z80_ticks = 0;
    z80_dt    = 0;
+
+   FLAG_C = true;
+   FLAG_H = true;
+   FLAG_Z = true;
+   FLAG_N = false;
+
 
    mem_init();
 
@@ -334,53 +354,12 @@ void z80_reset() {
 
 // Flag stuff
 void z80_clear_flags() {
-   z80_F = 0;
+   FLAG_Z = FLAG_C = FLAG_H = FLAG_N = false;
 }
 
-void z80_set_flag_zero(bool tf) {
-   if (tf) {
-      z80_F |= z80_flag_zero;
-   } else {
-      z80_F &= ~z80_flag_zero;
-   }
-}
 
-void z80_set_flag_carry(bool tf) {
-   if (tf) {
-      z80_F |= z80_flag_carry;
-   } else {
-      z80_F &= ~z80_flag_carry;
-   }
-}
 
-void z80_set_flag_halfcarry(bool tf) {
-   if (tf) {
-      z80_F |= z80_flag_halfcarry;
-   } else {
-      z80_F &= ~z80_flag_halfcarry;
-   }
-}
 
-void z80_set_flag_operation(bool tf) {
-   if (tf) {
-      z80_F |= z80_flag_operation;
-   } else {
-      z80_F &= ~z80_flag_operation;
-   }
-}
-
-byte z80_get_flag_carry() {
-   return (z80_F & z80_flag_carry) >> 4;
-}
-byte z80_get_flag_halfcarry() {
-   return (z80_F & z80_flag_halfcarry) >> 5;
-}
-byte z80_get_flag_operation() {
-   return (z80_F & z80_flag_operation) >> 6;
-}
-byte z80_get_flag_zero() {
-   return (z80_F & z80_flag_zero) >> 7;
-}
 
 tick z80_execute_step() {
    if (!z80_halt && !z80_stop) {
@@ -396,9 +375,6 @@ tick z80_execute_step() {
             z80_interrupts_enabled = true;
          }
       }
-
-      // The lower 4 bits of the Flag register are always 0
-      z80_F &= 0xF0;
    } else {
       z80_dt = 4;
    }
@@ -920,8 +896,8 @@ void z80_LDHL_SP_n() {
    byte next = mem_rb(z80_PC++);
    word res  = (sbyte)next + z80_SP;
    z80_clear_flags();
-   z80_set_flag_carry((z80_SP & 0xFF) + next > 0xFF);
-   z80_set_flag_halfcarry((z80_SP & 0xF) + (next & 0xF) > 0xF);
+   SET_FLAG_C((z80_SP & 0xFF) + next > 0xFF);
+   SET_FLAG_H((z80_SP & 0xF) + (next & 0xF) > 0xF);
    z80_H  = (res & 0xFF00) >> 8;
    z80_L  = res & 0x00FF;
    z80_dt = 12;
@@ -951,7 +927,20 @@ void z80_POP(byte* hi, byte* low) {
 // PUSH
 
 void z80_PUSHAF() {
-   z80_PUSH(z80_A, z80_F);
+   byte flags = 0;
+   if (FLAG_Z) {
+      flags |= BITMASK_Z;
+   }
+   if (FLAG_C) {
+      flags |= BITMASK_C;
+   }
+   if (FLAG_H) {
+      flags |= BITMASK_H;
+   }
+   if (FLAG_N) {
+      flags |= BITMASK_N;
+   }
+   z80_PUSH(z80_A, flags);
 }
 
 void z80_PUSHBC() {
@@ -969,7 +958,12 @@ void z80_PUSHHL() {
 // POP
 
 void z80_POPAF() {
-   z80_POP(&z80_A, &z80_F);
+   byte flags = 0;
+   z80_POP(&z80_A, &flags);
+   FLAG_Z = (flags & BITMASK_Z);
+   FLAG_C = (flags & BITMASK_C);
+   FLAG_H = (flags & BITMASK_H);
+   FLAG_N = (flags & BITMASK_N);
 }
 
 void z80_POPBC() {
@@ -989,22 +983,22 @@ void z80_POPHL() {
 void z80_AND(byte inp) {
    z80_A &= inp;
    z80_clear_flags();
-   z80_set_flag_halfcarry(true);
-   z80_set_flag_zero(z80_A == 0);
+   SET_FLAG_H(true);
+   SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_OR(byte inp) {
    z80_A |= inp;
    z80_clear_flags();
-   z80_set_flag_zero(z80_A == 0);
+   SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_XOR(byte inp) {
    z80_A ^= inp;
    z80_clear_flags();
-   z80_set_flag_zero(z80_A == 0);
+   SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
@@ -1127,16 +1121,16 @@ void z80_RLC(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = mem_rb((z80_H << 8) | z80_L);
+      t = mem_rb((z80_H << 8) | z80_L); // Why not use fetch here?
    }
 
    byte carry = t >> 7;
-   z80_set_flag_carry(carry);
+   SET_FLAG_C(carry);
    t = (t << 1) | carry;
 
-   z80_set_flag_zero(t == 0);
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(false);
+   SET_FLAG_Z(t == 0);
+   SET_FLAG_N(false);
+   SET_FLAG_H(false);
    z80_dt = 8;
 
    if (inp == NULL) {
@@ -1156,12 +1150,12 @@ void z80_RRC(byte* inp) {
    }
 
    byte carry = t & 0x01;
-   z80_set_flag_carry(carry);
+   SET_FLAG_C(carry);
    t = (t >> 1) | (carry << 7);
 
-   z80_set_flag_zero(t == 0);
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(false);
+   SET_FLAG_Z(t == 0);
+   SET_FLAG_N(false);
+   SET_FLAG_H(false);
    z80_dt = 8;
 
    if (inp == NULL) {
@@ -1180,13 +1174,13 @@ void z80_RL(byte* inp) {
       t = z80_FETCH(z80_H, z80_L);
    }
 
-   byte old_carry = z80_get_flag_carry();
-   z80_set_flag_carry(t >> 7);
+   byte old_carry = GET_FLAG_C;
+   SET_FLAG_C(t >> 7);
    t = (t << 1) | old_carry;
 
-   z80_set_flag_zero(t == 0);
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(false);
+   SET_FLAG_Z(t == 0);
+   SET_FLAG_N(false);
+   SET_FLAG_H(false);
    z80_dt = 8;
 
    if (inp == NULL) {
@@ -1205,13 +1199,13 @@ void z80_RR(byte* inp) {
       t = z80_FETCH(z80_H, z80_L);
    }
 
-   byte old_carry = z80_get_flag_carry();
-   z80_set_flag_carry(t & 0x01);
+   byte old_carry = GET_FLAG_C;
+   SET_FLAG_C(t & 0x01);
    t = (t >> 1) | (old_carry << 7);
 
-   z80_set_flag_zero(t == 0);
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(false);
+   SET_FLAG_Z(t == 0);
+   SET_FLAG_N(false);
+   SET_FLAG_H(false);
    z80_dt = 8;
 
    if (inp == NULL) {
@@ -1230,12 +1224,12 @@ void z80_SLA(byte* inp) {
       t = z80_FETCH(z80_H, z80_L);
    }
 
-   z80_set_flag_carry(t >> 7);
+   SET_FLAG_C(t >> 7);
    t <<= 1;
    
-   z80_set_flag_zero(t == 0);
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(false);
+   SET_FLAG_Z(t == 0);
+   SET_FLAG_N(false);
+   SET_FLAG_H(false);
    z80_dt = 8;
 
    if (inp == NULL) {
@@ -1255,13 +1249,13 @@ void z80_SRA(byte* inp) {
    }
    
    byte msb = t & 0x80;
-   z80_set_flag_carry(t & 0x01);
+   SET_FLAG_C(t & 0x01);
    t >>= 1;
    t |= msb;
 
-   z80_set_flag_zero(t == 0);
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(false);
+   SET_FLAG_Z(t == 0);
+   SET_FLAG_N(false);
+   SET_FLAG_H(false);
    z80_dt = 8;
 
    if (inp == NULL) {
@@ -1282,7 +1276,7 @@ void z80_SWAP(byte* inp) {
 
    t = ((t << 4) | (t >> 4));
    z80_clear_flags();
-   z80_set_flag_zero(t == 0);
+   SET_FLAG_Z(t == 0);
 
    z80_dt = 8;
 
@@ -1302,12 +1296,12 @@ void z80_SRL(byte* inp) {
       t = z80_FETCH(z80_H, z80_L);
    }
 
-   z80_set_flag_carry(t & 0x01);
+   SET_FLAG_C(t & 0x01);
    t >>= 1;
 
-   z80_set_flag_zero(t == 0);
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(false);
+   SET_FLAG_Z(t == 0);
+   SET_FLAG_N(false);
+   SET_FLAG_H(false);
    z80_dt = 8;
 
    if (inp == NULL) {
@@ -1328,9 +1322,9 @@ void z80_BIT(byte* inp, byte bit) {
       z80_dt += 4;
    }
 
-   z80_set_flag_zero((t & (1 << bit)) == 0);
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(true);
+   SET_FLAG_Z((t & (1 << bit)) == 0);
+   SET_FLAG_N(false);
+   SET_FLAG_H(true);
 }
 
 void z80_RES(byte* inp, byte bit) {
@@ -1375,7 +1369,6 @@ void z80_CB() {
    byte  sub_op = mem_rb(z80_PC++);
    byte* regs[] = {&z80_B, &z80_C, &z80_D, &z80_E,
                    &z80_H, &z80_L, NULL,   &z80_A};
-   bool first = true;
    byte index = sub_op & 0x0F;
    if (index >= 8) {
       index -= 8;
@@ -1431,7 +1424,7 @@ void z80_JP_nn() {
 
 void z80_JP_NZ_nn() {
    z80_dt = 12;
-   if (!z80_get_flag_zero()) {
+   if (!GET_FLAG_Z) {
       z80_JP_nn();
    } else {
       z80_PC += 2;
@@ -1440,7 +1433,7 @@ void z80_JP_NZ_nn() {
 
 void z80_JP_Z_nn() {
    z80_dt = 12;
-   if (z80_get_flag_zero()) {
+   if (GET_FLAG_Z) {
       z80_JP_nn();
    } else {
       z80_PC += 2;
@@ -1449,7 +1442,7 @@ void z80_JP_Z_nn() {
 
 void z80_JP_NC_nn() {
    z80_dt = 12;
-   if (!z80_get_flag_carry()) {
+   if (!GET_FLAG_C) {
       z80_JP_nn();
    } else {
       z80_PC += 2;
@@ -1458,7 +1451,7 @@ void z80_JP_NC_nn() {
 
 void z80_JP_C_nn() {
    z80_dt = 12;
-   if (z80_get_flag_carry()) {
+   if (GET_FLAG_C) {
       z80_JP_nn();
    } else {
       z80_PC += 2;
@@ -1477,7 +1470,7 @@ void z80_JR_n() {
 
 void z80_JR_NZ_n() {
    z80_dt = 8;
-   if (!z80_get_flag_zero()) {
+   if (!GET_FLAG_Z) {
       z80_JR_n();
    } else {
       z80_PC++;
@@ -1486,7 +1479,7 @@ void z80_JR_NZ_n() {
 
 void z80_JR_Z_n() {
    z80_dt = 8;
-   if (z80_get_flag_zero()) {
+   if (GET_FLAG_Z) {
       z80_JR_n();
    } else {
       z80_PC++;
@@ -1495,7 +1488,7 @@ void z80_JR_Z_n() {
 
 void z80_JR_NC_n() {
    z80_dt = 8;
-   if (!z80_get_flag_carry()) {
+   if (!GET_FLAG_C) {
       z80_JR_n();
    } else {
       z80_PC++;
@@ -1504,7 +1497,7 @@ void z80_JR_NC_n() {
 
 void z80_JR_C_n() {
    z80_dt = 8;
-   if (z80_get_flag_carry()) {
+   if (GET_FLAG_C) {
       z80_JR_n();
    } else {
       z80_PC++;
@@ -1523,7 +1516,7 @@ void z80_CALL_nn() {
 
 void z80_CALL_NZ_nn() {
    z80_dt = 12;
-   if (z80_get_flag_zero() == 0) {
+   if (GET_FLAG_Z == 0) {
       z80_CALL();
    } else {
       z80_PC += 2;
@@ -1532,7 +1525,7 @@ void z80_CALL_NZ_nn() {
 
 void z80_CALL_Z_nn() {
    z80_dt = 12;
-   if (z80_get_flag_zero() == 1) {
+   if (GET_FLAG_Z == 1) {
       z80_CALL();
    } else {
       z80_PC += 2;
@@ -1541,7 +1534,7 @@ void z80_CALL_Z_nn() {
 
 void z80_CALL_NC_nn() {
    z80_dt = 12;
-   if (z80_get_flag_carry() == 0) {
+   if (GET_FLAG_C == 0) {
       z80_CALL();
    } else {
       z80_PC += 2;
@@ -1550,7 +1543,7 @@ void z80_CALL_NC_nn() {
 
 void z80_CALL_C_nn() {
    z80_dt = 12;
-   if (z80_get_flag_carry() == 1) {
+   if (GET_FLAG_C == 1) {
       z80_CALL();
    } else {
       z80_PC += 2;
@@ -1638,28 +1631,28 @@ void z80_RET() {
 
 void z80_RET_NZ() {
    z80_dt = 8;
-   if (z80_get_flag_zero() == 0) {
+   if (GET_FLAG_Z == 0) {
       z80_RETURN();
    }
 }
 
 void z80_RET_Z() {
    z80_dt = 8;
-   if (z80_get_flag_zero() == 1) {
+   if (GET_FLAG_Z == 1) {
       z80_RETURN();
    }
 }
 
 void z80_RET_NC() {
    z80_dt = 8;
-   if (z80_get_flag_carry() == 0) {
+   if (GET_FLAG_C == 0) {
       z80_RETURN();
    }
 }
 
 void z80_RET_C() {
    z80_dt = 8;
-   if (z80_get_flag_carry() == 1) {
+   if (GET_FLAG_C == 1) {
       z80_RETURN();
    }
 }
@@ -1676,10 +1669,10 @@ void z80_ADD16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
    word b = (b_hi << 8) | b_low;
 
    uint32_t carryCheck = a + b;
-   z80_set_flag_halfcarry((0x0FFF & a) + (0x0FFF & b) > 0x00FF);
-   z80_set_flag_carry(0xFFFF0000 & carryCheck);
+   SET_FLAG_H((0x0FFF & a) + (0x0FFF & b) > 0x0FFF);
+   SET_FLAG_C(0xFFFF0000 & carryCheck);
+   SET_FLAG_N(false);
 
-   z80_set_flag_operation(false);
    a += b;
    *a_hi  = (a & 0xFF00) >> 8;
    *a_low = a & 0x00FF;
@@ -1724,8 +1717,8 @@ void z80_ADD16_SP_n() {
    byte  t   = mem_rb(z80_PC++);
    sbyte off = (sbyte)t;
    z80_clear_flags();
-   z80_set_flag_carry(0xFF - (z80_SP & 0x00ff) < t);
-   z80_set_flag_halfcarry(0x0F - (z80_SP & 0x0F) < (t & 0x0F));
+   SET_FLAG_C(0xFF - (z80_SP & 0x00ff) < t);
+   SET_FLAG_H(0x0F - (z80_SP & 0x0F) < (t & 0x0F));
    z80_SP += off;
    z80_dt = 16;
 }
@@ -1768,25 +1761,25 @@ void z80_DEC16_SP() {
 
 void z80_RLA() {
    z80_RL(&z80_A);
-   z80_set_flag_zero(false);
+   SET_FLAG_Z(false);
    z80_dt = 4;
 }
 
 void z80_RLCA() {
    z80_RLC(&z80_A);
-   z80_set_flag_zero(false);
+   SET_FLAG_Z(false);
    z80_dt = 4;
 }
 
 void z80_RRCA() {
    z80_RRC(&z80_A);
-   z80_set_flag_zero(false);
+   SET_FLAG_Z(false);
    z80_dt = 4;
 }
 
 void z80_RRA() {
    z80_RR(&z80_A);
-   z80_set_flag_zero(false);
+   SET_FLAG_Z(false);
    z80_dt = 4;
 }
 
@@ -1806,57 +1799,57 @@ void z80_ADD(byte inp) {
    // This is used to figure out if z80_A will overflow,
    // and sets the carry flag if so
    word temp_result = z80_A + inp;
-   z80_set_flag_halfcarry(((z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
-   z80_set_flag_operation(false);
+   SET_FLAG_H(((z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
+   SET_FLAG_N(false);
    z80_A = temp_result & 0x00FF;
-   z80_set_flag_carry(temp_result & 0xFF00);
-   z80_set_flag_zero(z80_A == 0);
+   SET_FLAG_C(temp_result & 0xFF00);
+   SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_ADC(byte inp) {
    // This is used to figure out if z80_A will overflow,
    // and sets the carry flag if so
-   z80_set_flag_operation(false);
-   byte carry = z80_get_flag_carry();
+   SET_FLAG_N(false);
+   byte carry = GET_FLAG_C;
    word temp_result = z80_A + inp + carry;
-   z80_set_flag_halfcarry((z80_A & 0x0F) + carry > 0x0F);
+   SET_FLAG_H((z80_A & 0x0F) + carry > 0x0F);
    z80_A += carry;
-   if(!z80_get_flag_halfcarry()) {
-      z80_set_flag_halfcarry((z80_A & 0x0F) + (inp & 0x0F) > 0x0F);
+   if(!GET_FLAG_H) {
+      SET_FLAG_H((z80_A & 0x0F) + (inp & 0x0F) > 0x0F);
    }
    z80_A += inp;
-   z80_set_flag_carry(temp_result & 0xFF00);
-   z80_set_flag_zero(z80_A == 0);
+   SET_FLAG_C(temp_result & 0xFF00);
+   SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_SUB(byte inp) {
-   z80_set_flag_halfcarry((z80_A & 0x0F) < (inp & 0x0F));
-   z80_set_flag_carry(z80_A < inp);
-   z80_set_flag_operation(true);
+   SET_FLAG_H((z80_A & 0x0F) < (inp & 0x0F));
+   SET_FLAG_C(z80_A < inp);
+   SET_FLAG_N(true);
    z80_A -= inp;
-   z80_set_flag_zero(z80_A == 0);
+   SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_SBC(byte inp) {
-   byte carry = z80_get_flag_carry();
-   z80_set_flag_halfcarry(false);
-   z80_set_flag_carry(false);
+   byte carry = GET_FLAG_C;
+   SET_FLAG_H(false);
+   SET_FLAG_C(false);
 
-   z80_set_flag_halfcarry((z80_A & 0x0F) < carry);
-   z80_set_flag_carry(z80_A < carry);
+   SET_FLAG_H((z80_A & 0x0F) < carry);
+   SET_FLAG_C(z80_A < carry);
    z80_A -= carry;
-   if (!z80_get_flag_halfcarry()) {
-      z80_set_flag_halfcarry((z80_A & 0x0F) < (inp & 0x0F));
+   if (!GET_FLAG_H) {
+      SET_FLAG_H((z80_A & 0x0F) < (inp & 0x0F));
    }
-   if (!z80_get_flag_carry()) { 
-      z80_set_flag_carry(z80_A < inp);
+   if (!GET_FLAG_C) { 
+      SET_FLAG_C(z80_A < inp);
    }
    z80_A -= inp;
-   z80_set_flag_operation(true);
-   z80_set_flag_zero(z80_A == 0);
+   SET_FLAG_N(true);
+   SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
@@ -2015,18 +2008,18 @@ void z80_SBC_A_n() {
 // INCREMENT / DECREMENT
 
 void z80_INC(byte* reg) {
-   z80_set_flag_halfcarry(((*reg) & 0x0F) + 1 > 0x0F);
-   z80_set_flag_operation(false);
+   SET_FLAG_H(((*reg) & 0x0F) + 1 > 0x0F);
+   SET_FLAG_N(false);
    (*reg)++;
-   z80_set_flag_zero((*reg) == 0);
+   SET_FLAG_Z((*reg) == 0);
    z80_dt = 4;
 }
 
 void z80_DEC(byte* reg) {
-   z80_set_flag_halfcarry(((*reg) & 0x0F) == 0);
+   SET_FLAG_H(((*reg) & 0x0F) == 0);
    (*reg)--;
-   z80_set_flag_zero((*reg) == 0);
-   z80_set_flag_operation(true);
+   SET_FLAG_Z((*reg) == 0);
+   SET_FLAG_N(true);
    z80_dt = 4;
 }
 
@@ -2103,10 +2096,10 @@ void z80_DEC_AT_HL() {
 // COMPARE
 
 void z80_COMPARE(byte inp) {
-   z80_set_flag_halfcarry((z80_A & 0x0F) < (inp & 0x0F));
-   z80_set_flag_carry(z80_A < inp);
-   z80_set_flag_operation(true);
-   z80_set_flag_zero(z80_A == inp);
+   SET_FLAG_H((z80_A & 0x0F) < (inp & 0x0F));
+   SET_FLAG_C(z80_A < inp);
+   SET_FLAG_N(true);
+   SET_FLAG_Z(z80_A == inp);
    z80_dt = 4;
 }
 
@@ -2150,22 +2143,22 @@ void z80_CP_A_n() {
 
 void z80_CPL() {
    z80_A = ~z80_A;
-   z80_set_flag_halfcarry(true);
-   z80_set_flag_operation(true);
+   SET_FLAG_H(true);
+   SET_FLAG_N(true);
    z80_dt = 4;
 }
 
 void z80_CCF() {
-   z80_set_flag_carry(!z80_get_flag_carry());
-   z80_set_flag_operation(false);
-   z80_set_flag_halfcarry(false);
+   SET_FLAG_C(!GET_FLAG_C);
+   SET_FLAG_N(false);
+   SET_FLAG_H(false);
    z80_dt = 4;
 }
 
 void z80_SCF() {
-   z80_set_flag_halfcarry(false);
-   z80_set_flag_operation(false);
-   z80_set_flag_carry(true);
+   SET_FLAG_H(false);
+   SET_FLAG_N(false);
+   SET_FLAG_C(true);
    z80_dt = 4;
 }
 
@@ -2182,24 +2175,24 @@ void z80_STOP() {
 void z80_DAA() {
    z80_dt = 4;
    word a = z80_A;
-   if (!z80_get_flag_operation()) {
-      if (z80_get_flag_halfcarry() || (a & 0x0F) > 0x09) {
+   if (!GET_FLAG_N) {
+      if (GET_FLAG_H || (a & 0x0F) > 0x09) {
          a += 0x06;
       }
-      if (z80_get_flag_carry() || a > 0x9F) {
+      if (GET_FLAG_C || a > 0x9F) {
          a += 0x60;
       }
    } else {
-      if (z80_get_flag_halfcarry()) {
+      if (GET_FLAG_H) {
          a = (a - 0x06) & 0xFF;
       }
-      if (z80_get_flag_carry()) {
+      if (GET_FLAG_C) {
          a -= 0x60;
       }
    }
 
-   z80_set_flag_halfcarry(false);
-   z80_set_flag_carry(a & 0xFF00);
-   z80_set_flag_zero(a == 0);
+   SET_FLAG_H(false);
+   SET_FLAG_C(a & 0xFF00);
+   SET_FLAG_Z(a == 0);
    z80_A = 0xFF & a;
 }
