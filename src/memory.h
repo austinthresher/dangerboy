@@ -3,7 +3,27 @@
 
 #include "datatypes.h"
 
-bool mem_MBC1_16MROM_8KRAM_mode;
+#define ROM_NAME_ADDR 0x0134
+#define CART_TYPE_ADDR 0x0147
+#define ROM_SIZE_ADDR 0x0148
+#define RAM_SIZE_ADDR 0x0149
+#define SPRITE_RAM_START_ADDR 0xFE00
+#define SPRITE_RAM_END_ADDR 0xFE9F
+#define INPUT_REGISTER_ADDR 0xFF00
+#define DIV_REGISTER_ADDR 0xFF04
+#define TIMA_REGISTER_ADDR 0xFF05
+#define TIMA_MODULO_ADDR 0xFF06
+#define TIMER_CONTROL_ADDR 0xFF07
+#define INT_FLAG_ADDR 0xFF0F
+#define LCD_CONTROL_ADDR 0xFF40
+#define LCD_STATUS_ADDR 0xFF41
+#define LCD_SCY_ADDR 0xFF42
+#define LCD_SCX_ADDR 0xFF43
+#define LCD_SCANLINE_ADDR 0xFF44
+// MBC1 could operate with two bank configurations.
+// true  = 16 Mbit ROM 8  Kbyte RAM
+// false = 4  Mbit ROM 32 Kbyte RAM
+bool mem_mbc1_extended_mode; 
 bool mem_ram_bank_locked;
 bool mem_need_reset_scanline;
 byte mem_bank_mode;

@@ -325,9 +325,9 @@ void z80_reset() {
    mem_init();
 
    // Setup our in-memory registers
-   mem_wb(0xFF00, 0xFF);
-   mem_wb(0xFF04, 0xAF);
-   mem_wb(0xFF07, 0xF8);
+   mem_wb(INPUT_REGISTER_ADDR, 0xFF);
+   mem_wb(DIV_REGISTER_ADDR, 0xAF);
+   mem_wb(TIMER_CONTROL_ADDR, 0xF8);
    mem_wb(0xFF10, 0x80);
    mem_wb(0xFF11, 0xBF);
    mem_wb(0xFF12, 0xF3);
@@ -343,7 +343,7 @@ void z80_reset() {
    mem_wb(0xFF24, 0x77);
    mem_wb(0xFF25, 0xF3);
    mem_wb(0xFF26, 0xF1);
-   mem_wb(0xFF40, 0x91);
+   mem_wb(LCD_CONTROL_ADDR, 0x91);
    mem_wb(0xFF47, 0xFC);
    mem_wb(0xFF48, 0xFF);
    mem_wb(0xFF49, 0xFF);
@@ -380,16 +380,17 @@ tick z80_execute_step() {
 
    while (z80_div_timer >= 0x100) {
       z80_div_timer -= 0x100;
-      mem_direct_write(0xFF04, (mem_rb(0xFF04) + 1));
+      mem_direct_write(DIV_REGISTER_ADDR,
+            (mem_rb(DIV_REGISTER_ADDR) + 1));
    }
 
    // TIMA timer is on
-   if (mem_rb(0xFF07) & 0x04) {
+   if (mem_rb(TIMER_CONTROL_ADDR) & 0x04) {
       z80_tima_timer += z80_dt;
       bool overflow = false;
       do {
          overflow = false;
-         switch (mem_rb(0xFF07) & 0x3) {
+         switch (mem_rb(TIMER_CONTROL_ADDR) & 0x3) {
             case 0:
                if (z80_tima_timer > 0x3FF) {
                   overflow = true;
@@ -417,10 +418,11 @@ tick z80_execute_step() {
             default: ERROR("timer error");
          }
          if (overflow) {
-            mem_wb(0xFF05, (mem_rb(0xFF05) + 1) & 0xFF);
-            if (mem_rb(0xFF05) == 0) {
-               mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_TIMA);
-               mem_wb(0xFF05, mem_rb(0xFF06));
+            mem_wb(TIMA_REGISTER_ADDR,
+                  (mem_rb(TIMA_REGISTER_ADDR) + 1) & 0xFF);
+            if (mem_rb(TIMA_REGISTER_ADDR) == 0) {
+               mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_TIMA);
+               mem_wb(TIMA_REGISTER_ADDR, mem_rb(TIMA_MODULO_ADDR));
             }
          }
       } while (overflow == true);
@@ -428,7 +430,7 @@ tick z80_execute_step() {
 
    // Check interrupts
    byte int_IE = mem_rb(0xFFFF);
-   byte int_IF = mem_rb(0xFF0F);
+   byte int_IF = mem_rb(INT_FLAG_ADDR);
    byte irq = int_IE & int_IF;
 
    if (int_IF != 0) {
@@ -440,16 +442,16 @@ tick z80_execute_step() {
       byte target = 0x00;
       if ((irq & INT_VBLANK) != 0) {
          target = 0x40;
-         mem_wb(0xFF0F, int_IF & ~INT_VBLANK);
+         mem_wb(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
       } else if ((irq & INT_STAT) != 0) {
          target = 0x48;
-         mem_wb(0xFF0F, int_IF & ~INT_STAT);
+         mem_wb(INT_FLAG_ADDR, int_IF & ~INT_STAT);
       } else if ((irq & INT_TIMA) != 0) {
          target = 0x50;
-         mem_wb(0xFF0F, int_IF & ~INT_TIMA);
+         mem_wb(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
       } else if ((irq & INT_INPUT) != 0) {
          target = 0x60;
-         mem_wb(0xFF0F, int_IF & ~INT_INPUT);
+         mem_wb(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
       }
       if (target != 0x00) {
          z80_interrupts_enabled = false;

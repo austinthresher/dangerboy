@@ -64,35 +64,35 @@ int main(int argc, char* args[]) {
             case SDL_KEYDOWN:
                if (event.key.keysym.sym == SDLK_LEFT) {
                   mem_dpad &= 0xFD;
-                  mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_INPUT);
+                  mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                if (event.key.keysym.sym == SDLK_UP) {
                   mem_dpad &= 0xFB;
-                  mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_INPUT);
+                  mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                if (event.key.keysym.sym == SDLK_RIGHT) {
                   mem_dpad &= 0xFE;
-                  mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_INPUT);
+                  mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                if (event.key.keysym.sym == SDLK_DOWN) {
                   mem_dpad &= 0xF7;
-                  mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_INPUT);
+                  mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                if (event.key.keysym.sym == SDLK_z) { // A
                   mem_buttons &= 0xFE;
-                  mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_INPUT);
+                  mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                if (event.key.keysym.sym == SDLK_x) { // B
                   mem_buttons &= 0xFD;
-                  mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_INPUT);
+                  mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                if (event.key.keysym.sym == SDLK_RETURN) { // Start
                   mem_buttons &= 0xF7;
-                  mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_INPUT);
+                  mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
                   mem_buttons &= 0xFB;
-                  mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_INPUT);
+                  mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                break;
             case SDL_QUIT: isRunning = false; break;
