@@ -483,7 +483,7 @@ void z80_STORE(byte hi, byte lo, byte data) {
 
 byte z80_FETCH(byte hi, byte lo) {
    z80_dt = 8;
-   return mem_rb((((word)hi) << 8) | lo);
+   return mem_rb((hi << 8) | lo);
 }
 
 void z80_LOAD(byte* reg, byte data) {
@@ -893,7 +893,8 @@ void z80_LDSP_HL() {
 
 void z80_LDHL_SP_n() {
    byte next = mem_rb(z80_PC++);
-   word res  = (sbyte)next + z80_SP;
+   sbyte off = (sbyte)next;
+   int res  = off + z80_SP;
    z80_clear_flags();
    SET_FLAG_C((z80_SP & 0xFF) + next > 0xFF);
    SET_FLAG_H((z80_SP & 0xF) + (next & 0xF) > 0xF);
@@ -1797,59 +1798,40 @@ void z80_EI() {
 // ADD / ADC / SUB / SUBC
 
 void z80_ADD(byte inp) {
-   // This is used to figure out if z80_A will overflow,
-   // and sets the carry flag if so
-   word temp_result = z80_A + inp;
-   SET_FLAG_H(((z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
    SET_FLAG_N(false);
+   SET_FLAG_H(((z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
+   word temp_result = z80_A + inp;
    z80_A = temp_result & 0xFF;
-   SET_FLAG_C(temp_result & 0x100);
+   SET_FLAG_C(temp_result > 0xFF);
    SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_ADC(byte inp) {
-   // This is used to figure out if z80_A will overflow,
-   // and sets the carry flag if so
    SET_FLAG_N(false);
-   byte carry = GET_FLAG_C;
-   word temp_result = z80_A + inp + carry;
-   SET_FLAG_H((z80_A & 0x0F) + carry > 0x0F);
-   z80_A += carry;
-   if(!GET_FLAG_H) {
-      SET_FLAG_H((z80_A & 0x0F) + (inp & 0x0F) > 0x0F);
-   }
-   z80_A += inp;
-   SET_FLAG_C(temp_result & 0xFF00);
+   byte temp_result = z80_A + inp + GET_FLAG_C;
+   SET_FLAG_H((z80_A & 0x0F) + (inp & 0x0F) + GET_FLAG_C > 0x0F);
+   SET_FLAG_C(z80_A + inp + GET_FLAG_C > 0xFF);
+   z80_A = temp_result;
    SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_SUB(byte inp) {
+   SET_FLAG_N(true);
    SET_FLAG_H((z80_A & 0x0F) < (inp & 0x0F));
    SET_FLAG_C(z80_A < inp);
-   SET_FLAG_N(true);
    z80_A -= inp;
    SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_SBC(byte inp) {
-   byte carry = GET_FLAG_C;
-   SET_FLAG_H(false);
-   SET_FLAG_C(false);
-
-   SET_FLAG_H((z80_A & 0x0F) < carry);
-   SET_FLAG_C(z80_A < carry);
-   z80_A -= carry;
-   if (!GET_FLAG_H) {
-      SET_FLAG_H((z80_A & 0x0F) < (inp & 0x0F));
-   }
-   if (!GET_FLAG_C) { 
-      SET_FLAG_C(z80_A < inp);
-   }
-   z80_A -= inp;
    SET_FLAG_N(true);
+   byte temp_result = z80_A - inp - GET_FLAG_C;
+   SET_FLAG_H((z80_A & 0x0F) < (inp & 0x0F) + GET_FLAG_C);
+   SET_FLAG_C(z80_A < inp + GET_FLAG_C);
+   z80_A = temp_result;
    SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }

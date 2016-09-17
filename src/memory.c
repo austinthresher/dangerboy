@@ -38,14 +38,14 @@ void mem_load_image(char* fname) {
    assert(mem_ram != NULL);
    FILE* fin = fopen(fname, "rb");
    if (fin == NULL) {
-      ERROR(stderr, "Could not open file %s\n", fname);
+      ERROR("Could not open file %s\n", fname);
    }
    uint32_t i = 0;
    while (!feof(fin) && i < 0x8000) {
       byte   data       = 0;
       size_t bytes_read = fread(&data, 1, 1, fin);
       if (bytes_read != 1) {
-         ERROR(stderr, "Error reading %s\n", fname);
+         ERROR("Error reading %s\n", fname);
       }
       mem_ram[i] = data;
       i++;
@@ -62,7 +62,7 @@ void mem_load_image(char* fname) {
       byte   data;
       size_t bytes_read = fread(&data, 1, 1, fin);
       if (bytes_read != 1) {
-         ERROR(stderr, "Error reading %s\n", fname);
+         ERROR("Error reading %s\n", fname);
          exit(1);
       }
       mem_rom[i] = data;
