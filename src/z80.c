@@ -25,7 +25,7 @@ void z80_init(char* romname) {
    z80_rom_fname                = romname;
 
    for (size_t i = 0; i < 0x100; i++) {
-      z80_opcodes[i] = &z80_NOP;
+      z80_opcodes[i] = &z80_NI;
    }
 
    z80_opcodes[0x00] = &z80_NOP;
@@ -252,7 +252,7 @@ void z80_init(char* romname) {
    z80_opcodes[0xD0] = &z80_RET_NC;
    z80_opcodes[0xD1] = &z80_POPDE;
    z80_opcodes[0xD2] = &z80_JP_NC_nn;
-   z80_opcodes[0xD3] = &z80_NOP;
+   z80_opcodes[0xD3] = &z80_NI;
    z80_opcodes[0xD4] = &z80_CALL_NC_nn;
    z80_opcodes[0xD5] = &z80_PUSHDE;
    z80_opcodes[0xD6] = &z80_SUB_A_n;
@@ -260,26 +260,26 @@ void z80_init(char* romname) {
    z80_opcodes[0xD8] = &z80_RET_C;
    z80_opcodes[0xD9] = &z80_RETI;
    z80_opcodes[0xDA] = &z80_JP_C_nn;
-   z80_opcodes[0xDB] = &z80_NOP;
+   z80_opcodes[0xDB] = &z80_NI;
    z80_opcodes[0xDC] = &z80_CALL_C_nn;
-   z80_opcodes[0xDD] = &z80_NOP;
+   z80_opcodes[0xDD] = &z80_NI;
    z80_opcodes[0xDE] = &z80_SBC_A_n;
    z80_opcodes[0xDF] = &z80_RST_18H;
 
    z80_opcodes[0xE0] = &z80_LD_n_A;
    z80_opcodes[0xE1] = &z80_POPHL;
    z80_opcodes[0xE2] = &z80_LD_AT_C_A;
-   z80_opcodes[0xE3] = &z80_NOP;
-   z80_opcodes[0xE4] = &z80_NOP;
+   z80_opcodes[0xE3] = &z80_NI;
+   z80_opcodes[0xE4] = &z80_NI;
    z80_opcodes[0xE5] = &z80_PUSHHL;
    z80_opcodes[0xE6] = &z80_AND_n;
    z80_opcodes[0xE7] = &z80_RST_20H;
    z80_opcodes[0xE8] = &z80_ADD16_SP_n;
    z80_opcodes[0xE9] = &z80_JP_AT_HL;
    z80_opcodes[0xEA] = &z80_LD_AT_nn_A;
-   z80_opcodes[0xEB] = &z80_NOP;
-   z80_opcodes[0xEC] = &z80_NOP;
-   z80_opcodes[0xED] = &z80_NOP;
+   z80_opcodes[0xEB] = &z80_NI;
+   z80_opcodes[0xEC] = &z80_NI;
+   z80_opcodes[0xED] = &z80_NI;
    z80_opcodes[0xEE] = &z80_XOR_n;
    z80_opcodes[0xEF] = &z80_RST_28H;
 
@@ -287,7 +287,7 @@ void z80_init(char* romname) {
    z80_opcodes[0xF1] = &z80_POPAF;
    z80_opcodes[0xF2] = &z80_LDA_AT_C;
    z80_opcodes[0xF3] = &z80_DI;
-   z80_opcodes[0xF4] = &z80_NOP;
+   z80_opcodes[0xF4] = &z80_NI;
    z80_opcodes[0xF5] = &z80_PUSHAF;
    z80_opcodes[0xF6] = &z80_OR_n;
    z80_opcodes[0xF7] = &z80_RST_30H;
@@ -295,8 +295,8 @@ void z80_init(char* romname) {
    z80_opcodes[0xF9] = &z80_LDSP_HL;
    z80_opcodes[0xFA] = &z80_LDA_AT_nn;
    z80_opcodes[0xFB] = &z80_EI;
-   z80_opcodes[0xFC] = &z80_NOP;
-   z80_opcodes[0xFD] = &z80_NOP;
+   z80_opcodes[0xFC] = &z80_NI;
+   z80_opcodes[0xFD] = &z80_NI;
    z80_opcodes[0xFE] = &z80_CP_A_n;
    z80_opcodes[0xFF] = &z80_RST_38H;
 
@@ -365,9 +365,9 @@ tick z80_execute_step() {
 
       (*z80_opcodes[mem_rb(z80_PC++)])();
 
-      if (z80_delayed_enable_interrupt != 0) {
+      if (z80_delayed_enable_interrupt > 0) {
          z80_delayed_enable_interrupt--;
-         if (z80_delayed_enable_interrupt == 1) {
+         if (z80_delayed_enable_interrupt == 0) {
             z80_interrupts_enabled = true;
          }
       }
@@ -429,7 +429,7 @@ tick z80_execute_step() {
    }
 
    // Check interrupts
-   byte int_IE = mem_rb(0xFFFF);
+   byte int_IE = mem_rb(INT_ENABLED_ADDR);
    byte int_IF = mem_rb(INT_FLAG_ADDR);
    byte irq = int_IE & int_IF;
 
@@ -461,6 +461,11 @@ tick z80_execute_step() {
          z80_ticks += 20;
       }
    }
+
+   // TODO: I'm pretty sure this is unrecoverable but confirm
+//   if ((z80_halt || z80_stop) && !z80_interrupts_enabled) {
+//      ERROR("Deadlock detected. Halted with intterupts disabled.\n");
+//   }
 
    return z80_dt;
 }
@@ -981,7 +986,7 @@ void z80_POPHL() {
 // AND / OR / XOR
 
 void z80_AND(byte inp) {
-   z80_A &= inp;
+   z80_A = z80_A & inp;
    z80_clear_flags();
    SET_FLAG_H(true);
    SET_FLAG_Z(z80_A == 0);
@@ -989,14 +994,14 @@ void z80_AND(byte inp) {
 }
 
 void z80_OR(byte inp) {
-   z80_A |= inp;
+   z80_A = z80_A | inp;
    z80_clear_flags();
    SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
 }
 
 void z80_XOR(byte inp) {
-   z80_A ^= inp;
+   z80_A = z80_A ^ inp;
    z80_clear_flags();
    SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;
@@ -1121,13 +1126,11 @@ void z80_RLC(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = mem_rb((z80_H << 8) | z80_L); // Why not use fetch here?
+      t = z80_FETCH(z80_H, z80_L);
    }
 
-   byte carry = t >> 7;
-   SET_FLAG_C(carry);
-   t = (t << 1) | carry;
-
+   SET_FLAG_C(t & 0x80);
+   t = (t << 1) | GET_FLAG_C;
    SET_FLAG_Z(t == 0);
    SET_FLAG_N(false);
    SET_FLAG_H(false);
@@ -1149,10 +1152,8 @@ void z80_RRC(byte* inp) {
       t = z80_FETCH(z80_H, z80_L);
    }
 
-   byte carry = t & 0x01;
-   SET_FLAG_C(carry);
-   t = (t >> 1) | (carry << 7);
-
+   SET_FLAG_C(t & 0x01);
+   t = (t >> 1) | (GET_FLAG_C << 7);
    SET_FLAG_Z(t == 0);
    SET_FLAG_N(false);
    SET_FLAG_H(false);
@@ -1175,9 +1176,8 @@ void z80_RL(byte* inp) {
    }
 
    byte old_carry = GET_FLAG_C;
-   SET_FLAG_C(t >> 7);
+   SET_FLAG_C(t & 0x80);
    t = (t << 1) | old_carry;
-
    SET_FLAG_Z(t == 0);
    SET_FLAG_N(false);
    SET_FLAG_H(false);
@@ -1202,7 +1202,6 @@ void z80_RR(byte* inp) {
    byte old_carry = GET_FLAG_C;
    SET_FLAG_C(t & 0x01);
    t = (t >> 1) | (old_carry << 7);
-
    SET_FLAG_Z(t == 0);
    SET_FLAG_N(false);
    SET_FLAG_H(false);
@@ -1224,9 +1223,8 @@ void z80_SLA(byte* inp) {
       t = z80_FETCH(z80_H, z80_L);
    }
 
-   SET_FLAG_C(t >> 7);
-   t <<= 1;
-   
+   SET_FLAG_C(t & 0x80);
+   t = t << 1;
    SET_FLAG_Z(t == 0);
    SET_FLAG_N(false);
    SET_FLAG_H(false);
@@ -1250,9 +1248,7 @@ void z80_SRA(byte* inp) {
    
    byte msb = t & 0x80;
    SET_FLAG_C(t & 0x01);
-   t >>= 1;
-   t |= msb;
-
+   t = (t >> 1) | msb;
    SET_FLAG_Z(t == 0);
    SET_FLAG_N(false);
    SET_FLAG_H(false);
@@ -1297,7 +1293,7 @@ void z80_SRL(byte* inp) {
    }
 
    SET_FLAG_C(t & 0x01);
-   t >>= 1;
+   t = t >> 1;
    SET_FLAG_Z(t == 0);
    SET_FLAG_N(false);
    SET_FLAG_H(false);
@@ -1321,7 +1317,7 @@ void z80_BIT(byte* inp, byte bit) {
       z80_dt += 4;
    }
 
-   SET_FLAG_Z((t & (1 << bit)) == 0);
+   SET_FLAG_Z(!(t & (1 << bit)));
    SET_FLAG_N(false);
    SET_FLAG_H(true);
 }
@@ -1334,10 +1330,9 @@ void z80_RES(byte* inp, byte bit) {
       t = z80_FETCH(z80_H, z80_L);
    }
 
-   t &= ~(1 << bit);
+   t = t & ~(1 << bit);
 
    z80_dt = 8;
-
    if (inp == NULL) {
       z80_STORE(z80_H, z80_L, t);
       z80_dt = 16;
@@ -1354,7 +1349,8 @@ void z80_SET(byte* inp, byte bit) {
       t = z80_FETCH(z80_H, z80_L);
    }
 
-   t |= 1 << bit;
+   t = t | (1 << bit);
+
    z80_dt = 8;
    if (inp == NULL) {
       z80_STORE(z80_H, z80_L, t);
@@ -1614,6 +1610,10 @@ void z80_RST_38H() {
    z80_stop = false;
    z80_PC   = 0x38;
    z80_dt   = 32;
+   // If reset 38 is pointing to itself, error out
+   if (mem_rb(z80_PC) == 0xFF) {
+      ERROR("Reset 38H loop detected.\n");
+   }
 }
 
 // Returns
@@ -1666,12 +1666,12 @@ void z80_RETI() {
 // 16 bit math
 
 void z80_ADD16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
-   word a = ((*a_hi) << 8) | (*a_low);
+   word a = (*a_hi << 8) | *a_low;
    word b = (b_hi << 8) | b_low;
 
    uint32_t carryCheck = a + b;
    SET_FLAG_H((0x0FFF & a) + (0x0FFF & b) > 0x0FFF);
-   SET_FLAG_C(0xFFFF0000 & carryCheck);
+   SET_FLAG_C(carryCheck > 0x0000FFFF);
    SET_FLAG_N(false);
 
    a += b;
@@ -1715,11 +1715,11 @@ void z80_ADD16_HL_SP() {
 }
 
 void z80_ADD16_SP_n() {
-   byte  t   = mem_rb(z80_PC++);
-   sbyte off = (sbyte)t;
+   byte  val = mem_rb(z80_PC++);
+   sbyte off = (sbyte)val;
    z80_clear_flags();
-   SET_FLAG_H((z80_SP & 0xF) + (t & 0xF) > 0xF);
-   SET_FLAG_C(((z80_SP & 0xFF) + t > 0xFF));
+   SET_FLAG_H((z80_SP & 0xF) + (val & 0xF) > 0xF);
+   SET_FLAG_C(((z80_SP & 0xFF) + val > 0xFF));
    z80_SP += off;
    z80_dt = 16;
 }
@@ -1791,7 +1791,9 @@ void z80_DI() {
 }
 
 void z80_EI() {
-   z80_delayed_enable_interrupt = 3;
+   // EI Disables interrupts for one instruction, then enables them
+   z80_delayed_enable_interrupt = 2;
+   z80_interrupts_enabled       = false;
    z80_dt                       = 4;
 }
 
@@ -1991,7 +1993,7 @@ void z80_SBC_A_n() {
 // INCREMENT / DECREMENT
 
 void z80_INC(byte* reg) {
-   SET_FLAG_H(((*reg) & 0x0F) + 1 > 0x0F);
+   SET_FLAG_H((*reg & 0x0F) + 1 > 0x0F);
    SET_FLAG_N(false);
    (*reg)++;
    SET_FLAG_Z((*reg) == 0);
@@ -1999,9 +2001,9 @@ void z80_INC(byte* reg) {
 }
 
 void z80_DEC(byte* reg) {
-   SET_FLAG_H(((*reg) & 0x0F) == 0);
+   SET_FLAG_H((*reg & 0x0F) == 0);
    (*reg)--;
-   SET_FLAG_Z((*reg) == 0);
+   SET_FLAG_Z(*reg == 0);
    SET_FLAG_N(true);
    z80_dt = 4;
 }

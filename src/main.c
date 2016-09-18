@@ -6,7 +6,17 @@
 
 int main(int argc, char* args[]) {
    if (argc < 2) {
-      printf("USAGE: %s romfile.gb\n", args[0]);
+      printf("USAGE: %s <binary> [-i]\n", args[0]);
+      exit(0);
+   }
+
+   if (argc >= 3 && strcmp(args[2], "-i") == 0) {
+      mem_init();
+      mem_load_image(args[1]);
+      mem_get_rom_info();
+      mem_print_rom_info();
+      mem_free();
+      fflush(stdout);
       exit(0);
    }
 
@@ -19,20 +29,20 @@ int main(int argc, char* args[]) {
                            0x000000FF, 0xFF000000);
    SDL_Rect gb_screen_rect = {0, 0, 160, 144};
 
-   bool  isRunning = true;
+   bool  is_running = true;
    int   t_prev    = SDL_GetTicks();
    char* file      = args[1];
    z80_init(file);
    gpu_init(gb_screen);
 
-   while (isRunning) {
+   while (is_running && !check_error()) {
       int       t = SDL_GetTicks();
       SDL_Event event;
       while (SDL_PollEvent(&event)) {
          switch (event.type) {
             case SDL_KEYUP:
                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                  isRunning = false;
+                  is_running = false;
                   break;
                }
                if (event.key.keysym.sym == SDLK_LEFT) {
@@ -95,12 +105,12 @@ int main(int argc, char* args[]) {
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                }
                break;
-            case SDL_QUIT: isRunning = false; break;
+            case SDL_QUIT: is_running = false; break;
             default: break;
          }
       }
 
-      if (isRunning) {
+      if (is_running) {
 
          // We pause execution when the screen is ready to
          // be flipped to prevent emulating faster than 60 fps
@@ -132,6 +142,14 @@ int main(int argc, char* args[]) {
       }
    }
 
+   fflush(stderr);
+
+   if (check_error()) {
+      printf("An error occured. Exiting.\n");
+      fflush(stdout);
+   }
+
+   mem_free();
    SDL_FreeSurface(screen);
    SDL_FreeSurface(gb_screen);
    SDL_Quit();
