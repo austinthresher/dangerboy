@@ -321,7 +321,6 @@ void z80_reset() {
    FLAG_Z = true;
    FLAG_N = false;
 
-
    mem_init();
 
    // Setup our in-memory registers
@@ -358,12 +357,11 @@ void z80_clear_flags() {
 }
 
 tick z80_execute_step() {
-
    // Check interrupts
    bool interrupted = false;
    byte int_IE = mem_rb(INT_ENABLED_ADDR);
    byte int_IF = mem_rb(INT_FLAG_ADDR);
-   byte irq = int_IE & int_IF;
+   byte irq    = int_IE & int_IF;
 
    if (int_IF != 0) {
       z80_stop = false;
@@ -448,13 +446,12 @@ tick z80_execute_step() {
          }
       }
    }
-
    return z80_dt;
 }
 
 void z80_NI() {
-   ERROR("Invalid instruction at PC %04X, potentially opcode %02X ",
-         z80_PC, mem_rb(z80_PC - 1));
+   ERROR("Invalid instruction at PC %04X, potentially opcode %02X ", z80_PC,
+         mem_rb(z80_PC - 1));
 }
 
 void z80_NOP() {
@@ -879,9 +876,9 @@ void z80_LDSP_HL() {
 }
 
 void z80_LDHL_SP_n() {
-   byte next = mem_rb(z80_PC++);
-   sbyte off = (sbyte)next;
-   int res  = off + z80_SP;
+   byte  next = mem_rb(z80_PC++);
+   sbyte off  = (sbyte)next;
+   int   res  = off + z80_SP;
    z80_clear_flags();
    SET_FLAG_C((z80_SP & 0xFF) + next > 0xFF);
    SET_FLAG_H((z80_SP & 0xF) + (next & 0xF) > 0xF);
@@ -1227,7 +1224,7 @@ void z80_SRA(byte* inp) {
    } else {
       t = z80_FETCH(z80_H, z80_L);
    }
-   
+
    byte msb = t & 0x80;
    SET_FLAG_C(t & 0x01);
    t = (t >> 1) | msb;
@@ -1787,7 +1784,7 @@ void z80_ADD(byte inp) {
    SET_FLAG_N(false);
    SET_FLAG_H(((z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
    word temp_result = z80_A + inp;
-   z80_A = temp_result & 0xFF;
+   z80_A            = temp_result & 0xFF;
    SET_FLAG_C(temp_result > 0xFF);
    SET_FLAG_Z(z80_A == 0);
    z80_dt = 4;

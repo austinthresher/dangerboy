@@ -23,17 +23,9 @@
 #define LCD_LINE_Y_C_ADDR     0xFF45
 #define INT_ENABLED_ADDR      0xFFFF
 
-typedef enum mbc_type_ {
-   NONE = 0,
-   MBC1 = 1,
-   MBC2 = 2,
-   MBC3 = 3
-} mbc_type;
+typedef enum mbc_type_ { NONE = 0, MBC1 = 1, MBC2 = 2, MBC3 = 3 } mbc_type;
 
-typedef enum mbc_bankmode_ {
-   ROM16_RAM8 = 0,
-   ROM4_RAM32 = 1
-} mbc_bankmode;
+typedef enum mbc_bankmode_ { ROM16_RAM8 = 0, ROM4_RAM32 = 1 } mbc_bankmode;
 
 mbc_type mem_mbc_type;
 mbc_bankmode mem_mbc_bankmode;
