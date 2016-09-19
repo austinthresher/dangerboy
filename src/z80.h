@@ -4,53 +4,42 @@
 #include "datatypes.h"
 #include "memory.h"
 
-#define z80_flag_carry 0x10
-#define z80_flag_halfcarry 0x20
-#define z80_flag_operation 0x40
-#define z80_flag_zero 0x80
-#define z80_interrupt_vblank 0x01
-#define z80_interrupt_stat 0x02
-#define z80_interrupt_tima 0x04
-#define z80_interrupt_input 0x10
+#define BITMASK_C 0x10
+#define BITMASK_H 0x20
+#define BITMASK_N 0x40
+#define BITMASK_Z 0x80
+#define INT_VBLANK 0x01
+#define INT_STAT 0x02
+#define INT_TIMA 0x04
+#define INT_INPUT 0x10
 
 // For debugging
 byte z80_last_op;
 word z80_last_pc;
 
 // Registers
-byte z80_A;
-byte z80_B;
-byte z80_C;
-byte z80_D;
-byte z80_E;
-byte z80_H;
-byte z80_L;
-byte z80_F;
-
-word z80_PC; // Program Counter
-word z80_SP; // Stack Counter
-
-byte z80_delayed_enable_interrupt;
-bool z80_interrupts_enabled;
-bool z80_halt;
-bool z80_stop;
-
-tick z80_last_clock;
-tick z80_total_clock;
-
-tick z80_div_timer;
-tick z80_tima_timer;
-
+byte  z80_A;
+byte  z80_B;
+byte  z80_C;
+byte  z80_D;
+byte  z80_E;
+byte  z80_H;
+byte  z80_L;
+byte  z80_delayed_enable_interrupt;
+word  z80_PC; // Program Counter
+word  z80_SP; // Stack Pointer
+bool  z80_interrupts_enabled;
+bool  z80_halt;
+bool  z80_stop;
+tick  z80_ticks;
+tick  z80_dt;
+tick  z80_div_timer;
+tick  z80_tima_timer;
 char* z80_rom_fname;
-
 void (*z80_opcodes[0x100])();
 
-byte z80_goodcodes[0x100];
-
-void z80_init(char* romname);
-
 tick z80_execute_step();
-
+void z80_init(char* romname);
 void z80_reset();
 void z80_clear_flags();
 void z80_set_flag_zero(bool tf);
@@ -83,11 +72,7 @@ void z80_BIT(byte* inp, byte bit);
 void z80_RES(byte* inp, byte bit);
 void z80_SET(byte* inp, byte bit);
 
-//////////////////////////////////////////////////////
-//
-//   LOAD / STORES
-//
-//////////////////////////////////////////////////////
+// LOAD / STORES
 
 void z80_LOAD(byte* reg, byte data);
 void z80_STORE(byte hi, byte lo, byte data);
@@ -186,11 +171,7 @@ void z80_LDSP_HL();     /*0xF9*/
 void z80_LDHL_SP_n();   /*0xF8*/
 void z80_LD_nn_SP();    /*0x08*/
 
-///////////////////////////////////////////////////
-//
-//      PUSH / POP
-//
-///////////////////////////////////////////////////
+// PUSH / POP
 
 void z80_PUSH(byte hi, byte low);
 void z80_POP(byte* hi, byte* low);
@@ -204,11 +185,7 @@ void z80_POPBC();  /*C1*/
 void z80_POPDE();  /*D1*/
 void z80_POPHL();  /*E1*/
 
-////////////////////////////////////////
-//
-//      AND / OR / XOR
-//
-////////////////////////////////////////
+// AND / OR / XOR
 
 void z80_AND(byte inp);
 void z80_OR(byte inp);
@@ -242,11 +219,7 @@ void z80_XOR_L();
 void z80_XOR_AT_HL();
 void z80_XOR_n();
 
-////////////////////////////////////////////////////
-//
-//      JUMP / RETURN
-//
-////////////////////////////////////////////////////
+// JUMP / RETURN
 
 void z80_JP_nn();
 void z80_JP_NZ_nn();
@@ -305,11 +278,7 @@ void z80_RRA();
 void z80_DI();
 void z80_EI();
 
-//////////////////////////////////////////////
-//
-//      ADD / ADC / SUB / SUBC
-//
-//////////////////////////////////////////////
+// ADD / ADC / SUB / SUBC
 
 void z80_ADD(byte inp);
 void z80_ADC(byte inp);
@@ -353,11 +322,7 @@ void z80_SBC_A_L();
 void z80_SBC_A_AT_HL();
 void z80_SBC_A_n();
 
-////////////////////////////////////////////////
-//
-//      INCREMENT / DECREMENT
-//
-////////////////////////////////////////////////
+// INCREMENT / DECREMENT
 
 void z80_INC(byte* reg);
 void z80_DEC(byte* reg);
@@ -379,11 +344,7 @@ void z80_DEC_H();
 void z80_DEC_L();
 void z80_DEC_AT_HL();
 
-////////////////////////////////////////////////////
-//
-//      COMPARE
-//
-////////////////////////////////////////////////////
+// COMPARE
 
 void z80_COMPARE(byte inp);
 
