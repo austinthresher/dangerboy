@@ -13,7 +13,7 @@
 // Object attribute memory access. Lasts 80 ticks
 #define GPU_MODE_SCAN_OAM 2
 
-// VRAM access. Lasts 172 ticks. This is done at the last scanline.
+// VRAM access. Lasts 172 ticks. 
 #define GPU_MODE_SCAN_VRAM 3
 
 #define COLOR_WHITE 0xFE

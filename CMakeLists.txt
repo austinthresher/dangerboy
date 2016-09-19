@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 2.6)
 set (PROJECT_NAME dangerboy)
 
 project (${PROJECT_NAME})
-set (CMAKE_C_FLAGS_RELEASE "-Wpedantic -std=c11")
+set (CMAKE_C_FLAGS_RELEASE "-Wpedantic -std=c11 -O4")
 set (CMAKE_C_FLAGS   "-g  -Wall  -std=c11")
 file (GLOB SOURCE_FILES "src/*.c")
 find_package(SDL REQUIRED)

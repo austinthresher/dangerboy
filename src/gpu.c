@@ -6,8 +6,6 @@ void gpu_init() {
    gpu_scanline           = 0;
    gpu_blankscreen        = false;
    gpu_ready_to_draw      = false;
-   gpu_last_scanline      = 0;
-   gpu_draw_frame         = false;
    gpu_hit_stat_interrupt = false;
    gpu_vram               = NULL;
    gpu_window_scanline    = 0;
@@ -31,92 +29,107 @@ void gpu_reset() {
    }
 }
 
+void gpu_update_stat() {
+   
+   // If the LCD is disabled, freeze our status
+   // just before we jump back to OAM mode. We
+   // Stay in VBLANK until the LCD is enabled.
+   if ((mem_rb(LCD_CONTROL_ADDR) & 0x80) == 0) {
+      if (!gpu_blankscreen) {
+         gpu_blankscreen = true;
+         gpu_ready_to_draw = true;
+      }
+      gpu_timer = 456;
+      gpu_mode = GPU_MODE_VBLANK;
+      gpu_scanline = 153;
+      mem_direct_write(LCD_LINE_Y_ADDR, 0);
+      byte stat = mem_rb(LCD_STATUS_ADDR) & 0xFC;
+      stat |= 1;
+      mem_wb(LCD_STATUS_ADDR, stat);
+      return;
+   }
+
+   gpu_blankscreen = false;
+
+   // Writing here normally resets it, so we set it directly
+   mem_direct_write(LCD_LINE_Y_ADDR, gpu_scanline);
+
+   // If lyc == scanline and bit 6 of stat is set, interrupt
+   byte lyc = mem_rb(LCD_LINE_Y_C_ADDR);
+
+   // Bits 0-2 indicate the gpu mode.
+   // Higher bits are interrupt enable flags.
+   byte new_stat = (gpu_scanline == lyc ? 0x04 : 0) | (gpu_mode & 0x03);
+   byte stat_reg = mem_rb(LCD_STATUS_ADDR);
+   mem_wb(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_stat & 0x07));
+
+   // The STAT interrupt has 4 different modes, based on bits 3-6
+   if ((gpu_mode == GPU_MODE_HBLANK   && (stat_reg & 0x08))
+    || (gpu_mode == GPU_MODE_VBLANK   && (stat_reg & 0x10))
+    || (gpu_mode == GPU_MODE_SCAN_OAM && (stat_reg & 0x20))
+    || (gpu_scanline == lyc           && (stat_reg & 0x40))) {
+      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_STAT);
+   }
+}
+
 void gpu_execute_step(tick ticks) {
    gpu_timer += ticks;
 
-   if (mem_need_reset_scanline) {
-      gpu_scanline            = 0;
-      gpu_window_scanline     = 0;
-      mem_need_reset_scanline = false;
-   }
-
-   byte last_mode = gpu_mode;
-
-   if (gpu_timer >= 456) {
-      gpu_timer -= 456;
-
-      gpu_scanline++;
-      if (mem_rb(0xFF41) & 0x40 && gpu_scanline == mem_rb(0xFF45)) {
-         mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_STAT);
-      }
-
-      // The screen has 144 scanlines, we've now completed 0-143
-      if (gpu_scanline == 144) {
-         gpu_mode = GPU_MODE_VBLANK;
-      }
-      if (gpu_scanline >= 154) {
-         gpu_ready_to_draw   = true;
-         gpu_scanline        = 0;
-         gpu_window_scanline = 0;
-      }
-   }
-
-   if (gpu_scanline < 144) {
-      if (gpu_timer <= 204) {
-         gpu_mode = GPU_MODE_HBLANK;
-      } else if (gpu_timer <= 284) {
-         gpu_mode = GPU_MODE_SCAN_OAM;
-      } else {
-         gpu_mode = GPU_MODE_SCAN_VRAM;
-      }
-
-      gpu_draw_frame = false;
-   }
-
-   // STAT interrupt
-   if (gpu_mode != last_mode) {
-      byte stat_reg = mem_rb(0xFF41);
-      if ((gpu_mode == GPU_MODE_HBLANK && (stat_reg & 0x08) != 0) ||
-          (gpu_mode == GPU_MODE_VBLANK && (stat_reg & 0x10) != 0) ||
-          (gpu_mode == GPU_MODE_SCAN_OAM && (stat_reg & 0x20) != 0) ||
-          (gpu_scanline == mem_rb(0xFF45) && (stat_reg & 0x40) != 0)) {
-         mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_STAT);
-      }
-   }
-
-   if (gpu_mode == GPU_MODE_HBLANK) {
-      // TODO: Does anything need to be done here?
-   } else if (gpu_mode == GPU_MODE_VBLANK) {
-      if (!gpu_draw_frame) {
-         mem_wb(0xFF0F, mem_rb(0xFF0F) | INT_VBLANK);
-         if ((mem_rb(0xFF40) & 0x80) == 0) {
-            gpu_blankscreen = true;
-         } else {
-            gpu_blankscreen = false;
+   switch (gpu_mode) {
+      case GPU_MODE_SCAN_OAM:
+         if (gpu_timer >= 80) {
+            gpu_mode = GPU_MODE_SCAN_VRAM;
+            gpu_timer = 0;
+            gpu_update_stat();
          }
-         gpu_draw_frame = true;
-      }
-   } else if (gpu_mode == GPU_MODE_SCAN_OAM) {
-      // TODO: Does anything need to be done here?
-   } else if (gpu_mode == GPU_MODE_SCAN_VRAM) {
-      if (gpu_last_scanline != gpu_scanline) {
-         gpu_do_scanline();
-         gpu_last_scanline = gpu_scanline;
-      }
+         break;
+      case GPU_MODE_SCAN_VRAM:
+         if (gpu_timer >= 172) {
+            gpu_mode = GPU_MODE_HBLANK;
+            gpu_timer = 0;
+            gpu_do_scanline();
+            gpu_update_stat();         
+         }
+         break;
+      case GPU_MODE_HBLANK:
+         if (gpu_timer >= 204) {
+            gpu_timer = 0;
+            gpu_scanline++;
+            if (gpu_scanline > 143) {
+               gpu_mode = GPU_MODE_VBLANK;
+               gpu_ready_to_draw = true;
+               mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_VBLANK);
+            }
+            else {
+               gpu_mode = GPU_MODE_SCAN_OAM;
+            }
+            gpu_update_stat();
+         }
+         break;
+      case GPU_MODE_VBLANK:
+         if (gpu_timer >= 456) {
+            gpu_timer = 0;
+            gpu_scanline++;
+            if (gpu_scanline > 153) {
+               gpu_mode = GPU_MODE_SCAN_OAM;
+               gpu_scanline = 0;
+            }
+            gpu_update_stat();
+         }
+         break;
    }
+
+   // TODO:
+   //emutalk.net/threads/41525-Game-Boy/page104
+   // "It turns out the mode cycles through 2, 3, 0, 1
+   //  during vblank, not 0, 2, 3"
+
+   // After reading more, it looks like VBLANK should start
+   // on line 143, not 144. Also, the order of GPU modes is wrong here:
+   // It should go OAM / VRAM / HBLANK. This is probably causing problems.
 
    // Now lets update our memory registers
    // TODO: 0xFF40 - LCD and GPU misc stuff
-
-   // Writing here normally resets it, so we set it directly
-   mem_direct_write(0xFF44, gpu_scanline & 0xFF);
-   byte lyc = mem_rb(0xFF45);
-
-   // TODO: Why was this commented out?
-   // byte stat = (gpu_scanline == lyc ? 0x04 : 0) | gpu_mode & 0x03;
-   // cpu->mem.wb(0xFF41, (cpu->mem.rb(0xFF41) & 0xF8) | stat); //Leave the
-   // upper
-   // 4 bits alone
 }
 
 void gpu_do_scanline() {
@@ -139,11 +152,11 @@ void gpu_do_scanline() {
       gpu_window_y = mem_rb(0xFF4A);
    }
 
-   byte scrollX            = mem_rb(0xFF43);
-   byte scrollY            = mem_rb(0xFF42);
-   bool which_win_tile_map = (mem_rb(0xFF40) & 0x40) != 0;
-   bool which_bg_tile_map  = (mem_rb(0xFF40) & 0x08) != 0;
-   bool which_tile_data    = (mem_rb(0xFF40) & 0x10) == 0;
+   byte scrollX            = mem_rb(LCD_SCX_ADDR);
+   byte scrollY            = mem_rb(LCD_SCY_ADDR);
+   bool which_win_tile_map = (mem_rb(LCD_CONTROL_ADDR) & 0x40) != 0;
+   bool which_bg_tile_map  = (mem_rb(LCD_CONTROL_ADDR) & 0x08) != 0;
+   bool which_tile_data    = (mem_rb(LCD_CONTROL_ADDR) & 0x10) == 0;
 
    word bg_tile_map_location = 0x9800;
    if (which_bg_tile_map) {

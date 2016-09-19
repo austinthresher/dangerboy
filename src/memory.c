@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "memory.h"
+#include "gpu.h"
 
 void mem_init(void) {
    mem_ram = NULL;
@@ -208,11 +209,13 @@ void mem_wb(word addr, byte val) {
             val &= 0x7F;
             mem_current_rom_bank = val;
          }
+         DEBUG("ROM Bank switched to %02X\n", mem_current_rom_bank);
       } else if (addr < 0x6000) {
          if (mem_mbc_type >= MBC1) {
             // This either selects our RAM bank for ROM4_RAM32
             // bank mode, or bits 5-6 of our ROM for ROM16_RAM8
             mem_current_ram_bank = val & 0x03;
+            DEBUG("RAM Bank switched to %02X\n", mem_current_ram_bank);
          }
 
          // TODO: MBC3 can also map real time
@@ -255,9 +258,10 @@ void mem_wb(word addr, byte val) {
       }
    } else if (addr == DIV_REGISTER_ADDR) {
       mem_ram[DIV_REGISTER_ADDR] = 0;
-   } else if (addr == LCD_SCANLINE_ADDR) {
-      mem_ram[LCD_SCANLINE_ADDR] = 0;
-      mem_need_reset_scanline    = true;
+   } else if (addr == LCD_LINE_Y_ADDR) {
+      mem_ram[LCD_LINE_Y_ADDR] = 0;
+      gpu_scanline = 0;
+      gpu_window_scanline = 0;
    } else if (addr == 0xFF46) { // OAM DMA Transfer
       word dma = val << 8;
       word ad  = SPRITE_RAM_START_ADDR;

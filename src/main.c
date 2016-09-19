@@ -34,7 +34,6 @@ int main(int argc, char* args[]) {
    char* file      = args[1];
    z80_init(file);
    gpu_init(gb_screen);
-
    while (is_running && !check_error()) {
       int       t = SDL_GetTicks();
       SDL_Event event;
@@ -47,27 +46,35 @@ int main(int argc, char* args[]) {
                }
                if (event.key.keysym.sym == SDLK_LEFT) {
                   mem_dpad |= 0x02;
+                  DEBUG("DPAD LEFT RELEASED\n");
                }
                if (event.key.keysym.sym == SDLK_UP) {
                   mem_dpad |= 0x04;
+                  DEBUG("DPAD UP RELEASED\n");
                }
                if (event.key.keysym.sym == SDLK_RIGHT) {
                   mem_dpad |= 0x01;
+                  DEBUG("DPAD RIGHT RELEASED\n");
                }
                if (event.key.keysym.sym == SDLK_DOWN) {
                   mem_dpad |= 0x08;
+                  DEBUG("DPAD DOWN RELEASED\n");
                }
                if (event.key.keysym.sym == SDLK_z) { // A
                   mem_buttons |= 0x01;
+                  DEBUG("BUTTON A RELEASED\n");
                }
                if (event.key.keysym.sym == SDLK_x) { // B
                   mem_buttons |= 0x2;
+                  DEBUG("BUTTON B RELEASED\n");
                }
                if (event.key.keysym.sym == SDLK_RETURN) { // Start
                   mem_buttons |= 0x08;
+                  DEBUG("BUTTON START RELEASED\n");
                }
                if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
                   mem_buttons |= 0x04;
+                  DEBUG("BUTTON SELECT RELEASED\n");
                }
                break;
 
@@ -75,34 +82,43 @@ int main(int argc, char* args[]) {
                if (event.key.keysym.sym == SDLK_LEFT) {
                   mem_dpad &= 0xFD;
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  DEBUG("DPAD LEFT PRESSED\n");
                }
                if (event.key.keysym.sym == SDLK_UP) {
                   mem_dpad &= 0xFB;
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  DEBUG("DPAD UP PRESSED\n");
                }
                if (event.key.keysym.sym == SDLK_RIGHT) {
                   mem_dpad &= 0xFE;
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  DEBUG("DPAD RIGHT PRESSED\n");
+
                }
                if (event.key.keysym.sym == SDLK_DOWN) {
                   mem_dpad &= 0xF7;
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  DEBUG("DPAD DOWN PRESSED\n");
                }
                if (event.key.keysym.sym == SDLK_z) { // A
                   mem_buttons &= 0xFE;
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  DEBUG("BUTTON A PRESSED\n");
                }
                if (event.key.keysym.sym == SDLK_x) { // B
                   mem_buttons &= 0xFD;
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  DEBUG("BUTTON B PRESSED\n");
                }
                if (event.key.keysym.sym == SDLK_RETURN) { // Start
                   mem_buttons &= 0xF7;
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  DEBUG("BUTTON START PRESSED\n");
                }
                if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
                   mem_buttons &= 0xFB;
                   mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  DEBUG("BUTTON SELECT PRESSED\n");
                }
                break;
             case SDL_QUIT: is_running = false; break;
@@ -116,9 +132,12 @@ int main(int argc, char* args[]) {
          // be flipped to prevent emulating faster than 60 fps
          if (gpu_ready_to_draw == false) {
             gpu_execute_step(z80_execute_step());
+            inc_debug_time();
          } else {
             if (t - t_prev > 16) { // 60 fps
                t_prev = t;
+
+               DEBUG("SCREEN REFRESH\n");
 
                SDL_FillRect(screen, NULL, 0xF00000);
                SDL_LockSurface(gb_screen);

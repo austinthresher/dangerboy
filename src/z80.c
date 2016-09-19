@@ -358,77 +358,9 @@ void z80_clear_flags() {
 }
 
 tick z80_execute_step() {
-   if (!z80_halt && !z80_stop) {
-      z80_dt      = 1;
-      z80_last_op = mem_rb(z80_PC);
-      z80_last_pc = z80_PC;
-
-      (*z80_opcodes[mem_rb(z80_PC++)])();
-
-      if (z80_delayed_enable_interrupt > 0) {
-         z80_delayed_enable_interrupt--;
-         if (z80_delayed_enable_interrupt == 0) {
-            z80_interrupts_enabled = true;
-         }
-      }
-   } else {
-      z80_dt = 4;
-   }
-
-   z80_ticks += z80_dt;
-   z80_div_timer += z80_dt;
-
-   while (z80_div_timer >= 0x100) {
-      z80_div_timer -= 0x100;
-      mem_direct_write(DIV_REGISTER_ADDR,
-            (mem_rb(DIV_REGISTER_ADDR) + 1));
-   }
-
-   // TIMA timer is on
-   if (mem_rb(TIMER_CONTROL_ADDR) & 0x04) {
-      z80_tima_timer += z80_dt;
-      bool overflow = false;
-      do {
-         overflow = false;
-         switch (mem_rb(TIMER_CONTROL_ADDR) & 0x3) {
-            case 0:
-               if (z80_tima_timer > 0x3FF) {
-                  overflow = true;
-                  z80_tima_timer &= 0x3FF;
-               }
-               break;
-            case 1:
-               if (z80_tima_timer > 0xF) {
-                  overflow = true;
-                  z80_tima_timer &= 0xF;
-               }
-               break;
-            case 2:
-               if (z80_tima_timer > 0x3F) {
-                  overflow = true;
-                  z80_tima_timer &= 0x3F;
-               }
-               break;
-            case 3:
-               if (z80_tima_timer > 0xFF) {
-                  overflow = true;
-                  z80_tima_timer &= 0xFF;
-               }
-               break;
-            default: ERROR("timer error");
-         }
-         if (overflow) {
-            mem_wb(TIMA_REGISTER_ADDR,
-                  (mem_rb(TIMA_REGISTER_ADDR) + 1) & 0xFF);
-            if (mem_rb(TIMA_REGISTER_ADDR) == 0) {
-               mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_TIMA);
-               mem_wb(TIMA_REGISTER_ADDR, mem_rb(TIMA_MODULO_ADDR));
-            }
-         }
-      } while (overflow == true);
-   }
 
    // Check interrupts
+   bool interrupted = false;
    byte int_IE = mem_rb(INT_ENABLED_ADDR);
    byte int_IF = mem_rb(INT_FLAG_ADDR);
    byte irq = int_IE & int_IF;
@@ -443,29 +375,79 @@ tick z80_execute_step() {
       if ((irq & INT_VBLANK) != 0) {
          target = 0x40;
          mem_wb(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
+         DEBUG("VBLANK INTERRUPT\n");
       } else if ((irq & INT_STAT) != 0) {
          target = 0x48;
          mem_wb(INT_FLAG_ADDR, int_IF & ~INT_STAT);
+         DEBUG("STAT INTERRUPT\n");
       } else if ((irq & INT_TIMA) != 0) {
          target = 0x50;
          mem_wb(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
+         DEBUG("TIMA INTERRUPT\n");
       } else if ((irq & INT_INPUT) != 0) {
          target = 0x60;
          mem_wb(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
+         DEBUG("INPUT INTERRUPT\n");
       }
       if (target != 0x00) {
+         interrupted = true;
          z80_interrupts_enabled = false;
          z80_SP -= 2;
          mem_ww(z80_SP, z80_PC);
          z80_PC = target;
-         z80_ticks += 20;
+         z80_dt = 20;
       }
    }
 
-   // TODO: I'm pretty sure this is unrecoverable but confirm
-//   if ((z80_halt || z80_stop) && !z80_interrupts_enabled) {
-//      ERROR("Deadlock detected. Halted with intterupts disabled.\n");
-//   }
+   if (!interrupted) {
+      if (!z80_halt && !z80_stop) {
+         z80_dt      = 1;
+         z80_last_op = mem_rb(z80_PC);
+         z80_last_pc = z80_PC;
+
+         (*z80_opcodes[mem_rb(z80_PC++)])();
+
+         if (z80_delayed_enable_interrupt > 0) {
+            z80_delayed_enable_interrupt--;
+            if (z80_delayed_enable_interrupt == 0) {
+               DEBUG("INTERRUPTS ENABLED\n");
+               z80_interrupts_enabled = true;
+            }
+         }
+      } else {
+         z80_dt = 4;
+      }
+   }
+   z80_ticks += z80_dt;
+   z80_div_timer += z80_dt;
+
+   if (z80_div_timer >= 0xFF) {
+      z80_div_timer = 0;
+      mem_direct_write(DIV_REGISTER_ADDR,
+            (mem_rb(DIV_REGISTER_ADDR) + 1));
+   }
+
+   // Bit 3 enables or disables timers
+   if (mem_rb(TIMER_CONTROL_ADDR) & 0x04) {
+      z80_tima_timer += z80_dt;
+      bool inc = false;
+      // Bits 1-2 control the timer speed
+      switch (mem_rb(TIMER_CONTROL_ADDR) & 0x3) {
+         case 0: inc = z80_tima_timer >= 1024; break;
+         case 1: inc = z80_tima_timer >= 16; break;
+         case 2: inc = z80_tima_timer >= 64; break;
+         case 3: inc = z80_tima_timer >= 256; break;
+         default: ERROR("timer error");
+      }
+      if (inc) { 
+         z80_tima_timer = 0;
+         mem_wb(TIMA_REGISTER_ADDR, mem_rb(TIMA_REGISTER_ADDR) + 1);
+         if (mem_rb(TIMA_REGISTER_ADDR) == 0) {
+            mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_TIMA);
+            mem_wb(TIMA_REGISTER_ADDR, mem_rb(TIMA_MODULO_ADDR));
+         }
+      }
+   }
 
    return z80_dt;
 }
@@ -1553,7 +1535,7 @@ void z80_RST_00H() {
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x00;
-   z80_dt   = 32;
+   z80_dt   = 16;
 }
 
 void z80_RST_08H() {
@@ -1561,7 +1543,7 @@ void z80_RST_08H() {
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x08;
-   z80_dt   = 32;
+   z80_dt   = 16;
 }
 
 void z80_RST_10H() {
@@ -1569,7 +1551,7 @@ void z80_RST_10H() {
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x10;
-   z80_dt   = 32;
+   z80_dt   = 16;
 }
 
 void z80_RST_18H() {
@@ -1577,7 +1559,7 @@ void z80_RST_18H() {
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x18;
-   z80_dt   = 32;
+   z80_dt   = 16;
 }
 
 void z80_RST_20H() {
@@ -1585,7 +1567,7 @@ void z80_RST_20H() {
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x20;
-   z80_dt   = 32;
+   z80_dt   = 16;
 }
 
 void z80_RST_28H() {
@@ -1593,7 +1575,7 @@ void z80_RST_28H() {
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x28;
-   z80_dt   = 32;
+   z80_dt   = 16;
 }
 
 void z80_RST_30H() {
@@ -1601,7 +1583,7 @@ void z80_RST_30H() {
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x30;
-   z80_dt   = 32;
+   z80_dt   = 16;
 }
 
 void z80_RST_38H() {
@@ -1609,7 +1591,8 @@ void z80_RST_38H() {
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x38;
-   z80_dt   = 32;
+   z80_dt   = 16;
+
    // If reset 38 is pointing to itself, error out
    if (mem_rb(z80_PC) == 0xFF) {
       ERROR("Reset 38H loop detected.\n");
@@ -1788,6 +1771,7 @@ void z80_RRA() {
 void z80_DI() {
    z80_interrupts_enabled = false;
    z80_dt                 = 4;
+   DEBUG("INTERRUPTS DISABLED\n");
 }
 
 void z80_EI() {
@@ -2150,11 +2134,13 @@ void z80_SCF() {
 void z80_HALT() {
    z80_halt = true;
    z80_dt   = 4;
+   DEBUG("HALT\n");
 }
 
 void z80_STOP() {
    z80_dt   = 4;
    z80_stop = true;
+   DEBUG("STOP\n");
 }
 
 void z80_DAA() {
