@@ -6,20 +6,20 @@
 #include "memory.h"
 
 void mem_init(void) {
-   mem_ram = NULL;
-   mem_rom = NULL;
-   mem_ram_bank = NULL;
-   mem_rom_name = NULL;
-   mem_mbc_type           = NONE;
-   mem_ram_bank_count     = 0;
-   mem_rom_bank_count     = 2;
-   mem_current_ram_bank   = 1;
-   mem_current_rom_bank   = 0;
-   mem_mbc_bankmode       = ROM16_RAM8;
-   mem_ram_bank_locked    = true;
-   mem_buttons            = 0x0F;
-   mem_dpad               = 0x0F;
-   mem_input_last_write   = 0;
+   mem_ram              = NULL;
+   mem_rom              = NULL;
+   mem_ram_bank         = NULL;
+   mem_rom_name         = NULL;
+   mem_mbc_type         = NONE;
+   mem_ram_bank_count   = 0;
+   mem_rom_bank_count   = 2;
+   mem_current_ram_bank = 1;
+   mem_current_rom_bank = 0;
+   mem_mbc_bankmode     = ROM16_RAM8;
+   mem_ram_bank_locked  = true;
+   mem_buttons          = 0x0F;
+   mem_dpad             = 0x0F;
+   mem_input_last_write = 0;
 
    mem_free();
 
@@ -69,7 +69,7 @@ void mem_load_image(char* fname) {
 
    // This is in kilobytes
    int fsize = (int)pow((double)2, (double)(1 + mem_ram[0x0148])) * 16;
-   mem_rom = (byte*)calloc(fsize, 1024);
+   mem_rom   = (byte*)calloc(fsize, 1024);
 
    // Store the entire cart in ROM so we can bank
    fseek(fin, 0, SEEK_SET);
@@ -89,34 +89,33 @@ void mem_load_image(char* fname) {
 
 void mem_get_rom_info(void) {
    // Determine cart type. Fallthrough is intentional.
-   switch (mem_rom[CART_TYPE_ADDR]) 
-   {
-      case 0x00: 
+   switch (mem_rom[CART_TYPE_ADDR]) {
+      case 0x00:
          // ROM Only
          mem_mbc_type = NONE;
          break;
-      case 0x03: 
-         // ROM + MBC1 + RAM + BATT
+      case 0x03:
+      // ROM + MBC1 + RAM + BATT
       case 0x02:
-         // ROM + MBC1 + RAM
+      // ROM + MBC1 + RAM
       case 0x01:
          // ROM + MBC1
          mem_mbc_type = MBC1;
          break;
       case 0x06:
-         // ROM + MBC2 + BATTERY
+      // ROM + MBC2 + BATTERY
       case 0x05:
          // ROM + MBC2
          mem_mbc_type = MBC2;
          break;
       case 0x0F:
-         // ROM + MBC3 + TIMER + BATT
+      // ROM + MBC3 + TIMER + BATT
       case 0x10:
-         // ROM + MBC3 + TIMER + RAM + BATT
+      // ROM + MBC3 + TIMER + RAM + BATT
       case 0x11:
-         // ROM + MBC3
+      // ROM + MBC3
       case 0x12:
-         // ROM + MBC3 + RAM
+      // ROM + MBC3 + RAM
       case 0x13:
          // ROM + MBC3 + RAM + BATT
          mem_mbc_type = MBC3;
@@ -125,11 +124,11 @@ void mem_get_rom_info(void) {
       default: ERROR("Unknown banking mode: %X", mem_rom[CART_TYPE_ADDR]);
    }
 
-   mem_rom_bank_count = (int)pow((double)2, (double)(1 + mem_rom[ROM_SIZE_ADDR]));
+   mem_rom_bank_count =
+      (int)pow((double)2, (double)(1 + mem_rom[ROM_SIZE_ADDR]));
 
    // RAM Size
-   switch (mem_rom[RAM_SIZE_ADDR]) 
-   {
+   switch (mem_rom[RAM_SIZE_ADDR]) {
       case 0: mem_ram_bank_count = 0; break;
       case 1:
       case 2: mem_ram_bank_count = 1; break;
@@ -172,7 +171,7 @@ void mem_wb(word addr, byte val) {
       }
       if (addr < 0x2000) {
          if (mem_mbc_type >= MBC1) {
-            
+
             // MBC2 has the restriction that the least significant
             // bit of the upper address byte must be zero
             if (mem_mbc_type != MBC2 || (addr & 0x100) == 0) {
@@ -193,13 +192,13 @@ void mem_wb(word addr, byte val) {
             // of the ROM bank index
             val &= 0x1F;
             mem_current_rom_bank = val;
-         } else if(mem_mbc_type == MBC2) {
+         } else if (mem_mbc_type == MBC2) {
 
             // For MBC2, the least significant bit of the upper
             // address byte must be one
             if (addr & 0x0100) {
                val &= 0x0F;
-              mem_current_rom_bank = val;
+               mem_current_rom_bank = val;
             }
          } else if (mem_mbc_type == MBC3) {
 
@@ -220,7 +219,7 @@ void mem_wb(word addr, byte val) {
 
       } else if (addr < 0x8000) {
          // This register selects our ROM / RAM banking mode
-         if (mem_mbc_type >= MBC1) { 
+         if (mem_mbc_type >= MBC1) {
             if ((val & 0x01) == 0) {
                mem_mbc_bankmode = ROM16_RAM8;
             }
@@ -232,10 +231,10 @@ void mem_wb(word addr, byte val) {
    } else if (addr > 0x8000 && addr < 0xA000) {
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
-      if (mode != 3 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) { 
+      if (mode != 3 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
          mem_ram[addr] = val;
       }
-   } else if (addr >= 0xA000 && addr < 0xC000) { 
+   } else if (addr >= 0xA000 && addr < 0xC000) {
       // Maybe need to check if banking is enabled here?
       if (mem_mbc_type == NONE) {
          mem_ram[addr] = val;
@@ -245,12 +244,10 @@ void mem_wb(word addr, byte val) {
             mem_ram_bank[addr + mem_current_ram_bank * 0x2000] = val;
          }
       }
-   } else if (addr >= SPRITE_RAM_START_ADDR
-           && addr <= SPRITE_RAM_END_ADDR) {
+   } else if (addr >= SPRITE_RAM_START_ADDR && addr <= SPRITE_RAM_END_ADDR) {
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
-      if (mode == 0 || mode == 1 ||
-          (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
+      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
          mem_ram[addr] = val;
       }
    } else if (addr == DIV_REGISTER_ADDR) {
@@ -298,10 +295,10 @@ byte mem_get_current_rom_bank() {
          if (bank == 0) {
             bank = 1;
          }
-         return bank; 
+         return bank;
       }
    }
-   // Other MBCs 
+   // Other MBCs
    return mem_current_rom_bank & 0x7F;
 }
 

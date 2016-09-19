@@ -30,8 +30,8 @@ int main(int argc, char* args[]) {
    SDL_Rect gb_screen_rect = {0, 0, 160, 144};
 
    bool  is_running = true;
-   int   t_prev    = SDL_GetTicks();
-   char* file      = args[1];
+   int   t_prev     = SDL_GetTicks();
+   char* file       = args[1];
    z80_init(file);
    gpu_init(gb_screen);
 

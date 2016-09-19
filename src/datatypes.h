@@ -14,8 +14,11 @@
 void raise_error();
 bool check_error();
 
-#define ERROR(...) do { printf("Error at %s:%d: ", __FILE__, __LINE__); \
-        printf(__VA_ARGS__); \
-        raise_error(); } while(0)
+#define ERROR(...)                                    \
+   do {                                               \
+      printf("Error at %s:%d: ", __FILE__, __LINE__); \
+      printf(__VA_ARGS__);                            \
+      raise_error();                                  \
+   } while (0)
 
 #endif

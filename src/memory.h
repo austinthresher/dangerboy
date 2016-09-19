@@ -22,25 +22,17 @@
 #define LCD_SCANLINE_ADDR 0xFF44
 #define INT_ENABLED_ADDR 0xFFFF
 
-typedef enum mbc_type_ {
-   NONE = 0,
-   MBC1 = 1,
-   MBC2 = 2,
-   MBC3 = 3
-} mbc_type;
+typedef enum mbc_type_ { NONE = 0, MBC1 = 1, MBC2 = 2, MBC3 = 3 } mbc_type;
 
-typedef enum mbc_bankmode_ {
-   ROM16_RAM8 = 0,
-   ROM4_RAM32 = 1
-} mbc_bankmode;
+typedef enum mbc_bankmode_ { ROM16_RAM8 = 0, ROM4_RAM32 = 1 } mbc_bankmode;
 
-//mbc_bankmode mem_bank_mode;
+// mbc_bankmode mem_bank_mode;
 // MBC1 could operate with two bank configurations.
 // true  = 16 Mbit ROM 8  Kbyte RAM
 // false = 4  Mbit ROM 32 Kbyte RAM
 // This is named the opposite of what it should b
 
-mbc_type mem_mbc_type;
+mbc_type     mem_mbc_type;
 mbc_bankmode mem_mbc_bankmode;
 
 bool mem_ram_bank_locked;
