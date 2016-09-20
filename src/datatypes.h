@@ -18,18 +18,21 @@ tick get_debug_time();
 
 // TODO: Should this print to stderr?
 
-#define ERROR(...)                                    \
-   do {                                               \
-      printf("Error at %s:%d: ", __FILE__, __LINE__); \
-      printf(__VA_ARGS__);                            \
-      raise_error();                                  \
-   } while (0)
+#define DEBUG_RANGE_BEGIN 0
+#define DEBUG_RANGE_END 0
+// #define DEBUG_OUTPUT
+
+#define ERROR(...) \
+      printf("[%20" PRIu64 "] %s:%d: ", \
+            get_debug_time(), __FILE__, __LINE__); \
+      printf(__VA_ARGS__); \
+      raise_error();                                         \
 
 #ifndef DEBUG_OUTPUT
 #  define DEBUG(...) {}
 #else
-#  define DEBUG(...) do { printf("%20" PRIu64 " :\t", get_debug_time());\
-                          printf(__VA_ARGS__); } while(0)
+#  define DEBUG(...) printf("%20" PRIu64 " :\t", get_debug_time());\
+                     printf(__VA_ARGS__);
 #endif
 
 #endif

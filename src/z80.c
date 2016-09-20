@@ -1,13 +1,15 @@
 #include "z80.h"
 
+// TODO: Switching to opcode macros broke MBC1 games, figure out why
+
 // Opcode macros
 
 #define LOAD(reg, val) \
    reg = (val);
 #define STORE(hi, lo, val) \
-   mem_wb(((hi) << 8) | (lo), (val));
+   mem_wb((((hi) & 0xFF) << 8) | ((lo) & 0xFF), (val));
 #define FETCH(hi, lo) \
-   mem_rb(((hi) << 8) | (lo))
+   mem_rb((((hi) & 0xFF) << 8) | ((lo) & 0xFF))
 
 #define AND(val) \
    z80_A = z80_A & (val); \
@@ -428,8 +430,7 @@ tick z80_execute_step() {
       if (target != 0x00) {
          interrupted = true;
          z80_ei = false;
-         z80_SP -= 2;
-         mem_ww(z80_SP, z80_PC);
+         PUSHW(z80_PC);
          z80_PC = target;
          z80_dt = 20;
       }
@@ -439,7 +440,14 @@ tick z80_execute_step() {
       if (!z80_halt && !z80_stop) {
          z80_dt      = 4;
          z80_last_pc = z80_PC;
-         z80_last_op = mem_direct_read(z80_PC++);
+         z80_last_op = mem_rb(z80_PC++);
+
+
+         if (get_debug_time() > DEBUG_RANGE_BEGIN
+          && get_debug_time() < DEBUG_RANGE_END) {
+            DEBUG("%4X: %2X\tA:%2X\tSP:%4X\n",
+                  z80_last_pc, z80_last_op, z80_A, z80_SP);
+         }
 
          (*z80_opcodes[z80_last_op])();
 
@@ -492,8 +500,8 @@ tick z80_execute_step() {
 }
 
 void z80_NI() {
-   ERROR("Invalid instruction at PC %04X, potentially opcode %02X ", z80_PC,
-         mem_rb(z80_PC - 1));
+   ERROR("Invalid instruction at PC %04X, potentially opcode %02X\n",
+         z80_last_pc, z80_last_op);
 }
 
 void z80_NOP() { z80_dt = 4; }
@@ -640,7 +648,7 @@ void z80_LDHL_nn() {
 void z80_LDSP_nn() {
    z80_SP = mem_rw(z80_PC);
    z80_PC += 2;
-   z80_dt += 4;
+   z80_dt = 12;
 }
 
 void z80_LDSP_HL() {
@@ -664,7 +672,7 @@ void z80_LD_nn_SP() {
    word tmp = mem_rw(z80_PC);
    z80_PC += 2;
    mem_ww(tmp, z80_SP);
-   z80_dt += 12;
+   z80_dt = 20;
 }
 
 // PUSH / POP

@@ -164,6 +164,7 @@ byte mem_direct_read(word addr) {
 
 // Write byte
 void mem_wb(word addr, byte val) {
+   z80_dt = 8;
 
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
@@ -362,13 +363,13 @@ byte mem_rb(word addr) {
 
 void mem_ww(word addr, word val) // Write word
 {
-   mem_direct_write(addr, val & 0x00FF);
-   mem_direct_write(addr + 1, (val & 0xFF00) >> 8);
+   mem_wb(addr, val & 0x00FF);
+   mem_wb(addr + 1, (val & 0xFF00) >> 8);
 }
 
 word mem_rw(word addr) {
    word result = 0;
-   result += mem_direct_read(addr);
-   result += mem_direct_read(addr + 1) << 8;
+   result += mem_rb(addr);
+   result += mem_rb(addr + 1) << 8;
    return result;
 }
