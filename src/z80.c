@@ -6,8 +6,10 @@
 
 #define LOAD(reg, val) \
    reg = (val);
+
 #define STORE(hi, lo, val) \
    mem_wb((((hi) & 0xFF) << 8) | ((lo) & 0xFF), (val));
+
 #define FETCH(hi, lo) \
    mem_rb((((hi) & 0xFF) << 8) | ((lo) & 0xFF))
 
@@ -46,6 +48,20 @@
    val = mem_rw(z80_SP); \
    z80_SP += 2; \
    z80_dt = 12;
+
+#define JP() \
+   z80_PC = mem_rw(z80_PC); \
+   z80_dt += 8;
+
+#define JR() \
+   z80_PC += (sbyte)mem_rb(z80_PC) + 1; \
+   z80_dt += 4;
+
+#define CLEAR_FLAGS() \
+   FLAG_C = false; \
+   FLAG_H = false; \
+   FLAG_Z = false; \
+   FLAG_N = false;
 
 // Flag register
 
@@ -390,11 +406,6 @@ void z80_reset() {
    mem_get_rom_info();
 }
 
-// Flag stuff
-void z80_clear_flags() {
-   FLAG_Z = FLAG_C = FLAG_H = FLAG_N = false;
-}
-
 tick z80_execute_step() {
    // Check interrupts
    bool interrupted = false;
@@ -660,7 +671,7 @@ void z80_LDHL_SP_n() {
    byte  next = mem_rb(z80_PC++);
    sbyte off  = (sbyte)next;
    int   res  = off + z80_SP;
-   z80_clear_flags();
+   CLEAR_FLAGS();
    FLAG_C = ((z80_SP & 0xFF) + next > 0xFF);
    FLAG_H = ((z80_SP & 0xF) + (next & 0xF) > 0xF);
    z80_H  = (res & 0xFF00) >> 8;
@@ -889,7 +900,7 @@ void z80_SWAP(byte* inp) {
    }
 
    t = ((t << 4) | (t >> 4));
-   z80_clear_flags();
+   CLEAR_FLAGS();
    FLAG_Z = (t == 0);
 
    z80_dt = 8;
@@ -1031,14 +1042,13 @@ void z80_CB() {
 // JUMP / RETURN
 
 void z80_JP_nn() {
-   z80_PC = mem_rw(z80_PC);
-   z80_dt = 16;
+   JP();
 }
 
 void z80_JP_NZ_nn() {
    z80_dt = 12;
    if (!FLAG_Z) {
-      z80_JP_nn();
+      JP();
    } else {
       z80_PC += 2;
    }
@@ -1047,7 +1057,7 @@ void z80_JP_NZ_nn() {
 void z80_JP_Z_nn() {
    z80_dt = 12;
    if (FLAG_Z) {
-      z80_JP_nn();
+      JP();
    } else {
       z80_PC += 2;
    }
@@ -1056,7 +1066,7 @@ void z80_JP_Z_nn() {
 void z80_JP_NC_nn() {
    z80_dt = 12;
    if (!FLAG_C) {
-      z80_JP_nn();
+      JP();
    } else {
       z80_PC += 2;
    }
@@ -1065,7 +1075,7 @@ void z80_JP_NC_nn() {
 void z80_JP_C_nn() {
    z80_dt = 12;
    if (FLAG_C) {
-      z80_JP_nn();
+      JP();
    } else {
       z80_PC += 2;
    }
@@ -1077,15 +1087,13 @@ void z80_JP_AT_HL() {
 }
 
 void z80_JR_n() {
-   sbyte offset = mem_rb(z80_PC++);
-   z80_PC += offset;
-   z80_dt = 12;
+   JR();
 }
 
 void z80_JR_NZ_n() {
    z80_dt = 8;
    if (!FLAG_Z) {
-      z80_JR_n();
+      JR();
    } else {
       z80_PC++;
    }
@@ -1094,7 +1102,7 @@ void z80_JR_NZ_n() {
 void z80_JR_Z_n() {
    z80_dt = 8;
    if (FLAG_Z) {
-      z80_JR_n();
+      JR();
    } else {
       z80_PC++;
    }
@@ -1103,7 +1111,7 @@ void z80_JR_Z_n() {
 void z80_JR_NC_n() {
    z80_dt = 8;
    if (!FLAG_C) {
-      z80_JR_n();
+      JR();
    } else {
       z80_PC++;
    }
@@ -1112,7 +1120,7 @@ void z80_JR_NC_n() {
 void z80_JR_C_n() {
    z80_dt = 8;
    if (FLAG_C) {
-      z80_JR_n();
+      JR();
    } else {
       z80_PC++;
    }
@@ -1327,7 +1335,7 @@ void z80_ADD16_HL_SP() {
 void z80_ADD16_SP_n() {
    byte  val = mem_rb(z80_PC++);
    sbyte off = (sbyte)val;
-   z80_clear_flags();
+   CLEAR_FLAGS();
    FLAG_H = ((z80_SP & 0xF) + (val & 0xF) > 0xF);
    FLAG_C = (((z80_SP & 0xFF) + val > 0xFF));
    z80_SP += off;
