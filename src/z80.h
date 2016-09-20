@@ -169,9 +169,6 @@ void z80_LD_nn_SP();    /*0x08*/
 
 // PUSH / POP
 
-void z80_PUSH(byte hi, byte low);
-void z80_POP(byte* hi, byte* low);
-
 void z80_PUSHAF(); /*F5*/
 void z80_PUSHBC(); /*C5*/
 void z80_PUSHDE(); /*D5*/
@@ -182,10 +179,6 @@ void z80_POPDE();  /*D1*/
 void z80_POPHL();  /*E1*/
 
 // AND / OR / XOR
-
-void z80_AND(byte inp);
-void z80_OR(byte inp);
-void z80_XOR(byte inp);
 
 void z80_AND_A(); /*A7*/
 void z80_AND_B();
@@ -276,11 +269,6 @@ void z80_EI();
 
 // ADD / ADC / SUB / SUBC
 
-void z80_ADD(byte inp);
-void z80_ADC(byte inp);
-void z80_SUB(byte inp);
-void z80_SBC(byte inp);
-
 void z80_ADD_A_A();     /*0x87*/
 void z80_ADD_A_B();     /*0x80*/
 void z80_ADD_A_C();     /*0x81*/
@@ -320,9 +308,6 @@ void z80_SBC_A_n();
 
 // INCREMENT / DECREMENT
 
-void z80_INC(byte* reg);
-void z80_DEC(byte* reg);
-
 void z80_INC_A();
 void z80_INC_B();
 void z80_INC_C();
@@ -341,8 +326,6 @@ void z80_DEC_L();
 void z80_DEC_AT_HL();
 
 // COMPARE
-
-void z80_COMPARE(byte inp);
 
 void z80_CP_A();
 void z80_CP_B();

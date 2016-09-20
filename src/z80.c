@@ -1,7 +1,5 @@
 #include "z80.h"
 
-// TODO: Switching to opcode macros broke MBC1 games, figure out why
-
 // Opcode macros
 
 #define LOAD(reg, val) \
@@ -56,6 +54,60 @@
 #define JR() \
    z80_PC += (sbyte)mem_rb(z80_PC) + 1; \
    z80_dt += 4;
+
+#define ADD(val) \
+   byte v = (val); \
+   FLAG_N = false; \
+   FLAG_H = ((z80_A & 0x0F) + (v & 0x0F)) > 0x0F; \
+   word tmp = z80_A + v; \
+   z80_A = tmp & 0xFF; \
+   FLAG_C = tmp > 0xFF; \
+   FLAG_Z = z80_A == 0;
+
+#define ADC(val) \
+   byte v = (val); \
+   FLAG_N = false; \
+   word tmp = z80_A + v + FLAG_C; \
+   FLAG_H = (z80_A & 0x0F) + (v & 0x0F) + FLAG_C > 0x0F; \
+   FLAG_C = tmp > 0xFF; \
+   z80_A = tmp & 0xFF; \
+   FLAG_Z = z80_A == 0;
+
+#define SUB(val) \
+   byte v = (val); \
+   FLAG_N = true; \
+   FLAG_H = (z80_A & 0x0F) < (v & 0x0F); \
+   FLAG_C = z80_A < v; \
+   z80_A -= v; \
+   FLAG_Z = z80_A == 0;
+
+#define SBC(val) \
+   byte v = (val); \
+   FLAG_N = true; \
+   byte tmp = z80_A - v - FLAG_C; \
+   FLAG_H = (z80_A & 0x0F) < (v & 0x0F) + FLAG_C; \
+   FLAG_C = z80_A < v + FLAG_C; \
+   z80_A = tmp; \
+   FLAG_Z = z80_A == 0;
+
+#define INC(dst) \
+   FLAG_H = ((dst) & 0x0F) + 1 > 0x0F; \
+   FLAG_N = false; \
+   dst++; \
+   FLAG_Z = (dst) == 0;
+
+#define DEC(dst) \
+   FLAG_H = ((dst) & 0x0F) == 0; \
+   dst--; \
+   FLAG_Z = (dst) == 0; \
+   FLAG_N = true;
+
+#define COMPARE(val) \
+   byte v = (val); \
+   FLAG_H = (z80_A & 0x0F) < (v & 0x0F); \
+   FLAG_C = z80_A < v; \
+   FLAG_N = true; \
+   FLAG_Z = z80_A == v;
 
 #define CLEAR_FLAGS() \
    FLAG_C = false; \
@@ -1415,318 +1467,83 @@ void z80_EI() {
 }
 
 // ADD / ADC / SUB / SUBC
-
-void z80_ADD(byte inp) {
-   FLAG_N = (false);
-   FLAG_H = (((z80_A & 0x0F) + (inp & 0x0F)) > 0x0F);
-   word tmp = z80_A + inp;
-   z80_A            = tmp & 0xFF;
-   FLAG_C = (tmp > 0xFF);
-   FLAG_Z = (z80_A == 0);
-}
-
-void z80_ADC(byte inp) {
-   FLAG_N = (false);
-   byte tmp = z80_A + inp + FLAG_C;
-   FLAG_H = ((z80_A & 0x0F) + (inp & 0x0F) + FLAG_C > 0x0F);
-   FLAG_C = (z80_A + inp + FLAG_C > 0xFF);
-   z80_A = tmp;
-   FLAG_Z = (z80_A == 0);
-}
-
-void z80_SUB(byte inp) {
-   FLAG_N = (true);
-   FLAG_H = ((z80_A & 0x0F) < (inp & 0x0F));
-   FLAG_C = (z80_A < inp);
-   z80_A -= inp;
-   FLAG_Z = (z80_A == 0);
-}
-
-void z80_SBC(byte inp) {
-   FLAG_N = (true);
-   byte tmp = z80_A - inp - FLAG_C;
-   FLAG_H = ((z80_A & 0x0F) < (inp & 0x0F) + FLAG_C);
-   FLAG_C = (z80_A < inp + FLAG_C);
-   z80_A = tmp;
-   FLAG_Z = (z80_A == 0);
-}
-
-void z80_ADD_A_A() {
-   z80_ADD(z80_A);
-}
-
-void z80_ADD_A_B() {
-   z80_ADD(z80_B);
-}
-
-void z80_ADD_A_C() {
-   z80_ADD(z80_C);
-}
-
-void z80_ADD_A_D() {
-   z80_ADD(z80_D);
-}
-
-void z80_ADD_A_E() {
-   z80_ADD(z80_E);
-}
-
-void z80_ADD_A_H() {
-   z80_ADD(z80_H);
-}
-
-void z80_ADD_A_L() {
-   z80_ADD(z80_L);
-}
-
-void z80_ADD_A_AT_HL() {
-   z80_ADD(FETCH(z80_H, z80_L));
-}
-
-void z80_ADD_A_n() {
-   z80_ADD(mem_rb(z80_PC++));
-}
-
-void z80_ADC_A_A() {
-   z80_ADC(z80_A);
-}
-
-void z80_ADC_A_B() {
-   z80_ADC(z80_B);
-}
-
-void z80_ADC_A_C() {
-   z80_ADC(z80_C);
-}
-
-void z80_ADC_A_D() {
-   z80_ADC(z80_D);
-}
-
-void z80_ADC_A_E() {
-   z80_ADC(z80_E);
-}
-
-void z80_ADC_A_H() {
-   z80_ADC(z80_H);
-}
-
-void z80_ADC_A_L() {
-   z80_ADC(z80_L);
-}
-
-void z80_ADC_A_AT_HL() {
-   z80_ADC(FETCH(z80_H, z80_L));
-}
-
-void z80_ADC_A_n() {
-   z80_ADC(mem_rb(z80_PC++));
-}
-
-void z80_SUB_A_A() {
-   z80_SUB(z80_A);
-}
-
-void z80_SUB_A_B() {
-   z80_SUB(z80_B);
-}
-
-void z80_SUB_A_C() {
-   z80_SUB(z80_C);
-}
-
-void z80_SUB_A_D() {
-   z80_SUB(z80_D);
-}
-
-void z80_SUB_A_E() {
-   z80_SUB(z80_E);
-}
-
-void z80_SUB_A_H() {
-   z80_SUB(z80_H);
-}
-
-void z80_SUB_A_L() {
-   z80_SUB(z80_L);
-}
-
-void z80_SUB_A_AT_HL() {
-   z80_SUB(FETCH(z80_H, z80_L));
-}
-
-void z80_SUB_A_n() {
-   z80_SUB(mem_rb(z80_PC++));
-}
-
-void z80_SBC_A_A() {
-   z80_SBC(z80_A);
-}
-
-void z80_SBC_A_B() {
-   z80_SBC(z80_B);
-}
-
-void z80_SBC_A_C() {
-   z80_SBC(z80_C);
-}
-
-void z80_SBC_A_D() {
-   z80_SBC(z80_D);
-}
-
-void z80_SBC_A_E() {
-   z80_SBC(z80_E);
-}
-
-void z80_SBC_A_H() {
-   z80_SBC(z80_H);
-}
-
-void z80_SBC_A_L() {
-   z80_SBC(z80_L);
-}
-
-void z80_SBC_A_AT_HL() {
-   z80_SBC(FETCH(z80_H, z80_L));
-}
-
-void z80_SBC_A_n() {
-   z80_SBC(mem_rb(z80_PC++));
-}
+void z80_ADD_A_A()     { ADD(z80_A); }
+void z80_ADD_A_B()     { ADD(z80_B); }
+void z80_ADD_A_C()     { ADD(z80_C); }
+void z80_ADD_A_D()     { ADD(z80_D); }
+void z80_ADD_A_E()     { ADD(z80_E); }
+void z80_ADD_A_H()     { ADD(z80_H); }
+void z80_ADD_A_L()     { ADD(z80_L); }
+void z80_ADD_A_AT_HL() { ADD(FETCH(z80_H, z80_L)); }
+void z80_ADD_A_n()     { ADD(mem_rb(z80_PC++)); }
+void z80_ADC_A_A()     { ADC(z80_A); }
+void z80_ADC_A_B()     { ADC(z80_B); }
+void z80_ADC_A_C()     { ADC(z80_C); }
+void z80_ADC_A_D()     { ADC(z80_D); }
+void z80_ADC_A_E()     { ADC(z80_E); }
+void z80_ADC_A_H()     { ADC(z80_H); }
+void z80_ADC_A_L()     { ADC(z80_L); }
+void z80_ADC_A_AT_HL() { ADC(FETCH(z80_H, z80_L)); }
+void z80_ADC_A_n()     { ADC(mem_rb(z80_PC++)); }
+void z80_SUB_A_A()     { SUB(z80_A); }
+void z80_SUB_A_B()     { SUB(z80_B); }
+void z80_SUB_A_C()     { SUB(z80_C); }
+void z80_SUB_A_D()     { SUB(z80_D); }
+void z80_SUB_A_E()     { SUB(z80_E); }
+void z80_SUB_A_H()     { SUB(z80_H); }
+void z80_SUB_A_L()     { SUB(z80_L); }
+void z80_SUB_A_AT_HL() { SUB(FETCH(z80_H, z80_L)); }
+void z80_SUB_A_n()     { SUB(mem_rb(z80_PC++)); }
+void z80_SBC_A_A()     { SBC(z80_A); }
+void z80_SBC_A_B()     { SBC(z80_B); }
+void z80_SBC_A_C()     { SBC(z80_C); }
+void z80_SBC_A_D()     { SBC(z80_D); }
+void z80_SBC_A_E()     { SBC(z80_E); }
+void z80_SBC_A_H()     { SBC(z80_H); }
+void z80_SBC_A_L()     { SBC(z80_L); }
+void z80_SBC_A_AT_HL() { SBC(FETCH(z80_H, z80_L)); }
+void z80_SBC_A_n()     { SBC(mem_rb(z80_PC++)); }
 
 // INCREMENT / DECREMENT
-
-void z80_INC(byte* reg) {
-   FLAG_H = ((*reg & 0x0F) + 1 > 0x0F);
-   FLAG_N = (false);
-   (*reg)++;
-   FLAG_Z = ((*reg) == 0);
-   z80_dt = 4;
-}
-
-void z80_DEC(byte* reg) {
-   FLAG_H = ((*reg & 0x0F) == 0);
-   (*reg)--;
-   FLAG_Z = (*reg == 0);
-   FLAG_N = (true);
-   z80_dt = 4;
-}
-
-void z80_INC_A() {
-   z80_INC(&z80_A);
-}
-
-void z80_INC_B() {
-   z80_INC(&z80_B);
-}
-
-void z80_INC_C() {
-   z80_INC(&z80_C);
-}
-
-void z80_INC_D() {
-   z80_INC(&z80_D);
-}
-
-void z80_INC_E() {
-   z80_INC(&z80_E);
-}
-
-void z80_INC_H() {
-   z80_INC(&z80_H);
-}
-
-void z80_INC_L() {
-   z80_INC(&z80_L);
-}
+void z80_INC_A() { INC(z80_A); }
+void z80_INC_B() { INC(z80_B); }
+void z80_INC_C() { INC(z80_C); }
+void z80_INC_D() { INC(z80_D); }
+void z80_INC_E() { INC(z80_E); }
+void z80_INC_H() { INC(z80_H); }
+void z80_INC_L() { INC(z80_L); }
+void z80_DEC_A() { DEC(z80_A); }
+void z80_DEC_B() { DEC(z80_B); }
+void z80_DEC_C() { DEC(z80_C); }
+void z80_DEC_D() { DEC(z80_D); }
+void z80_DEC_E() { DEC(z80_E); }
+void z80_DEC_H() { DEC(z80_H); }
+void z80_DEC_L() { DEC(z80_L); }
 
 void z80_INC_AT_HL() {
    byte val = FETCH(z80_H, z80_L);
-   z80_INC(&val);
+   INC(val);
    STORE(z80_H, z80_L, val);
    z80_dt += 4;
 }
 
-void z80_DEC_A() {
-   z80_DEC(&z80_A);
-}
-
-void z80_DEC_B() {
-   z80_DEC(&z80_B);
-}
-
-void z80_DEC_C() {
-   z80_DEC(&z80_C);
-}
-
-void z80_DEC_D() {
-   z80_DEC(&z80_D);
-}
-
-void z80_DEC_E() {
-   z80_DEC(&z80_E);
-}
-
-void z80_DEC_H() {
-   z80_DEC(&z80_H);
-}
-
-void z80_DEC_L() {
-   z80_DEC(&z80_L);
-}
-
 void z80_DEC_AT_HL() {
    byte val = FETCH(z80_H, z80_L);
-   z80_DEC(&val);
+   DEC(val);
    STORE(z80_H, z80_L, val);
    z80_dt += 4;;
 }
 
 // COMPARE
-
-void z80_COMPARE(byte inp) {
-   FLAG_H = ((z80_A & 0x0F) < (inp & 0x0F));
-   FLAG_C = (z80_A < inp);
-   FLAG_N = (true);
-   FLAG_Z = (z80_A == inp);
-}
-
-void z80_CP_A() {
-   z80_COMPARE(z80_A);
-}
-
-void z80_CP_B() {
-   z80_COMPARE(z80_B);
-}
-
-void z80_CP_C() {
-   z80_COMPARE(z80_C);
-}
-
-void z80_CP_D() {
-   z80_COMPARE(z80_D);
-}
-
-void z80_CP_E() {
-   z80_COMPARE(z80_E);
-}
-
-void z80_CP_H() {
-   z80_COMPARE(z80_H);
-}
-
-void z80_CP_L() {
-   z80_COMPARE(z80_L);
-}
-
-void z80_CP_AT_HL() {
-   z80_COMPARE(FETCH(z80_H, z80_L));
-}
-
-void z80_CP_A_n() {
-   z80_COMPARE(mem_rb(z80_PC++));
-}
+void z80_CP_A()      { COMPARE(z80_A); }
+void z80_CP_B()      { COMPARE(z80_B); }
+void z80_CP_C()      { COMPARE(z80_C); }
+void z80_CP_D()      { COMPARE(z80_D); }
+void z80_CP_E()      { COMPARE(z80_E); }
+void z80_CP_H()      { COMPARE(z80_H); }
+void z80_CP_L()      { COMPARE(z80_L); }
+void z80_CP_AT_HL()  { COMPARE(FETCH(z80_H, z80_L)); }
+void z80_CP_A_n()    { COMPARE(mem_rb(z80_PC++)); }
 
 void z80_CPL() {
    z80_A = ~z80_A;
