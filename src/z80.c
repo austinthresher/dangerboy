@@ -1,5 +1,7 @@
 #include "z80.h"
 
+// Opcode macros
+
 #define LOAD(reg, val) \
    reg = (val);
 #define STORE(hi, lo, val) \
@@ -22,6 +24,28 @@
    z80_A = z80_A ^ (val); \
    FLAG_C = FLAG_H = FLAG_N = false; \
    FLAG_Z = !z80_A;
+
+#define PUSH(hi, lo) \
+   mem_direct_write(--z80_SP, (hi)); \
+   mem_direct_write(--z80_SP, (lo)); \
+   z80_dt = 16;
+
+#define POP(hi, lo) \
+   lo = mem_direct_read(z80_SP++); \
+   hi = mem_direct_read(z80_SP++); \
+   z80_dt = 12;
+
+#define PUSHW(val) \
+   z80_SP -= 2; \
+   mem_ww(z80_SP, (val)); \
+   z80_dt = 16;
+
+#define POPW(val) \
+   val = mem_rw(z80_SP); \
+   z80_SP += 2; \
+   z80_dt = 12;
+
+// Flag register
 
 static bool FLAG_C;
 static bool FLAG_H;
@@ -472,304 +496,86 @@ void z80_NI() {
          mem_rb(z80_PC - 1));
 }
 
-void z80_NOP() {
-   z80_dt = 4;
-}
+void z80_NOP() { z80_dt = 4; }
 
 // LOAD / STORES
-
-void z80_LDA_n() {
-   LOAD(z80_A, mem_rb(z80_PC++));
-}
-
-void z80_LDB_n() {
-   LOAD(z80_B, mem_rb(z80_PC++));
-}
-
-void z80_LDC_n() {
-   LOAD(z80_C, mem_rb(z80_PC++));
-}
-
-void z80_LDD_n() {
-   LOAD(z80_D, mem_rb(z80_PC++));
-}
-
-void z80_LDE_n() {
-   LOAD(z80_E, mem_rb(z80_PC++));
-}
-
-void z80_LDH_n() {
-   LOAD(z80_H, mem_rb(z80_PC++));
-}
-
-void z80_LDL_n() {
-   LOAD(z80_L, mem_rb(z80_PC++));
-}
-
-// LD r1, r2
-void z80_LDA_A() {
-   LOAD(z80_A, z80_A);
-}
-
-void z80_LDA_B() {
-   LOAD(z80_A, z80_B);
-}
-
-void z80_LDA_C() {
-   LOAD(z80_A, z80_C);
-}
-
-void z80_LDA_D() {
-   LOAD(z80_A, z80_D);
-}
-
-void z80_LDA_E() {
-   LOAD(z80_A, z80_E);
-}
-
-void z80_LDA_H() {
-   LOAD(z80_A, z80_H);
-}
-
-void z80_LDA_L() {
-   LOAD(z80_A, z80_L);
-}
-
-void z80_LDA_AT_HL() {
-   LOAD(z80_A, FETCH(z80_H, z80_L));
-}
-
-void z80_LDB_A() {
-   LOAD(z80_B, z80_A);
-}
-
-void z80_LDB_B() {
-   LOAD(z80_B, z80_B);
-}
-
-void z80_LDB_C() {
-   LOAD(z80_B, z80_C);
-}
-
-void z80_LDB_D() {
-   LOAD(z80_B, z80_D);
-}
-
-void z80_LDB_E() {
-   LOAD(z80_B, z80_E);
-}
-
-void z80_LDB_H() {
-   LOAD(z80_B, z80_H);
-}
-
-void z80_LDB_L() {
-   LOAD(z80_B, z80_L);
-}
-
-void z80_LDB_AT_HL() {
-   LOAD(z80_B, FETCH(z80_H, z80_L));
-}
-
-void z80_LDC_A() {
-   LOAD(z80_C, z80_A);
-}
-
-void z80_LDC_B() {
-   LOAD(z80_C, z80_B);
-}
-
-void z80_LDC_C() {
-   LOAD(z80_C, z80_C);
-}
-
-void z80_LDC_D() {
-   LOAD(z80_C, z80_D);
-}
-
-void z80_LDC_E() {
-   LOAD(z80_C, z80_E);
-}
-
-void z80_LDC_H() {
-   LOAD(z80_C, z80_H);
-}
-
-void z80_LDC_L() {
-   LOAD(z80_C, z80_L);
-}
-
-void z80_LDC_AT_HL() {
-   LOAD(z80_C, FETCH(z80_H, z80_L));
-}
-
-void z80_LDD_A() {
-   LOAD(z80_D, z80_A);
-}
-
-void z80_LDD_B() {
-   LOAD(z80_D, z80_B);
-}
-
-void z80_LDD_C() {
-   LOAD(z80_D, z80_C);
-}
-
-void z80_LDD_D() {
-   LOAD(z80_D, z80_D);
-}
-
-void z80_LDD_E() {
-   LOAD(z80_D, z80_E);
-}
-
-void z80_LDD_H() {
-   LOAD(z80_D, z80_H);
-}
-
-void z80_LDD_L() {
-   LOAD(z80_D, z80_L);
-}
-
-void z80_LDD_AT_HL() {
-   LOAD(z80_D, FETCH(z80_H, z80_L));
-   z80_dt = 8;
-}
-
-void z80_LDE_A() {
-   LOAD(z80_E, z80_A);
-}
-
-void z80_LDE_B() {
-   LOAD(z80_E, z80_B);
-}
-
-void z80_LDE_C() {
-   LOAD(z80_E, z80_C);
-}
-
-void z80_LDE_D() {
-   LOAD(z80_E, z80_D);
-}
-
-void z80_LDE_E() {
-   LOAD(z80_E, z80_E);
-}
-
-void z80_LDE_H() {
-   LOAD(z80_E, z80_H);
-}
-
-void z80_LDE_L() {
-   LOAD(z80_E, z80_L);
-}
-
-void z80_LDE_AT_HL() {
-   LOAD(z80_E, FETCH(z80_H, z80_L));
-   z80_dt = 8;
-}
-
-void z80_LDH_A() {
-   LOAD(z80_H, z80_A);
-}
-
-void z80_LDH_B() {
-   LOAD(z80_H, z80_B);
-}
-
-void z80_LDH_C() {
-   LOAD(z80_H, z80_C);
-}
-
-void z80_LDH_D() {
-   LOAD(z80_H, z80_D);
-}
-
-void z80_LDH_E() {
-   LOAD(z80_H, z80_E);
-}
-
-void z80_LDH_H() {
-   LOAD(z80_H, z80_H);
-}
-
-void z80_LDH_L() {
-   LOAD(z80_H, z80_L);
-}
-
-void z80_LDH_AT_HL() {
-   LOAD(z80_H, FETCH(z80_H, z80_L));
-   z80_dt = 8;
-}
-
-void z80_LDL_A() {
-   LOAD(z80_L, z80_A);
-}
-
-void z80_LDL_B() {
-   LOAD(z80_L, z80_B);
-}
-
-void z80_LDL_C() {
-   LOAD(z80_L, z80_C);
-}
-
-void z80_LDL_D() {
-   LOAD(z80_L, z80_D);
-}
-
-void z80_LDL_E() {
-   LOAD(z80_L, z80_E);
-}
-
-void z80_LDL_H() {
-   LOAD(z80_L, z80_H);
-}
-
-void z80_LDL_L() {
-   LOAD(z80_L, z80_L);
-}
-
-void z80_LDL_AT_HL() {
-   LOAD(z80_L, FETCH(z80_H, z80_L));
-}
-
-void z80_LD_AT_HL_B() {
-   STORE(z80_H, z80_L, z80_B);
-}
-
-void z80_LD_AT_HL_C() {
-   STORE(z80_H, z80_L, z80_C);
-}
-
-void z80_LD_AT_HL_D() {
-   STORE(z80_H, z80_L, z80_D);
-}
-
-void z80_LD_AT_HL_E() {
-   STORE(z80_H, z80_L, z80_E);
-}
-
-void z80_LD_AT_HL_H() {
-   STORE(z80_H, z80_L, z80_H);
-}
-
-void z80_LD_AT_HL_L() {
-   STORE(z80_H, z80_L, z80_L);
-}
-
-void z80_LD_AT_HL_n() {
-   STORE(z80_H, z80_L, mem_rb(z80_PC++));
-   z80_dt += 4;
-}
-
-void z80_LDA_AT_BC() {
-   LOAD(z80_A, FETCH(z80_B, z80_C));
-}
-
-void z80_LDA_AT_DE() {
-   LOAD(z80_A, FETCH(z80_D, z80_E));
-}
+void z80_LDA_n()      { LOAD(z80_A, mem_rb(z80_PC++)); } 
+void z80_LDB_n()      { LOAD(z80_B, mem_rb(z80_PC++)); }
+void z80_LDC_n()      { LOAD(z80_C, mem_rb(z80_PC++)); }
+void z80_LDD_n()      { LOAD(z80_D, mem_rb(z80_PC++)); }
+void z80_LDE_n()      { LOAD(z80_E, mem_rb(z80_PC++)); }
+void z80_LDH_n()      { LOAD(z80_H, mem_rb(z80_PC++)); }
+void z80_LDL_n()      { LOAD(z80_L, mem_rb(z80_PC++)); }
+void z80_LDA_A()      { LOAD(z80_A, z80_A); }
+void z80_LDA_B()      { LOAD(z80_A, z80_B); }
+void z80_LDA_C()      { LOAD(z80_A, z80_C); }
+void z80_LDA_D()      { LOAD(z80_A, z80_D); }
+void z80_LDA_E()      { LOAD(z80_A, z80_E); }
+void z80_LDA_H()      { LOAD(z80_A, z80_H); }
+void z80_LDA_L()      { LOAD(z80_A, z80_L); }
+void z80_LDA_AT_HL()  { LOAD(z80_A, FETCH(z80_H, z80_L)); }
+void z80_LDB_A()      { LOAD(z80_B, z80_A); }
+void z80_LDB_B()      { LOAD(z80_B, z80_B); }
+void z80_LDB_C()      { LOAD(z80_B, z80_C); }
+void z80_LDB_D()      { LOAD(z80_B, z80_D); }
+void z80_LDB_E()      { LOAD(z80_B, z80_E); }
+void z80_LDB_H()      { LOAD(z80_B, z80_H); }
+void z80_LDB_L()      { LOAD(z80_B, z80_L); }
+void z80_LDB_AT_HL()  { LOAD(z80_B, FETCH(z80_H, z80_L)); }
+void z80_LDC_A()      { LOAD(z80_C, z80_A); }
+void z80_LDC_B()      { LOAD(z80_C, z80_B); }
+void z80_LDC_C()      { LOAD(z80_C, z80_C); }
+void z80_LDC_D()      { LOAD(z80_C, z80_D); }
+void z80_LDC_E()      { LOAD(z80_C, z80_E); }
+void z80_LDC_H()      { LOAD(z80_C, z80_H); }
+void z80_LDC_L()      { LOAD(z80_C, z80_L); }
+void z80_LDC_AT_HL()  { LOAD(z80_C, FETCH(z80_H, z80_L)); }
+void z80_LDD_A()      { LOAD(z80_D, z80_A); }
+void z80_LDD_B()      { LOAD(z80_D, z80_B); }
+void z80_LDD_C()      { LOAD(z80_D, z80_C); }
+void z80_LDD_D()      { LOAD(z80_D, z80_D); }
+void z80_LDD_E()      { LOAD(z80_D, z80_E); }
+void z80_LDD_H()      { LOAD(z80_D, z80_H); }
+void z80_LDD_L()      { LOAD(z80_D, z80_L); }
+void z80_LDD_AT_HL()  { LOAD(z80_D, FETCH(z80_H, z80_L)); }
+void z80_LDE_A()      { LOAD(z80_E, z80_A); }
+void z80_LDE_B()      { LOAD(z80_E, z80_B); }
+void z80_LDE_C()      { LOAD(z80_E, z80_C); }
+void z80_LDE_D()      { LOAD(z80_E, z80_D); }
+void z80_LDE_E()      { LOAD(z80_E, z80_E); }
+void z80_LDE_H()      { LOAD(z80_E, z80_H); }
+void z80_LDE_L()      { LOAD(z80_E, z80_L); }
+void z80_LDE_AT_HL()  { LOAD(z80_E, FETCH(z80_H, z80_L)); }
+void z80_LDH_A()      { LOAD(z80_H, z80_A); }
+void z80_LDH_B()      { LOAD(z80_H, z80_B); }
+void z80_LDH_C()      { LOAD(z80_H, z80_C); }
+void z80_LDH_D()      { LOAD(z80_H, z80_D); }
+void z80_LDH_E()      { LOAD(z80_H, z80_E); }
+void z80_LDH_H()      { LOAD(z80_H, z80_H); }
+void z80_LDH_L()      { LOAD(z80_H, z80_L); }
+void z80_LDH_AT_HL()  { LOAD(z80_H, FETCH(z80_H, z80_L)); }
+void z80_LDL_A()      { LOAD(z80_L, z80_A); }
+void z80_LDL_B()      { LOAD(z80_L, z80_B); }
+void z80_LDL_C()      { LOAD(z80_L, z80_C); }
+void z80_LDL_D()      { LOAD(z80_L, z80_D); }
+void z80_LDL_E()      { LOAD(z80_L, z80_E); }
+void z80_LDL_H()      { LOAD(z80_L, z80_H); }
+void z80_LDL_L()      { LOAD(z80_L, z80_L); }
+void z80_LDL_AT_HL()  { LOAD(z80_L, FETCH(z80_H, z80_L)); }
+void z80_LD_AT_HL_B() { STORE(z80_H, z80_L, z80_B); }
+void z80_LD_AT_HL_C() { STORE(z80_H, z80_L, z80_C); }
+void z80_LD_AT_HL_D() { STORE(z80_H, z80_L, z80_D); }
+void z80_LD_AT_HL_E() { STORE(z80_H, z80_L, z80_E); }
+void z80_LD_AT_HL_H() { STORE(z80_H, z80_L, z80_H); }
+void z80_LD_AT_HL_L() { STORE(z80_H, z80_L, z80_L); }
+void z80_LD_AT_HL_n() { STORE(z80_H, z80_L, mem_rb(z80_PC++)); z80_dt += 4; }
+void z80_LDA_AT_BC()  { LOAD(z80_A, FETCH(z80_B, z80_C)); }
+void z80_LDA_AT_DE()  { LOAD(z80_A, FETCH(z80_D, z80_E)); }
+void z80_LD_AT_BC_A() { STORE(z80_B, z80_C, z80_A); }
+void z80_LD_AT_DE_A() { STORE(z80_D, z80_E, z80_A); }
+void z80_LD_AT_HL_A() { STORE(z80_H, z80_L, z80_A); }
+void z80_LDA_AT_C()   { LOAD(z80_A, mem_rb(0xFF00 + z80_C)); }
+void z80_LD_AT_C_A()  { STORE(0xFF, z80_C, z80_A); }
 
 void z80_LDA_AT_nn() {
    LOAD(z80_A, mem_rb(mem_rw(z80_PC)));
@@ -777,31 +583,10 @@ void z80_LDA_AT_nn() {
    z80_dt += 8;
 }
 
-// 0x02
-void z80_LD_AT_BC_A() {
-   STORE(z80_B, z80_C, z80_A);
-}
-
-void z80_LD_AT_DE_A() {
-   STORE(z80_D, z80_E, z80_A);
-}
-
-void z80_LD_AT_HL_A() {
-   STORE(z80_H, z80_L, z80_A);
-}
-
 void z80_LD_AT_nn_A() {
    mem_wb(mem_rw(z80_PC), z80_A);
    z80_PC += 2;
    z80_dt = 16;
-}
-
-void z80_LDA_AT_C() {
-   LOAD(z80_A, mem_rb(0xFF00 + z80_C));
-}
-
-void z80_LD_AT_C_A() {
-   STORE(0xFF, z80_C, z80_A);
 }
 
 void z80_LDA_AT_HLD() {
@@ -834,7 +619,6 @@ void z80_LD_A_n() {
    z80_dt += 4;
 }
 
-// 0x01
 void z80_LDBC_nn() {
    LOAD(z80_C, mem_rb(z80_PC++));
    LOAD(z80_B, mem_rb(z80_PC++));
@@ -885,19 +669,12 @@ void z80_LD_nn_SP() {
 
 // PUSH / POP
 
-void z80_PUSH(byte hi, byte low) {
-   mem_wb(--z80_SP, hi);
-   mem_wb(--z80_SP, low);
-   z80_dt = 16;
-}
-
-void z80_POP(byte* hi, byte* low) {
-   (*low) = mem_rb(z80_SP++);
-   (*hi)  = mem_rb(z80_SP++);
-   z80_dt = 12;
-}
-
-// PUSH
+void z80_PUSHBC() { PUSH(z80_B, z80_C); }
+void z80_PUSHDE() { PUSH(z80_D, z80_E); }
+void z80_PUSHHL() { PUSH(z80_H, z80_L); }
+void z80_POPBC() { POP(z80_B, z80_C); }
+void z80_POPDE() { POP(z80_D, z80_E); }
+void z80_POPHL() { POP(z80_H, z80_L); }
 
 void z80_PUSHAF() {
    byte flags = 0;
@@ -913,153 +690,46 @@ void z80_PUSHAF() {
    if (FLAG_N) {
       flags |= BITMASK_N;
    }
-   z80_PUSH(z80_A, flags);
+   PUSH(z80_A, flags);
 }
-
-void z80_PUSHBC() {
-   z80_PUSH(z80_B, z80_C);
-}
-
-void z80_PUSHDE() {
-   z80_PUSH(z80_D, z80_E);
-}
-
-void z80_PUSHHL() {
-   z80_PUSH(z80_H, z80_L);
-}
-
-// POP
 
 void z80_POPAF() {
    byte flags = 0;
-   z80_POP(&z80_A, &flags);
+   POP(z80_A, flags);
    FLAG_Z = (flags & BITMASK_Z);
    FLAG_C = (flags & BITMASK_C);
    FLAG_H = (flags & BITMASK_H);
    FLAG_N = (flags & BITMASK_N);
 }
 
-void z80_POPBC() {
-   z80_POP(&z80_B, &z80_C);
-}
-
-void z80_POPDE() {
-   z80_POP(&z80_D, &z80_E);
-}
-
-void z80_POPHL() {
-   z80_POP(&z80_H, &z80_L);
-}
-
 // AND / OR / XOR
-
-void z80_AND_A() {
-   AND(z80_A);
-}
-
-void z80_AND_B() {
-   AND(z80_B);
-}
-
-void z80_AND_C() {
-   AND(z80_C);
-}
-
-void z80_AND_D() {
-   AND(z80_D);
-}
-
-void z80_AND_E() {
-   AND(z80_E);
-}
-
-void z80_AND_H() {
-   AND(z80_H);
-}
-
-void z80_AND_L() {
-   AND(z80_L);
-}
-
-void z80_AND_AT_HL() {
-   AND(FETCH(z80_H, z80_L));
-}
-
-void z80_AND_n() {
-   AND(mem_rb(z80_PC++));
-}
-
-void z80_OR_A() {
-   OR(z80_A);
-}
-
-void z80_OR_B() {
-   OR(z80_B);
-}
-
-void z80_OR_C() {
-   OR(z80_C);
-}
-
-void z80_OR_D() {
-   OR(z80_D);
-}
-
-void z80_OR_E() {
-   OR(z80_E);
-}
-
-void z80_OR_H() {
-   OR(z80_H);
-}
-
-void z80_OR_L() {
-   OR(z80_L);
-}
-
-void z80_OR_AT_HL() {
-   OR(FETCH(z80_H, z80_L));
-}
-
-void z80_OR_n() {
-   OR(mem_rb(z80_PC++));
-}
-
-void z80_XOR_A() {
-   XOR(z80_A);
-}
-
-void z80_XOR_B() {
-   XOR(z80_B);
-}
-
-void z80_XOR_C() {
-   XOR(z80_C);
-}
-
-void z80_XOR_D() {
-   XOR(z80_D);
-}
-
-void z80_XOR_E() {
-   XOR(z80_E);
-}
-
-void z80_XOR_H() {
-   XOR(z80_H);
-}
-
-void z80_XOR_L() {
-   XOR(z80_L);
-}
-
-void z80_XOR_AT_HL() {
-   XOR(FETCH(z80_H, z80_L));
-}
-
-void z80_XOR_n() {
-   XOR(mem_rb(z80_PC++));
-}
+void z80_AND_A()     { AND(z80_A); }
+void z80_AND_B()     { AND(z80_B); }
+void z80_AND_C()     { AND(z80_C); }
+void z80_AND_D()     { AND(z80_D); }
+void z80_AND_E()     { AND(z80_E); }
+void z80_AND_H()     { AND(z80_H); }
+void z80_AND_L()     { AND(z80_L); }
+void z80_AND_AT_HL() { AND(FETCH(z80_H, z80_L)); }
+void z80_AND_n()     { AND(mem_rb(z80_PC++)); }
+void z80_OR_A()      { OR(z80_A); }
+void z80_OR_B()      { OR(z80_B); }
+void z80_OR_C()      { OR(z80_C); }
+void z80_OR_D()      { OR(z80_D); }
+void z80_OR_E()      { OR(z80_E); }
+void z80_OR_H()      { OR(z80_H); }
+void z80_OR_L()      { OR(z80_L); }
+void z80_OR_AT_HL()  { OR(FETCH(z80_H, z80_L)); }
+void z80_OR_n()      { OR(mem_rb(z80_PC++)); }
+void z80_XOR_A()     { XOR(z80_A); }
+void z80_XOR_B()     { XOR(z80_B); }
+void z80_XOR_C()     { XOR(z80_C); }
+void z80_XOR_D()     { XOR(z80_D); }
+void z80_XOR_E()     { XOR(z80_E); }
+void z80_XOR_H()     { XOR(z80_H); }
+void z80_XOR_L()     { XOR(z80_L); }
+void z80_XOR_AT_HL() { XOR(FETCH(z80_H, z80_L)); }
+void z80_XOR_n()     { XOR(mem_rb(z80_PC++)); }
 
 void z80_RLC(byte* inp) {
    byte t;
@@ -1441,7 +1111,7 @@ void z80_JR_C_n() {
 }
 
 void z80_CALL() {
-   z80_PUSH((z80_PC + 2) >> 8, (z80_PC + 2) & 0x00FF);
+   PUSHW(z80_PC + 2);
    z80_PC = mem_rw(z80_PC);
    z80_dt = 24;
 }
@@ -1489,67 +1159,59 @@ void z80_CALL_C_nn() {
 // Restarts
 
 void z80_RST_00H() {
-   z80_PUSH(z80_PC >> 8, z80_PC & 0x00FF);
+   PUSHW(z80_PC);
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x00;
-   z80_dt   = 16;
 }
 
 void z80_RST_08H() {
-   z80_PUSH(z80_PC >> 8, z80_PC & 0x00FF);
+   PUSHW(z80_PC);
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x08;
-   z80_dt   = 16;
 }
 
 void z80_RST_10H() {
-   z80_PUSH(z80_PC >> 8, z80_PC & 0x00FF);
+   PUSHW(z80_PC);
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x10;
-   z80_dt   = 16;
 }
 
 void z80_RST_18H() {
-   z80_PUSH(z80_PC >> 8, z80_PC & 0x00FF);
+   PUSHW(z80_PC);
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x18;
-   z80_dt   = 16;
 }
 
 void z80_RST_20H() {
-   z80_PUSH(z80_PC >> 8, z80_PC & 0x00FF);
+   PUSHW(z80_PC);
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x20;
-   z80_dt   = 16;
 }
 
 void z80_RST_28H() {
-   z80_PUSH(z80_PC >> 8, z80_PC & 0x00FF);
+   PUSHW(z80_PC);
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x28;
-   z80_dt   = 16;
 }
 
 void z80_RST_30H() {
-   z80_PUSH(z80_PC >> 8, z80_PC & 0x00FF);
+   PUSHW(z80_PC);
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x30;
-   z80_dt   = 16;
 }
 
 void z80_RST_38H() {
-   z80_PUSH(z80_PC >> 8, z80_PC & 0x00FF);
+   PUSHW(z80_PC);
    z80_halt = false;
    z80_stop = false;
    z80_PC   = 0x38;
-   z80_dt   = 16;
 
    // If reset 38 is pointing to itself, error out
    if (mem_rb(z80_PC) == 0xFF) {
@@ -1560,8 +1222,7 @@ void z80_RST_38H() {
 // Returns
 
 void z80_RETURN() {
-   z80_PC = mem_rw(z80_SP);
-   z80_SP += 2;
+   POPW(z80_PC);
    z80_dt = 20;
 }
 
