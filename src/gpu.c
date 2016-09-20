@@ -145,25 +145,24 @@ void gpu_do_scanline() {
 
    if (gpu_blankscreen) {
       for (int i = 0; i < 160; i++) {
-         gpu_vram[output_addr++] = 0xCC;
          gpu_vram[output_addr++] = 0xFF;
-         gpu_vram[output_addr++] = 0xCC;
+         gpu_vram[output_addr++] = 0xFF;
+         gpu_vram[output_addr++] = 0xFF;
          gpu_vram[output_addr++] = 0xFF;
       }
       return;
    }
 
-   byte gpu_window_x = mem_rb(0xFF4B);
-
+   byte gpu_window_x = mem_direct_read(0xFF4B);
    if (gpu_scanline == 0) {
-      gpu_window_y = mem_rb(0xFF4A);
+      gpu_window_y = mem_direct_read(0xFF4A);
    }
 
-   byte scrollX            = mem_rb(LCD_SCX_ADDR);
-   byte scrollY            = mem_rb(LCD_SCY_ADDR);
-   bool which_win_tile_map = (mem_rb(LCD_CONTROL_ADDR) & 0x40) != 0;
-   bool which_bg_tile_map  = (mem_rb(LCD_CONTROL_ADDR) & 0x08) != 0;
-   bool which_tile_data    = (mem_rb(LCD_CONTROL_ADDR) & 0x10) == 0;
+   byte scrollX            = mem_direct_read(LCD_SCX_ADDR);
+   byte scrollY            = mem_direct_read(LCD_SCY_ADDR);
+   bool which_win_tile_map = (mem_direct_read(LCD_CONTROL_ADDR) & 0x40) != 0;
+   bool which_bg_tile_map  = (mem_direct_read(LCD_CONTROL_ADDR) & 0x08) != 0;
+   bool which_tile_data    = (mem_direct_read(LCD_CONTROL_ADDR) & 0x10) == 0;
 
    word bg_tile_map_location = 0x9800;
    if (which_bg_tile_map) {
@@ -202,8 +201,10 @@ void gpu_do_scanline() {
    byte outcol          = 0;
 
    for (int i = 0; i < 160; i++) {
-      if ((mem_rb(0xFF40) & 0x20) != 0 && gpu_scanline >= gpu_window_y &&
-          i >= gpu_window_x - 7 && gpu_window_x < 166) {
+      if ((mem_direct_read(0xFF40) & 0x20) != 0
+        && gpu_scanline >= gpu_window_y
+        && i >= gpu_window_x - 7
+        && gpu_window_x < 166) {
          using_window = true;
       }
 
@@ -297,7 +298,7 @@ void gpu_do_scanline() {
 
       if (y <= gpu_scanline && y + (big_sprites ? 16 : 8) > gpu_scanline) {
          byte temptile = tile;
-         if (mem_rb(0xFF40) & 0x04) {
+         if (mem_direct_read(0xFF40) & 0x04) {
             temptile &= 0xFE;
          }
          outcol = 0;
@@ -360,51 +361,12 @@ void gpu_do_scanline() {
 }
 
 byte gpu_pick_color(byte col, byte pal) {
-   byte outcol = 0;
-   if (col == 0x03) {
-      byte temp = (pal >> 6) & 0x03;
-      if (temp == 3) {
-         outcol = COLOR_BLACK;
-      } else if (temp == 2) {
-         outcol = COLOR_DARK;
-      } else if (temp == 1) {
-         outcol = COLOR_LITE;
-      } else if (temp == 0) {
-         outcol = COLOR_WHITE;
-      }
-   } else if (col == 0x02) {
-      byte temp = (pal >> 4) & 0x03;
-      if (temp == 3) {
-         outcol = COLOR_BLACK;
-      } else if (temp == 2) {
-         outcol = COLOR_DARK;
-      } else if (temp == 1) {
-         outcol = COLOR_LITE;
-      } else if (temp == 0) {
-         outcol = COLOR_WHITE;
-      }
-   } else if (col == 0x01) {
-      byte temp = (pal >> 2) & 0x03;
-      if (temp == 3) {
-         outcol = COLOR_BLACK;
-      } else if (temp == 2) {
-         outcol = COLOR_DARK;
-      } else if (temp == 1) {
-         outcol = COLOR_LITE;
-      } else if (temp == 0) {
-         outcol = COLOR_WHITE;
-      }
-   } else if (col == 0x00) {
-      byte temp = pal & 0x03;
-      if (temp == 3) {
-         outcol = COLOR_BLACK;
-      } else if (temp == 2) {
-         outcol = COLOR_DARK;
-      } else if (temp == 1) {
-         outcol = COLOR_LITE;
-      } else if (temp == 0) {
-         outcol = COLOR_WHITE;
-      }
+   byte temp = (pal >> (col * 2)) & 0x03;
+   switch (temp) {
+      case 3: return COLOR_BLACK;
+      case 2: return COLOR_DARK;
+      case 1: return COLOR_LITE;
+      case 0: return COLOR_WHITE;
    }
-   return outcol;
+   return COLOR_WHITE;
 }
