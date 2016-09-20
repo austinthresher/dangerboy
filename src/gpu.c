@@ -69,6 +69,12 @@ void gpu_update_stat() {
     || (gpu_mode == GPU_MODE_SCAN_OAM && (stat_reg & 0x20))
     || (gpu_scanline == lyc           && (stat_reg & 0x40))) {
       mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_STAT);
+   } else if (gpu_scanline == 144 && gpu_mode == GPU_MODE_VBLANK) {
+      // The OAM interrupt can still fire on scanline 144. This only
+      // happens if the VBlank interrupt did not fire.
+      if (stat_reg & 0x20) {
+         mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_STAT);
+      }
    }
 }
 
@@ -113,6 +119,7 @@ void gpu_execute_step(tick ticks) {
             if (gpu_scanline > 153) {
                gpu_mode = GPU_MODE_SCAN_OAM;
                gpu_scanline = 0;
+               gpu_window_scanline = 0;
             }
             gpu_update_stat();
          }
@@ -304,6 +311,7 @@ void gpu_do_scanline() {
             stempaddr =
                0x8000 + temptile * 16 + ((gpu_scanline - y) & y_mask) * 2;
          } else {
+            // TODO: Why is this 14 instead of 16?
             stempaddr =
                0x8000 + temptile * 16 +
                ((big_sprites ? 32 : 14) - ((gpu_scanline - y) & y_mask) * 2);
