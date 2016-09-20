@@ -25,10 +25,10 @@ byte  z80_D;
 byte  z80_E;
 byte  z80_H;
 byte  z80_L;
-byte  z80_delayed_enable_interrupt;
+byte  z80_ei_delay;
 word  z80_PC; // Program Counter
 word  z80_SP; // Stack Pointer
-bool  z80_interrupts_enabled;
+bool  z80_ei;
 bool  z80_halt;
 bool  z80_stop;
 tick  z80_ticks;
@@ -73,10 +73,6 @@ void z80_RES(byte* inp, byte bit);
 void z80_SET(byte* inp, byte bit);
 
 // LOAD / STORES
-
-void z80_LOAD(byte* reg, byte data);
-void z80_STORE(byte hi, byte lo, byte data);
-byte z80_FETCH(byte hi, byte lo);
 
 void z80_LDB_n();       /*0x06*/
 void z80_LDC_n();       /*0x0E*/

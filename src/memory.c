@@ -308,6 +308,7 @@ byte mem_get_current_rom_bank() {
 
 // Read byte
 byte mem_rb(word addr) {
+   z80_dt = 8;
 
    // 0x0000 to 0x3FFF always contains the first 16 kb of ROM
    if (addr < 0x4000) {
