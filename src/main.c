@@ -4,6 +4,8 @@
 #include "gpu.h"
 #include "z80.h"
 
+#define INPUT_POLL_RATE 8 // Poll for input every 8 ms (120 times a second)
+#define SCALE_FACTOR 2 
 
 int main(int argc, char* args[]) {
    if (argc < 2) {
@@ -24,22 +26,27 @@ int main(int argc, char* args[]) {
    uint32_t screenFlags = SDL_HWSURFACE | SDL_DOUBLEBUF;
    SDL_Init(SDL_INIT_EVERYTHING);
    SDL_WM_SetCaption("Danger Boy", "Danger Boy");
-   SDL_Surface* screen = SDL_SetVideoMode(160, 144, 32, screenFlags);
+   SDL_Surface* screen = SDL_SetVideoMode(160 * SCALE_FACTOR,
+                                          144 * SCALE_FACTOR,
+                                          32, screenFlags);
    SDL_Surface* gb_screen =
-      SDL_CreateRGBSurface(screenFlags, 160, 144, 32, 0x00FF0000, 0x0000FF00,
+      SDL_CreateRGBSurface(screenFlags,
+                           160 * SCALE_FACTOR,
+                           144 * SCALE_FACTOR,
+                           32,
+                           0x00FF0000, 0x0000FF00,
                            0x000000FF, 0xFF000000);
-   SDL_Rect gb_screen_rect = {0, 0, 160, 144};
    
-   bool  polled_input = false;
    bool  is_running   = true;
    int   t_prev       = SDL_GetTicks();
+   int   i_prev       = SDL_GetTicks();
    char* file         = args[1];
    z80_init(file);
    gpu_init(gb_screen);
    while (is_running && !check_error()) {
       int t = SDL_GetTicks();
-      if (t - t_prev > 16 && !polled_input) {
-         polled_input = true;
+      if (t - i_prev > INPUT_POLL_RATE) {
+         i_prev = t;
          SDL_Event event;
          while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -138,7 +145,6 @@ int main(int argc, char* args[]) {
       } else {
          if (t - t_prev > 16) { // 60 fps
             t_prev = t;
-            polled_input = false;
 
             DEBUG("SCREEN REFRESH\n");
 
@@ -148,12 +154,24 @@ int main(int argc, char* args[]) {
             // Copy the display over one row at a time.
             // This avoids memory alignment issues on some platforms.
             for (int y = 0; y < gb_screen->h; ++y) {
-               uint8_t* pixels = gb_screen->pixels + (y * gb_screen->pitch);
-               memcpy(pixels, gpu_vram + y * 160 * 4, 160 * 4);
+               for (int x = 0; x < gb_screen->w; ++x) {
+                  *(uint8_t*)(gb_screen->pixels
+                           + (y * gb_screen->pitch
+                           +  x * gb_screen->format->BytesPerPixel + 3)
+                           ) = 255;
+                  for (int c = 0; c < 3; ++c) {
+                     int small_x = x / SCALE_FACTOR;
+                     int small_y = y / SCALE_FACTOR;
+                     *(uint8_t*)(gb_screen->pixels
+                                 + (y * gb_screen->pitch
+                                 +  x * gb_screen->format->BytesPerPixel + c)
+                                 ) = gpu_vram[small_y * 160*3 + small_x*3 + c];
+                  }
+               }
             }
 
             SDL_UnlockSurface(gb_screen);
-            SDL_BlitSurface(gb_screen, NULL, screen, &gb_screen_rect);
+            SDL_BlitSurface(gb_screen, NULL, screen, NULL);
             SDL_Flip(screen);
 
             gpu_ready_to_draw = false;

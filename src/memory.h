@@ -21,6 +21,10 @@
 #define LCD_SCX_ADDR          0xFF43
 #define LCD_LINE_Y_ADDR       0xFF44
 #define LCD_LINE_Y_C_ADDR     0xFF45
+#define BG_PAL_ADDR           0xFF47
+#define OBJ_PAL_ADDR          0xFF48
+#define WIN_X_ADDR            0xFF4B
+#define WIN_Y_ADDR            0xFF4A
 #define INT_ENABLED_ADDR      0xFFFF
 
 typedef enum mbc_type_ { NONE = 0, MBC1 = 1, MBC2 = 2, MBC3 = 3 } mbc_type;

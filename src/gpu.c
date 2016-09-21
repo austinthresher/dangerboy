@@ -1,15 +1,18 @@
 #include "gpu.h"
 
+byte mode;
+byte win_y;
+bool lcd_disable;
+tick timer;
+
 void gpu_init() {
-   gpu_mode               = GPU_MODE_SCAN_OAM;
-   gpu_timer              = 0;
-   gpu_scanline           = 0;
-   gpu_blankscreen        = false;
-   gpu_ready_to_draw      = false;
-   gpu_hit_stat_interrupt = false;
-   gpu_vram               = NULL;
-   gpu_window_scanline    = 0;
-   gpu_window_y           = 0;
+   mode              = GPU_MODE_SCAN_OAM;
+   timer             = 0;
+   gpu_ly            = 0;
+   lcd_disable       = false;
+   gpu_ready_to_draw = false;
+   gpu_vram          = NULL;
+   gpu_win_ly        = 0;
    gpu_reset();
 }
 
@@ -18,14 +21,12 @@ void gpu_reset() {
       free(gpu_vram);
    }
 
-   // 4 bytes per pixel
-   gpu_vram = (byte*)calloc(160 * 144, 4);
-
+   gpu_vram = (byte*)calloc(160 * 144, 3);
    for (int i = 0, n = 0; i < 40; i++, n += 4) {
-      mem_wb(0xFE00 + n + 0, 0);
-      mem_wb(0xFE00 + n + 1, 0);
-      mem_wb(0xFE00 + n + 2, 0);
-      mem_wb(0xFE00 + n + 3, 0);
+      mem_wb(SPRITE_RAM_START_ADDR + n + 0, 0);
+      mem_wb(SPRITE_RAM_START_ADDR + n + 1, 0);
+      mem_wb(SPRITE_RAM_START_ADDR + n + 2, 0);
+      mem_wb(SPRITE_RAM_START_ADDR + n + 3, 0);
    }
 }
 
@@ -35,13 +36,13 @@ void gpu_update_stat() {
    // just before we jump back to OAM mode. We
    // Stay in VBLANK until the LCD is enabled.
    if ((mem_rb(LCD_CONTROL_ADDR) & 0x80) == 0) {
-      if (!gpu_blankscreen) {
-         gpu_blankscreen = true;
+      if (!lcd_disable) {
+         lcd_disable = true;
          gpu_ready_to_draw = true;
       }
-      gpu_timer = 456;
-      gpu_mode = GPU_MODE_VBLANK;
-      gpu_scanline = 153;
+      timer = 456;
+      mode = GPU_MODE_VBLANK;
+      gpu_ly = 153;
       mem_direct_write(LCD_LINE_Y_ADDR, 0);
       byte stat = mem_rb(LCD_STATUS_ADDR) & 0xFC;
       stat |= 1;
@@ -49,182 +50,161 @@ void gpu_update_stat() {
       return;
    }
 
-   gpu_blankscreen = false;
+   lcd_disable = false;
 
    // Writing here normally resets it, so we set it directly
-   mem_direct_write(LCD_LINE_Y_ADDR, gpu_scanline);
+   mem_direct_write(LCD_LINE_Y_ADDR, gpu_ly);
 
    // If lyc == scanline and bit 6 of stat is set, interrupt
    byte lyc = mem_rb(LCD_LINE_Y_C_ADDR);
 
    // Bits 0-2 indicate the gpu mode.
    // Higher bits are interrupt enable flags.
-   byte new_stat = (gpu_scanline == lyc ? 0x04 : 0) | (gpu_mode & 0x03);
+   byte new_stat = (gpu_ly == lyc ? 0x04 : 0) | (mode & 0x03);
    byte stat_reg = mem_rb(LCD_STATUS_ADDR);
    mem_wb(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_stat & 0x07));
 
    // The STAT interrupt has 4 different modes, based on bits 3-6
-   if ((gpu_mode == GPU_MODE_HBLANK   && (stat_reg & 0x08))
-    || (gpu_mode == GPU_MODE_VBLANK   && (stat_reg & 0x10))
-    || (gpu_mode == GPU_MODE_SCAN_OAM && (stat_reg & 0x20))
-    || (gpu_scanline == lyc           && (stat_reg & 0x40))) {
+   if ((mode == GPU_MODE_HBLANK   && (stat_reg & 0x08))
+    || (mode == GPU_MODE_VBLANK   && (stat_reg & 0x10))
+    || (mode == GPU_MODE_SCAN_OAM && (stat_reg & 0x20))
+    || (gpu_ly == lyc             && (stat_reg & 0x40))) {
       mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_STAT);
-   } else if (gpu_scanline == 144 && gpu_mode == GPU_MODE_VBLANK) {
+   } else if (gpu_ly == 144) {
       // The OAM interrupt can still fire on scanline 144. This only
-      // happens if the VBlank interrupt did not fire.
-      if (stat_reg & 0x20) {
+      // happens if the STAT VBlank interrupt did not fire.
+      // TODO: Does this happen if normal VBlank interrupt fires?
+      if (stat_reg & 0x20 && stat_reg & 0x10 == 0) {
          mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_STAT);
       }
    }
 }
 
 void gpu_execute_step(tick ticks) {
-   gpu_timer += ticks;
+   timer += ticks;
 
-   switch (gpu_mode) {
+   switch (mode) {
       case GPU_MODE_SCAN_OAM:
-         if (gpu_timer >= 80) {
-            gpu_mode = GPU_MODE_SCAN_VRAM;
-            gpu_timer = 0;
+         if (timer >= 80) {
+            mode = GPU_MODE_SCAN_VRAM;
+            timer = 0;
             gpu_update_stat();
          }
          break;
       case GPU_MODE_SCAN_VRAM:
-         if (gpu_timer >= 172) {
-            gpu_mode = GPU_MODE_HBLANK;
-            gpu_timer = 0;
+         if (timer >= 172) {
+            mode = GPU_MODE_HBLANK;
+            timer = 0;
             gpu_do_scanline();
-            gpu_update_stat();         
+            gpu_update_stat(); 
          }
          break;
       case GPU_MODE_HBLANK:
-         if (gpu_timer >= 204) {
-            gpu_timer = 0;
-            gpu_scanline++;
-            if (gpu_scanline > 143) {
-               gpu_mode = GPU_MODE_VBLANK;
+         if (timer >= 204) {
+            timer = 0;
+            gpu_ly++;
+            if (gpu_ly > 143) {
+               mode = GPU_MODE_VBLANK;
                gpu_ready_to_draw = true;
                mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_VBLANK);
             }
             else {
-               gpu_mode = GPU_MODE_SCAN_OAM;
+               mode = GPU_MODE_SCAN_OAM;
             }
             gpu_update_stat();
          }
          break;
       case GPU_MODE_VBLANK:
-         if (gpu_timer >= 456) {
-            gpu_timer = 0;
-            gpu_scanline++;
-            if (gpu_scanline > 153) {
-               gpu_mode = GPU_MODE_SCAN_OAM;
-               gpu_scanline = 0;
-               gpu_window_scanline = 0;
+         if (timer >= 456) {
+            timer = 0;
+            gpu_ly++;
+            if (gpu_ly > 153) {
+               mode = GPU_MODE_SCAN_OAM;
+               gpu_ly = 0;
+               gpu_win_ly = 0;
             }
             gpu_update_stat();
          }
          break;
    }
-
-   // TODO:
-   //emutalk.net/threads/41525-Game-Boy/page104
-   // "It turns out the mode cycles through 2, 3, 0, 1
-   //  during vblank, not 0, 2, 3"
-
-   // After reading more, it looks like VBLANK should start
-   // on line 143, not 144. Also, the order of GPU modes is wrong here:
-   // It should go OAM / VRAM / HBLANK. This is probably causing problems.
-
-   // Now lets update our memory registers
-   // TODO: 0xFF40 - LCD and GPU misc stuff
 }
 
 void gpu_do_scanline() {
-   bool using_window = false;
-   int  output_addr  = gpu_scanline * 160 * 4;
+   bool window = false;
+   int  vram_addr = gpu_ly * 160 * 3;
 
-   if (gpu_blankscreen) {
+   if (lcd_disable) {
       for (int i = 0; i < 160; i++) {
-         gpu_vram[output_addr++] = 0xFF;
-         gpu_vram[output_addr++] = 0xFF;
-         gpu_vram[output_addr++] = 0xFF;
-         gpu_vram[output_addr++] = 0xFF;
+         gpu_vram[vram_addr++] = 0xFF;
+         gpu_vram[vram_addr++] = 0xFF;
+         gpu_vram[vram_addr++] = 0xFF;
       }
       return;
    }
 
-   byte gpu_window_x = mem_direct_read(0xFF4B);
-   if (gpu_scanline == 0) {
-      gpu_window_y = mem_direct_read(0xFF4A);
+   byte win_x = mem_direct_read(WIN_X_ADDR);
+   if (gpu_ly == 0) {
+      win_y = mem_direct_read(WIN_Y_ADDR);
+   }
+      
+   bool bg_is_zero[160];
+   byte scroll_x     = mem_direct_read(LCD_SCX_ADDR);
+   byte scroll_y     = mem_direct_read(LCD_SCY_ADDR);
+   bool win_tile_map = mem_direct_read(LCD_CONTROL_ADDR) & 0x40;
+   bool bg_tile_map  = mem_direct_read(LCD_CONTROL_ADDR) & 0x08;
+   bool tile_bank    = mem_direct_read(LCD_CONTROL_ADDR) & 0x10;
+   word bg_map_loc   = 0x9800 + bg_tile_map  * 0x400;
+   word win_map_loc  = 0x9800 + win_tile_map * 0x400;
+   word bg_map_off   = (((gpu_ly + scroll_y) & 0xFF) >> 3) * 32;
+   word win_map_off  = ((gpu_win_ly & 0xFF) >> 3) * 32;
+   byte bg_x_off     = (scroll_x >> 3) & 0x1F;
+   byte win_x_off    = 0;
+   byte win_x_px     = 0;
+   word bg_tile      = mem_direct_read(bg_map_loc
+                                     + bg_map_off
+                                     + bg_x_off);
+   word win_tile     = mem_direct_read(win_map_loc
+                                     + win_map_off
+                                     + win_x_off);
+
+   if (!tile_bank && bg_tile < 128) {
+      bg_tile += 256;
+   }
+   if (!tile_bank && win_tile < 128) {
+      win_tile += 256;
    }
 
-   byte scrollX            = mem_direct_read(LCD_SCX_ADDR);
-   byte scrollY            = mem_direct_read(LCD_SCY_ADDR);
-   bool which_win_tile_map = (mem_direct_read(LCD_CONTROL_ADDR) & 0x40) != 0;
-   bool which_bg_tile_map  = (mem_direct_read(LCD_CONTROL_ADDR) & 0x08) != 0;
-   bool which_tile_data    = (mem_direct_read(LCD_CONTROL_ADDR) & 0x10) == 0;
-
-   word bg_tile_map_location = 0x9800;
-   if (which_bg_tile_map) {
-      bg_tile_map_location += 0x0400;
-   }
-
-   word win_tile_map_location = 0x9800;
-   if (which_win_tile_map) {
-      win_tile_map_location += 0x0400;
-   }
-
-   word bg_tile_map_offset  = (((gpu_scanline + scrollY) & 0xFF) >> 3) * 32;
-   word win_tile_map_offset = ((gpu_window_scanline & 0xFF) >> 3) * 32;
-   byte bg_x_tile_offset    = (scrollX >> 3) & 0x1F;
-   byte win_x_tile_offset   = 0;
-   byte window_x_px         = 0;
-   word bg_current_tile     = mem_direct_read(
-      bg_tile_map_location + bg_tile_map_offset + bg_x_tile_offset);
-
-   if (which_tile_data && bg_current_tile < 128) {
-      bg_current_tile += 256;
-   }
-
-   word win_current_tile = mem_direct_read(
-      win_tile_map_location + win_tile_map_offset + win_x_tile_offset);
-
-   if (which_tile_data && win_current_tile < 128) {
-      win_current_tile += 256;
-   }
-
-   byte bg_x_px_offset  = scrollX & 0x07;
-   byte bg_y_px_offset  = (scrollY + gpu_scanline) & 0x07;
-   byte win_x_px_offset = 0;
-   byte win_y_px_offset = gpu_window_scanline & 0x07;
-   byte start_x_off     = bg_x_px_offset;
-   byte outcol          = 0;
+   byte bg_xpx_off  = scroll_x & 0x07;
+   byte bg_ypx_off  = (scroll_y + gpu_ly) & 0x07;
+   byte win_xpx_off = 0;
+   byte win_ypx_off = gpu_win_ly & 0x07;
+   byte start_x_off = bg_xpx_off;
+   byte outcol      = 0;
 
    for (int i = 0; i < 160; i++) {
-      if ((mem_direct_read(0xFF40) & 0x20) != 0
-        && gpu_scanline >= gpu_window_y
-        && i >= gpu_window_x - 7
-        && gpu_window_x < 166) {
-         using_window = true;
+      if ((mem_direct_read(LCD_CONTROL_ADDR) & 0x20) != 0
+        && gpu_ly >= win_y
+        && i  >= win_x - 7
+        && win_x < 166) {
+         window = true;
       }
 
-      word tempaddr = 0x8000;
-      if (using_window == false) {
-         tempaddr += bg_current_tile * 16 + bg_y_px_offset * 2;
+      word tile_addr = 0x8000;
+      if (!window) {
+         tile_addr += bg_tile  * 16 + bg_ypx_off  * 2;
       } else {
-         tempaddr += win_current_tile * 16 + win_y_px_offset * 2;
+         tile_addr += win_tile * 16 + win_ypx_off * 2;
       }
-
-      byte hi   = mem_direct_read(tempaddr + 1);
-      byte lo   = mem_direct_read(tempaddr);
+      
       byte mask = 1;
-
-      if (using_window == false) {
-         mask <<= (7 - ((i + start_x_off) & 0x07));
+      if (!window) {
+         mask <<= 7 - ((i + start_x_off) & 0x07);
       } else {
-         mask <<= (7 - ((window_x_px++) & 0x07));
+         mask <<= 7 - ((win_x_px++) & 0x07);
       }
 
+      byte hi  = mem_direct_read(tile_addr + 1);
+      byte lo  = mem_direct_read(tile_addr);
       byte col = 0;
       if (hi & mask) {
          col = 2;
@@ -233,94 +213,88 @@ void gpu_do_scanline() {
          col += 1;
       }
 
-      outcol = gpu_pick_color(col, mem_direct_read(0xFF47));
+      bg_is_zero[i] = col == 0;
+      outcol = gpu_pick_color(col, mem_direct_read(BG_PAL_ADDR));
+      gpu_vram[vram_addr++] = outcol;
+      gpu_vram[vram_addr++] = outcol;
+      gpu_vram[vram_addr++] = outcol;
 
-      if (using_window == false) {
-         gpu_vram[output_addr++] = outcol;
-         gpu_vram[output_addr++] = outcol;
-         gpu_vram[output_addr++] = outcol;
-         gpu_vram[output_addr++] = 0xFF; // Alpha channel
-
-         bg_x_px_offset++;
-
-         if (bg_x_px_offset >= 8) {
-            bg_x_px_offset = 0;
-            bg_x_tile_offset++;
-            bg_x_tile_offset &= 0x1F;
-            bg_current_tile = mem_direct_read(
-               bg_tile_map_location + bg_tile_map_offset + bg_x_tile_offset);
-            if (which_tile_data && bg_current_tile < 128) {
-               bg_current_tile += 256;
+      if (!window) {
+         bg_xpx_off++;
+         if (bg_xpx_off >= 8) {
+            bg_xpx_off = 0;
+            bg_x_off++;
+            bg_x_off &= 0x1F;
+            bg_tile = mem_direct_read(bg_map_loc
+                                    + bg_map_off
+                                    + bg_x_off);
+            if (!tile_bank && bg_tile < 128) {
+               bg_tile += 256;
             }
          }
       } else {
-         gpu_vram[output_addr++] = outcol;
-         gpu_vram[output_addr++] = outcol;
-         gpu_vram[output_addr++] = outcol;
-         gpu_vram[output_addr++] = 0xFF; // Alpha channel
-         win_x_px_offset++;
-
-         if (win_x_px_offset >= 8) {
-            win_x_px_offset = 0;
-            win_x_tile_offset++;
-            win_x_tile_offset &= 0x1F;
-            win_current_tile = mem_direct_read(
-               win_tile_map_location + win_tile_map_offset + win_x_tile_offset);
-            if (which_tile_data && win_current_tile < 128) {
-               win_current_tile += 256;
+         win_xpx_off++;
+         if (win_xpx_off >= 8) {
+            win_xpx_off = 0;
+            win_x_off++;
+            win_x_off &= 0x1F;
+            win_tile = mem_direct_read(win_map_loc
+                                     + win_map_off
+                                     + win_x_off);
+            if (!tile_bank && win_tile < 128) {
+               win_tile += 256;
             }
          }
       }
    }
 
-   if (using_window) {
-      gpu_window_scanline++;
+   if (window) {
+      gpu_win_ly++;
    }
 
-   bool big_sprites = (mem_direct_read(0xFF40) & 0x04) == 0x04;
+   // Check if sprites are enabled
+   if(mem_direct_read(LCD_CONTROL_ADDR) & 0x02 == 0) {
+      return;
+   }
 
+   // Begin sprite drawing
+   bool big_sprites    = mem_direct_read(LCD_CONTROL_ADDR) & 0x04;
+   bool draw_priority  = !outcol;
    for (int spr = 0; spr < 40; spr++) {
-      byte y        = mem_direct_read(0xFE00 + spr * 4);
-      byte x        = mem_direct_read(0xFE00 + 1 + spr * 4);
-      byte tile     = mem_direct_read(0xFE00 + 2 + spr * 4);
-      byte val      = mem_direct_read(0xFE00 + 3 + spr * 4);
-      byte palette  = (val & 0x10) ? 1 : 0;
-      bool xflip    = (val & 0x20) ? true : false;
-      bool yflip    = (val & 0x40) ? true : false;
-      byte priority = (val & 0x80) ? 1 : 0;
+      byte y     = mem_direct_read(SPRITE_RAM_START_ADDR + spr * 4);
+      byte x     = mem_direct_read(SPRITE_RAM_START_ADDR + spr * 4 + 1);
+      byte tile  = mem_direct_read(SPRITE_RAM_START_ADDR + spr * 4 + 2);
+      byte attr  = mem_direct_read(SPRITE_RAM_START_ADDR + spr * 4 + 3);
+      byte pal   = attr & 0x10;
+      bool xflip = attr & 0x20;
+      bool yflip = attr & 0x40;
+      byte pri   = attr & 0x80;
+      int draw_x = x - 8;
+      int draw_y = y - 16;
+      int height = big_sprites ? 16 : 8;
 
-      if (x == 0 && y == 0) {
+      if (x == 0 || y == 0 || y >= 160 || x >= 168) {
          continue;
       }
-
-      x -= 8;
-      y -= 16;
-
-      if (y <= gpu_scanline && y + (big_sprites ? 16 : 8) > gpu_scanline) {
-         byte temptile = tile;
-         if (mem_direct_read(0xFF40) & 0x04) {
-            temptile &= 0xFE;
-         }
-         outcol = 0;
-         word stempaddr;
-         byte y_mask = 0x07;
-
+      
+      if (draw_y <= gpu_ly && draw_y + height > gpu_ly) {
+         byte spr_index = tile;
+         // In 8x16 mode, the least significant bit is ignored 
          if (big_sprites) {
-            y_mask = 0x0F;
+            spr_index &= 0xFE;
          }
-         if (!yflip) {
-            stempaddr =
-               0x8000 + temptile * 16 + ((gpu_scanline - y) & y_mask) * 2;
-         } else {
-            // TODO: Why is this 14 instead of 16?
-            stempaddr =
-               0x8000 + temptile * 16 +
-               ((big_sprites ? 32 : 14) - ((gpu_scanline - y) & y_mask) * 2);
-            // TODO: There's an off by 1 error somewhere with big sprites
+        
+         byte spr_line = gpu_ly - draw_y;
+         if (yflip) {
+            spr_line = height - 1 - spr_line;
          }
 
-         byte shi = mem_direct_read(stempaddr + 1);
-         byte slo = mem_direct_read(stempaddr);
+         byte y_mask   = height - 1;
+         word spr_addr = 0x8000
+                       + spr_index * 16
+                       + (spr_line & y_mask) * 2;
+         byte shi = mem_direct_read(spr_addr + 1);
+         byte slo = mem_direct_read(spr_addr);
 
          for (int sx = 0; sx < 8; sx++) {
             byte smask;
@@ -336,24 +310,18 @@ void gpu_do_scanline() {
             if (slo & smask) {
                scol++;
             }
-            byte color =
-               gpu_pick_color(scol, mem_direct_read(0xFF48 + palette));
-
-            // TODO: This doesn't check priority with background. Fix.
-            if ((x + sx) < 160 && scol) {
-               outcol          = color;
-               int output_addr = (gpu_scanline * 160 + x + sx) * 4;
-               if (!gpu_blankscreen) {
-                  gpu_vram[output_addr++] = outcol; // * 0.9;
-                  gpu_vram[output_addr++] = outcol;
-                  gpu_vram[output_addr++] = outcol; // * 0.6;
-                  gpu_vram[output_addr++] = 0xFF;
-               } else {
-                  gpu_vram[output_addr++] = 0xFF;
-                  gpu_vram[output_addr++] = 0xFF;
-                  gpu_vram[output_addr++] = 0xFF;
-                  gpu_vram[output_addr++] = 0xFF;
-               }
+            outcol = gpu_pick_color(scol,
+                                    mem_direct_read(OBJ_PAL_ADDR + pal));
+            
+            if (draw_x + sx < 160 && draw_x + sx >= 0 && scol) {
+               // TODO: Priority doesn't work. Fix
+               //if (pri == 1 && !bg_is_zero[draw_x + sx]) {
+               //   continue;
+               //}
+               int output_addr = (gpu_ly * 160 + draw_x + sx) * 3;
+               gpu_vram[output_addr++] = outcol;
+               gpu_vram[output_addr++] = outcol;
+               gpu_vram[output_addr++] = outcol;
             }
          }
       }

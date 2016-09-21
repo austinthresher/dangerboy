@@ -258,8 +258,8 @@ void mem_wb(word addr, byte val) {
       mem_ram[DIV_REGISTER_ADDR] = 0;
    } else if (addr == LCD_LINE_Y_ADDR) {
       mem_ram[LCD_LINE_Y_ADDR] = 0;
-      gpu_scanline = 0;
-      gpu_window_scanline = 0;
+      gpu_ly = 0;
+      gpu_win_ly = 0;
    } else if (addr == 0xFF46) { // OAM DMA Transfer
       word dma = val << 8;
       word ad  = SPRITE_RAM_START_ADDR;
