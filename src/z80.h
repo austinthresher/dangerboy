@@ -32,20 +32,15 @@ bool  z80_ei;
 bool  z80_halt;
 bool  z80_stop;
 tick  z80_ticks;
-tick  z80_dt;
 tick  z80_div_timer;
 tick  z80_tima_timer;
 char* z80_rom_fname;
 void (*z80_opcodes[0x100])();
 
-tick z80_execute_step();
+void z80_execute_step();
 void z80_init(char* romname);
 void z80_reset();
-void z80_clear_flags();
-void z80_set_flag_zero(bool tf);
-void z80_set_flag_carry(bool tf);
-void z80_set_flag_halfcarry(bool tf);
-void z80_set_flag_operation(bool tf);
+void z80_advance_time(tick dt);
 
 // And now, instructions
 void z80_NI();

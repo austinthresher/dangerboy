@@ -11,8 +11,8 @@
 #define SPRITE_RAM_END_ADDR   0xFE9F
 #define INPUT_REGISTER_ADDR   0xFF00
 #define DIV_REGISTER_ADDR     0xFF04
-#define TIMA_REGISTER_ADDR    0xFF05
-#define TIMA_MODULO_ADDR      0xFF06
+#define TIMA_ADDR             0xFF05
+#define TMA_ADDR              0xFF06
 #define TIMER_CONTROL_ADDR    0xFF07
 #define INT_FLAG_ADDR         0xFF0F
 #define LCD_CONTROL_ADDR      0xFF40

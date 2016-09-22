@@ -140,7 +140,7 @@ int main(int argc, char* args[]) {
       // We pause execution when the screen is ready to
       // be flipped to prevent emulating faster than 60 fps
       if (gpu_ready_to_draw == false) {
-         gpu_execute_step(z80_execute_step());
+         z80_execute_step();
          inc_debug_time();
       } else {
          if (t - t_prev > 16) { // 60 fps

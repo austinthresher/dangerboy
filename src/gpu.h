@@ -28,7 +28,7 @@ bool  gpu_ready_to_draw;
 
 void gpu_init();
 void gpu_reset();
-void gpu_execute_step(tick ticks);
+void gpu_advance_time(tick ticks);
 void gpu_do_scanline();
 void gpu_buildobj(word addr, byte val);
 byte gpu_pick_color(byte col, byte pal);

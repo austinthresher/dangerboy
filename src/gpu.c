@@ -23,10 +23,10 @@ void gpu_reset() {
 
    gpu_vram = (byte*)calloc(160 * 144, 3);
    for (int i = 0, n = 0; i < 40; i++, n += 4) {
-      mem_wb(SPRITE_RAM_START_ADDR + n + 0, 0);
-      mem_wb(SPRITE_RAM_START_ADDR + n + 1, 0);
-      mem_wb(SPRITE_RAM_START_ADDR + n + 2, 0);
-      mem_wb(SPRITE_RAM_START_ADDR + n + 3, 0);
+      mem_direct_write(SPRITE_RAM_START_ADDR + n + 0, 0);
+      mem_direct_write(SPRITE_RAM_START_ADDR + n + 1, 0);
+      mem_direct_write(SPRITE_RAM_START_ADDR + n + 2, 0);
+      mem_direct_write(SPRITE_RAM_START_ADDR + n + 3, 0);
    }
 }
 
@@ -44,9 +44,9 @@ void gpu_update_stat() {
       mode = GPU_MODE_VBLANK;
       gpu_ly = 153;
       mem_direct_write(LCD_LINE_Y_ADDR, 0);
-      byte stat = mem_rb(LCD_STATUS_ADDR) & 0xFC;
+      byte stat = mem_direct_read(LCD_STATUS_ADDR) & 0xFC;
       stat |= 1;
-      mem_wb(LCD_STATUS_ADDR, stat);
+      mem_direct_write(LCD_STATUS_ADDR, stat);
       return;
    }
 
@@ -56,31 +56,31 @@ void gpu_update_stat() {
    mem_direct_write(LCD_LINE_Y_ADDR, gpu_ly);
 
    // If lyc == scanline and bit 6 of stat is set, interrupt
-   byte lyc = mem_rb(LCD_LINE_Y_C_ADDR);
+   byte lyc = mem_direct_read(LCD_LINE_Y_C_ADDR);
 
    // Bits 0-2 indicate the gpu mode.
    // Higher bits are interrupt enable flags.
    byte new_stat = (gpu_ly == lyc ? 0x04 : 0) | (mode & 0x03);
-   byte stat_reg = mem_rb(LCD_STATUS_ADDR);
-   mem_wb(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_stat & 0x07));
+   byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
+   mem_direct_write(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_stat & 0x07));
 
    // The STAT interrupt has 4 different modes, based on bits 3-6
    if ((mode == GPU_MODE_HBLANK   && (stat_reg & 0x08))
     || (mode == GPU_MODE_VBLANK   && (stat_reg & 0x10))
     || (mode == GPU_MODE_SCAN_OAM && (stat_reg & 0x20))
     || (gpu_ly == lyc             && (stat_reg & 0x40))) {
-      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_STAT);
+      mem_direct_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
    } else if (gpu_ly == 144) {
       // The OAM interrupt can still fire on scanline 144. This only
       // happens if the STAT VBlank interrupt did not fire.
       // TODO: Does this happen if normal VBlank interrupt fires?
       if (stat_reg & 0x20 && stat_reg & 0x10 == 0) {
-         mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_STAT);
+         mem_direct_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
       }
    }
 }
 
-void gpu_execute_step(tick ticks) {
+void gpu_advance_time(tick ticks) {
    timer += ticks;
 
    switch (mode) {
@@ -106,7 +106,8 @@ void gpu_execute_step(tick ticks) {
             if (gpu_ly > 143) {
                mode = GPU_MODE_VBLANK;
                gpu_ready_to_draw = true;
-               mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_VBLANK);
+               mem_direct_write(INT_FLAG_ADDR,
+                     mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
             }
             else {
                mode = GPU_MODE_SCAN_OAM;
@@ -182,7 +183,7 @@ void gpu_do_scanline() {
    byte outcol      = 0;
 
    for (int i = 0; i < 160; i++) {
-      if ((mem_direct_read(LCD_CONTROL_ADDR) & 0x20) != 0
+      if ((mem_direct_read(LCD_CONTROL_ADDR) & 0x20)
         && gpu_ly >= win_y
         && i  >= win_x - 7
         && win_x < 166) {
@@ -265,10 +266,10 @@ void gpu_do_scanline() {
       byte x     = mem_direct_read(SPRITE_RAM_START_ADDR + spr * 4 + 1);
       byte tile  = mem_direct_read(SPRITE_RAM_START_ADDR + spr * 4 + 2);
       byte attr  = mem_direct_read(SPRITE_RAM_START_ADDR + spr * 4 + 3);
-      byte pal   = attr & 0x10;
+      bool pal   = attr & 0x10;
       bool xflip = attr & 0x20;
       bool yflip = attr & 0x40;
-      byte pri   = attr & 0x80;
+      bool pri   = attr & 0x80;
       int draw_x = x - 8;
       int draw_y = y - 16;
       int height = big_sprites ? 16 : 8;
@@ -315,9 +316,9 @@ void gpu_do_scanline() {
             
             if (draw_x + sx < 160 && draw_x + sx >= 0 && scol) {
                // TODO: Priority doesn't work. Fix
-               //if (pri == 1 && !bg_is_zero[draw_x + sx]) {
-               //   continue;
-               //}
+               if (pri == 1 && !bg_is_zero[draw_x + sx]) {
+                  continue;
+               }
                int output_addr = (gpu_ly * 160 + draw_x + sx) * 3;
                gpu_vram[output_addr++] = outcol;
                gpu_vram[output_addr++] = outcol;
@@ -328,6 +329,7 @@ void gpu_do_scanline() {
    }
 }
 
+// TODO: 
 byte gpu_pick_color(byte col, byte pal) {
    byte temp = (pal >> (col * 2)) & 0x03;
    switch (temp) {

@@ -164,10 +164,9 @@ byte mem_direct_read(word addr) {
 
 // Write byte
 void mem_wb(word addr, byte val) {
-   z80_dt = 8;
-
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
+         z80_advance_time(4);
          // Nothing under 0x8000 is writable without banking
          return;
       }
@@ -274,6 +273,7 @@ void mem_wb(word addr, byte val) {
       }
       mem_ram[addr] = val;
    }
+   z80_advance_time(4);
 }
 
 byte mem_get_current_rom_bank() {
@@ -309,7 +309,7 @@ byte mem_get_current_rom_bank() {
 
 // Read byte
 byte mem_rb(word addr) {
-   z80_dt = 8;
+   z80_advance_time(4);
 
    // 0x0000 to 0x3FFF always contains the first 16 kb of ROM
    if (addr < 0x4000) {
