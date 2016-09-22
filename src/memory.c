@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "memory.h"
-#include "gpu.h"
+#include "ppu.h"
 
 void mem_init(void) {
    mem_ram              = NULL;
@@ -166,7 +166,7 @@ byte mem_direct_read(word addr) {
 void mem_wb(word addr, byte val) {
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
-         z80_advance_time(4);
+         cpu_advance_time(4);
          // Nothing under 0x8000 is writable without banking
          return;
       }
@@ -257,8 +257,8 @@ void mem_wb(word addr, byte val) {
       mem_ram[DIV_REGISTER_ADDR] = 0;
    } else if (addr == LCD_LINE_Y_ADDR) {
       mem_ram[LCD_LINE_Y_ADDR] = 0;
-      gpu_ly = 0;
-      gpu_win_ly = 0;
+      ppu_ly = 0;
+      ppu_win_ly = 0;
    } else if (addr == 0xFF46) { // OAM DMA Transfer
       word dma = val << 8;
       word ad  = SPRITE_RAM_START_ADDR;
@@ -273,7 +273,7 @@ void mem_wb(word addr, byte val) {
       }
       mem_ram[addr] = val;
    }
-   z80_advance_time(4);
+   cpu_advance_time(4);
 }
 
 byte mem_get_current_rom_bank() {
@@ -309,7 +309,7 @@ byte mem_get_current_rom_bank() {
 
 // Read byte
 byte mem_rb(word addr) {
-   z80_advance_time(4);
+   cpu_advance_time(4);
 
    // 0x0000 to 0x3FFF always contains the first 16 kb of ROM
    if (addr < 0x4000) {

@@ -1,8 +1,8 @@
 #include <SDL/SDL.h>
 #include <stdio.h>
 
-#include "gpu.h"
-#include "z80.h"
+#include "ppu.h"
+#include "cpu.h"
 
 #define INPUT_POLL_RATE 8 // Poll for input every 8 ms (120 times a second)
 #define SCALE_FACTOR 2 
@@ -41,8 +41,8 @@ int main(int argc, char* args[]) {
    int   t_prev       = SDL_GetTicks();
    int   i_prev       = SDL_GetTicks();
    char* file         = args[1];
-   z80_init(file);
-   gpu_init(gb_screen);
+   cpu_init(file);
+   ppu_init(gb_screen);
    while (is_running && !check_error()) {
       int t = SDL_GetTicks();
       if (t - i_prev > INPUT_POLL_RATE) {
@@ -139,8 +139,8 @@ int main(int argc, char* args[]) {
       }
       // We pause execution when the screen is ready to
       // be flipped to prevent emulating faster than 60 fps
-      if (gpu_ready_to_draw == false) {
-         z80_execute_step();
+      if (ppu_ready_to_draw == false) {
+         cpu_execute_step();
          inc_debug_time();
       } else {
          if (t - t_prev > 16) { // 60 fps
@@ -165,7 +165,7 @@ int main(int argc, char* args[]) {
                      *(uint8_t*)(gb_screen->pixels
                                  + (y * gb_screen->pitch
                                  +  x * gb_screen->format->BytesPerPixel + c)
-                                 ) = gpu_vram[small_y * 160*3 + small_x*3 + c];
+                                 ) = ppu_vram[small_y * 160*3 + small_x*3 + c];
                   }
                }
             }
@@ -174,7 +174,7 @@ int main(int argc, char* args[]) {
             SDL_BlitSurface(gb_screen, NULL, screen, NULL);
             SDL_Flip(screen);
 
-            gpu_ready_to_draw = false;
+            ppu_ready_to_draw = false;
          } else {
             SDL_Delay(1);
          }
