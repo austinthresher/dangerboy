@@ -234,7 +234,8 @@ void mem_wb(word addr, byte val) {
    } else if (addr > 0x8000 && addr < 0xA000) {
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
-      if (mode != 3 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
+//      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
+      if (mode < 2) {
          mem_ram[addr] = val;
       }
    } else if (addr >= 0xA000 && addr < 0xC000) {
@@ -250,7 +251,8 @@ void mem_wb(word addr, byte val) {
    } else if (addr >= SPRITE_RAM_START_ADDR && addr <= SPRITE_RAM_END_ADDR) {
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
-      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
+//      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
+      if (mode < 2) {
          mem_ram[addr] = val;
       }
    } else if (addr == DIV_REGISTER_ADDR) {

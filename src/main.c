@@ -30,7 +30,7 @@ int main(int argc, char* args[]) {
                                           144 * SCALE_FACTOR,
                                           32, screenFlags);
    SDL_Surface* gb_screen =
-      SDL_CreateRGBSurface(screenFlags,
+      SDL_CreateRGBSurface(SDL_HWSURFACE,
                            160 * SCALE_FACTOR,
                            144 * SCALE_FACTOR,
                            32,
@@ -148,7 +148,7 @@ int main(int argc, char* args[]) {
 
             DEBUG("SCREEN REFRESH\n");
 
-            SDL_FillRect(screen, NULL, 0xF00000);
+//            SDL_FillRect(screen, NULL, 0xF00000);
             SDL_LockSurface(gb_screen);
 
             // Copy the display over one row at a time.
