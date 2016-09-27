@@ -5,6 +5,8 @@ byte win_y;
 bool lcd_disable;
 tick timer;
 
+void ppu_update_stat();
+
 void ppu_init() {
    mode              = PPU_MODE_SCAN_OAM;
    timer             = 0;
@@ -30,29 +32,47 @@ void ppu_reset() {
    }
 }
 
-void ppu_update_stat() {
-   
-   // If the LCD is disabled, freeze our status
-   // just before we jump back to OAM mode. We
-   // Stay in VBLANK until the LCD is enabled.
-   if ((mem_rb(LCD_CONTROL_ADDR) & 0x80) == 0) {
-      if (!lcd_disable) {
-         lcd_disable = true;
-         ppu_ready_to_draw = true;
-      }
-      timer = 456;
-      mode = PPU_MODE_VBLANK;
-      ppu_ly = 153;
-      mem_direct_write(LCD_LINE_Y_ADDR, 0);
-      byte stat = mem_direct_read(LCD_STATUS_ADDR) & 0xFC;
-      stat |= 1;
-      mem_direct_write(LCD_STATUS_ADDR, stat);
-      return;
+void ppu_update_register(word addr, byte val) {
+   switch (addr) {
+      case LCD_LINE_Y_ADDR:
+         ppu_ly = 0;
+         ppu_win_ly = 0;
+         mem_direct_write(LCD_LINE_Y_ADDR, 0);
+         break;
+      case LCD_CONTROL_ADDR:
+         mem_direct_write(LCD_CONTROL_ADDR, val);
+         if (val & 0x80) {
+            if (lcd_disable) {
+               DEBUG("LCD ENABLED\n");
+            }
+            lcd_disable = false;
+         } else {
+            if (!lcd_disable) {
+               DEBUG("LCD DISABLED\n");
+               ppu_ready_to_draw = true;
+            }
+            lcd_disable = true;
+            //timer = 456;
+            mode = PPU_MODE_VBLANK;
+            ppu_ly = 153;
+            ppu_update_stat();
+         }
+         break;
+      default:
+         mem_direct_write(addr, val);
    }
 
-   lcd_disable = false;
+}
+// TODO: Wrap STAT / CONTROL access in a method
+// that memory.c calls. Handle stuff like LCD disable
+// there.
 
-   // Writing here normally resets it, so we set it directly
+// TODO: Add debug messages when LCD mode / enable changes.
+// TODO: Add debug messages for interrupts being raised / handled
+// TODO: Try dividing timer increment by 4 and see if it's correct
+
+void ppu_update_stat() {
+   
    mem_direct_write(LCD_LINE_Y_ADDR, ppu_ly);
 
    // If lyc == scanline and bit 6 of stat is set, interrupt
@@ -81,29 +101,34 @@ void ppu_update_stat() {
 }
 
 void ppu_advance_time(tick ticks) {
+   if (lcd_disable) {
+      return;
+   }
+
    timer += ticks;
 
    switch (mode) {
       case PPU_MODE_SCAN_OAM:
          if (timer >= 80) {
             mode = PPU_MODE_SCAN_VRAM;
-            timer = 0;
+            timer -= 80;
             ppu_update_stat();
          }
          break;
       case PPU_MODE_SCAN_VRAM:
          if (timer >= 172) {
             mode = PPU_MODE_HBLANK;
-            timer = 0;
+            timer -= 172;
             ppu_do_scanline();
             ppu_update_stat(); 
          }
          break;
       case PPU_MODE_HBLANK:
          if (timer >= 204) {
-            timer = 0;
+            timer -= 204;
             ppu_ly++;
             if (ppu_ly > 143) {
+               DEBUG("PPU: VBLANK\n");
                mode = PPU_MODE_VBLANK;
                ppu_ready_to_draw = true;
                mem_direct_write(INT_FLAG_ADDR,
@@ -117,7 +142,7 @@ void ppu_advance_time(tick ticks) {
          break;
       case PPU_MODE_VBLANK:
          if (timer >= 456) {
-            timer = 0;
+            timer -= 456;
             ppu_ly++;
             if (ppu_ly > 153) {
                mode = PPU_MODE_SCAN_OAM;
@@ -161,19 +186,12 @@ void ppu_do_scanline() {
    byte bg_x_off     = (scroll_x >> 3) & 0x1F;
    byte win_x_off    = 0;
    byte win_x_px     = 0;
-   word bg_tile      = mem_direct_read(bg_map_loc
+   byte bg_tile      = mem_direct_read(bg_map_loc
                                      + bg_map_off
                                      + bg_x_off);
-   word win_tile     = mem_direct_read(win_map_loc
+   byte win_tile     = mem_direct_read(win_map_loc
                                      + win_map_off
                                      + win_x_off);
-
-   if (!tile_bank && bg_tile < 128) {
-      bg_tile += 256;
-   }
-   if (!tile_bank && win_tile < 128) {
-      win_tile += 256;
-   }
 
    byte bg_xpx_off  = scroll_x & 0x07;
    byte bg_ypx_off  = (scroll_y + ppu_ly) & 0x07;
@@ -190,11 +208,17 @@ void ppu_do_scanline() {
          window = true;
       }
 
-      word tile_addr = 0x8000;
-      if (!window) {
-         tile_addr += bg_tile  * 16 + bg_ypx_off  * 2;
+      int tile_addr;
+      if (!tile_bank) {
+         tile_addr = 0x9000 + (sbyte)(window ? win_tile : bg_tile) * 16;
       } else {
-         tile_addr += win_tile * 16 + win_ypx_off * 2;
+         tile_addr = 0x8000 + (byte)(window ? win_tile : bg_tile) * 16;
+      }
+
+      if (!window) {
+         tile_addr += bg_ypx_off  * 2;
+      } else {
+         tile_addr += win_ypx_off * 2;
       }
       
       byte mask = 1;
@@ -229,9 +253,6 @@ void ppu_do_scanline() {
             bg_tile = mem_direct_read(bg_map_loc
                                     + bg_map_off
                                     + bg_x_off);
-            if (!tile_bank && bg_tile < 128) {
-               bg_tile += 256;
-            }
          }
       } else {
          win_xpx_off++;
@@ -242,10 +263,7 @@ void ppu_do_scanline() {
             win_tile = mem_direct_read(win_map_loc
                                      + win_map_off
                                      + win_x_off);
-            if (!tile_bank && win_tile < 128) {
-               win_tile += 256;
-            }
-         }
+        }
       }
    }
 

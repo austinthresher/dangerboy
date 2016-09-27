@@ -145,9 +145,6 @@ int main(int argc, char* args[]) {
       } else {
          if (t - t_prev > 16) { // 60 fps
             t_prev = t;
-
-            DEBUG("SCREEN REFRESH\n");
-
 //            SDL_FillRect(screen, NULL, 0xF00000);
             SDL_LockSurface(gb_screen);
 

@@ -25,9 +25,9 @@ byte  cpu_D;
 byte  cpu_E;
 byte  cpu_H;
 byte  cpu_L;
-byte  cpu_ei_delay;
 word  cpu_PC; // Program Counter
 word  cpu_SP; // Stack Pointer
+bool  cpu_ei_delay;
 bool  cpu_ei;
 bool  cpu_halt;
 bool  cpu_stop;

@@ -124,7 +124,7 @@ static bool FLAG_N;
 
 void cpu_init(char* romname) {
    cpu_ei         = false;
-   cpu_ei_delay   = 0;
+   cpu_ei_delay   = false;
    cpu_tima_timer = 0;
    cpu_div_timer  = 0;
    cpu_halt       = false;
@@ -392,7 +392,7 @@ void cpu_init(char* romname) {
    cpu_opcodes[0xEE] = &cpu_XOR_n;         /* 2 */
    cpu_opcodes[0xEF] = &cpu_RST_28H;       /* 4 */
                                            
-   cpu_opcodes[0xF0] = &cpu_LD_A_n;        /* 3 */
+  cpu_opcodes[0xF0] = &cpu_LD_A_n;        /* 3 */
    cpu_opcodes[0xF1] = &cpu_POPAF;         /* 3 */
    cpu_opcodes[0xF2] = &cpu_LDA_AT_C;      /* 2 */
    cpu_opcodes[0xF3] = &cpu_DI;            /* 1 */
@@ -471,7 +471,7 @@ void cpu_advance_time(tick dt) {
 
    // Bit 3 enables or disables timers
    if (mem_direct_read(TIMER_CONTROL_ADDR) & 0x04) {
-      cpu_tima_timer += dt;
+      cpu_tima_timer -= dt;
       int max = 0;
       // Bits 1-2 control the timer speed
       switch (mem_direct_read(TIMER_CONTROL_ADDR) & 0x3) {
@@ -481,13 +481,14 @@ void cpu_advance_time(tick dt) {
          case 3: max = 256; break;
          default: ERROR("timer error");
       }
-      while (cpu_tima_timer >= max) { 
-         cpu_tima_timer -= max;
+      while (cpu_tima_timer <= 0) { 
+         cpu_tima_timer += max;
          // Technically this interrupt happens 4 cycles after the overflow.
          // TODO: Delay this
          mem_direct_write(TIMA_ADDR,
                           mem_direct_read(TIMA_ADDR) + 1);
          if (mem_direct_read(TIMA_ADDR) == 0) {
+            DEBUG("TIMA OVERFLOW\n");
             mem_direct_write(INT_FLAG_ADDR,
                              mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
             mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
@@ -504,37 +505,47 @@ void cpu_execute_step() {
    byte int_IF = mem_direct_read(INT_FLAG_ADDR);
    byte irq    = int_IE & int_IF;
 
-   if (int_IF != 0) {
+   if (int_IF != 0 && cpu_halt) {
+      DEBUG("IRQ ENDED HALT\n");
       cpu_halt = false;
+   }
+
+   //if (int_IF & INT_INPUT) {
+   if (int_IF != 0 && cpu_stop) {
+      DEBUG("IRQ ENDED STOP\n");
       cpu_stop = false;
    }
 
    if (cpu_ei) {
-      byte target = 0x00;
-      if ((irq & INT_VBLANK) != 0) {
-         target = 0x40;
-         mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
-         DEBUG("VBLANK INTERRUPT\n");
-      } else if ((irq & INT_STAT) != 0) {
-         target = 0x48;
-         mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_STAT);
-         DEBUG("STAT INTERRUPT\n");
-      } else if ((irq & INT_TIMA) != 0) {
-         target = 0x50;
-         mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
-         DEBUG("TIMA INTERRUPT\n");
-      } else if ((irq & INT_INPUT) != 0) {
-         target = 0x60;
-         mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
-         DEBUG("INPUT INTERRUPT\n");
-      }
+      if (!cpu_ei_delay) {
+         byte target = 0x00;
+         if ((irq & INT_VBLANK) != 0) {
+            target = 0x40;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
+            DEBUG("VBLANK INTERRUPT\n");
+         } else if ((irq & INT_STAT) != 0) {
+            target = 0x48;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_STAT);
+            DEBUG("STAT INTERRUPT\n");
+         } else if ((irq & INT_TIMA) != 0) {
+            target = 0x50;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
+            DEBUG("TIMA INTERRUPT\n");
+         } else if ((irq & INT_INPUT) != 0) {
+            target = 0x60;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
+            DEBUG("INPUT INTERRUPT\n");
+         }
 
-      if (target != 0x00) {
-         interrupted = true;
-         cpu_ei = false;
-         PUSHW(cpu_PC);
-         cpu_PC = target;
-         cpu_advance_time(12);
+         if (target != 0x00) {
+            interrupted = true;
+            cpu_ei = false;
+            PUSHW(cpu_PC);
+            cpu_PC = target;
+            cpu_advance_time(12);
+         }
+      } else {
+         cpu_ei_delay = false;
       }
    }
 
@@ -547,19 +558,13 @@ void cpu_execute_step() {
 
          if (get_debug_time() > DEBUG_RANGE_BEGIN
           && get_debug_time() < DEBUG_RANGE_END) {
-            DEBUG("%4X: %2X\tA:%2X\tSP:%4X\n",
-                  cpu_last_pc, cpu_last_op, cpu_A, cpu_SP);
+            DEBUG("\tA:%2X B:%2X C:%2X D:%2X E:%2X H:%02X L:%02X SP:%4X"
+                  "\tC:%X H:%X N:%X Z:%X\n",
+                  cpu_A, cpu_B, cpu_C, cpu_D, cpu_E, cpu_H, cpu_L, cpu_SP,
+                  FLAG_C, FLAG_H, FLAG_N, FLAG_Z);
          }
 
          (*cpu_opcodes[cpu_last_op])();
-
-         if (cpu_ei_delay > 0) {
-            cpu_ei_delay--;
-            if (cpu_ei_delay == 0) {
-               DEBUG("INTERRUPTS ENABLED\n");
-               cpu_ei = true;
-            }
-         }
       } else {
          cpu_advance_time(4);
       }
@@ -1316,6 +1321,8 @@ void cpu_RET_C() {
 
 void cpu_RETI() {
    cpu_ei = true;
+   cpu_ei_delay = true; // TODO: I don't know if RETI should delay
+   DEBUG("INTERRUPTS ENABLED\n");
    cpu_RETURN();
 }
 
@@ -1438,13 +1445,14 @@ void cpu_RRA() {
 
 void cpu_DI() {
    cpu_ei = false;
+   cpu_ei_delay = false;
    DEBUG("INTERRUPTS DISABLED\n");
 }
 
 void cpu_EI() {
-   // EI Disables interrupts for one instruction, then enables them
-   cpu_ei_delay = 2;
-   cpu_ei       = false;
+   DEBUG("INTERRUPTS ENABLED\n");
+   cpu_ei       = true;
+   cpu_ei_delay = true;
 }
 
 // ADD / ADC / SUB / SUBC

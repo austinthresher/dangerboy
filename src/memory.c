@@ -6,6 +6,10 @@
 #include "memory.h"
 #include "ppu.h"
 
+void mem_dma(byte val);
+
+// TODO: Pokemon graphics are garbled. Fix.
+
 void mem_init(void) {
    mem_ram              = NULL;
    mem_rom              = NULL;
@@ -96,32 +100,32 @@ void mem_get_rom_info(void) {
          mem_mbc_type = NONE;
          break;
       case 0x03:
-      // ROM + MBC1 + RAM + BATT
+         // ROM + MBC1 + RAM + BATT
       case 0x02:
-      // ROM + MBC1 + RAM
+         // ROM + MBC1 + RAM
       case 0x01:
          // ROM + MBC1
          mem_mbc_type = MBC1;
          break;
       case 0x06:
-      // ROM + MBC2 + BATTERY
+         // ROM + MBC2 + BATTERY
       case 0x05:
          // ROM + MBC2
          mem_mbc_type = MBC2;
          break;
       case 0x0F:
-      // ROM + MBC3 + TIMER + BATT
+         // ROM + MBC3 + TIMER + BATT
       case 0x10:
-      // ROM + MBC3 + TIMER + RAM + BATT
+         // ROM + MBC3 + TIMER + RAM + BATT
       case 0x11:
-      // ROM + MBC3
+         // ROM + MBC3
       case 0x12:
-      // ROM + MBC3 + RAM
+         // ROM + MBC3 + RAM
       case 0x13:
          // ROM + MBC3 + RAM + BATT
          mem_mbc_type = MBC3;
          break;
-      // MBC5 currently unsupported
+         // MBC5 currently unsupported
       default: ERROR("Unknown banking mode: %X", mem_rom[CART_TYPE_ADDR]);
    }
 
@@ -153,6 +157,15 @@ void mem_print_rom_info() {
    printf("ROM Banks:\t%d\n", mem_rom_bank_count);
    printf("RAM Banks:\t%d\n", mem_ram_bank_count);
 }
+
+void mem_dma(byte val) {
+   word dma = val << 8;
+   word ad  = SPRITE_RAM_START_ADDR;
+   while (ad <= SPRITE_RAM_END_ADDR) {
+      mem_ram[ad++] = mem_ram[dma++];
+   }
+}
+
 // Use these to implement system read writes, like OAM transfer
 void mem_direct_write(word addr, byte val) {
    mem_ram[addr] = val;
@@ -164,6 +177,33 @@ byte mem_direct_read(word addr) {
 
 // Write byte
 void mem_wb(word addr, byte val) {
+   
+   // Interrupt debug messages
+   if (addr == INT_ENABLED_ADDR) {
+      DEBUG("INT:\n"); 
+      if (val & INT_VBLANK) {
+         DEBUG("\t+VBLANK\n");
+      } else {
+         DEBUG("\t-VBLANK\n");
+      }
+      if (val & INT_STAT) {
+         DEBUG("\t+STAT\n");
+      } else {
+         DEBUG("\t-STAT\n");
+      }
+      if (val & INT_TIMA) {
+         DEBUG("\t+TIMA\n");
+      } else {
+         DEBUG("\t-TIMA\n");
+      }
+      if (val & INT_INPUT) {
+         DEBUG("\t+INPUT\n");
+      } else {
+         DEBUG("\t-INPUT\n");
+      }
+   }
+
+
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
          cpu_advance_time(4);
@@ -213,8 +253,10 @@ void mem_wb(word addr, byte val) {
          if (mem_mbc_type >= MBC1) {
             // This either selects our RAM bank for ROM4_RAM32
             // bank mode, or bits 5-6 of our ROM for ROM16_RAM8
-            mem_current_ram_bank = val & 0x03;
-            DEBUG("RAM Bank switched to %02X\n", mem_current_ram_bank);
+            if (val < 0x4) {
+               mem_current_ram_bank = val & 0x03;
+               DEBUG("RAM Bank switched to %02X\n", mem_current_ram_bank);
+            }
          }
 
          // TODO: MBC3 can also map real time
@@ -222,7 +264,10 @@ void mem_wb(word addr, byte val) {
 
       } else if (addr < 0x8000) {
          // This register selects our ROM / RAM banking mode
-         if (mem_mbc_type >= MBC1) {
+         // for MBC1 and MBC2. MBC3 uses this location to
+         // latch current time into RTC registers (TODO: That.)
+         if (mem_mbc_type == MBC1
+          || mem_mbc_type == MBC2) {
             if ((val & 0x01) == 0) {
                mem_mbc_bankmode = ROM16_RAM8;
             }
@@ -234,8 +279,8 @@ void mem_wb(word addr, byte val) {
    } else if (addr > 0x8000 && addr < 0xA000) {
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
-//      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
-      if (mode < 2) {
+      // If we're in hblank / vblank or lcd is disabled
+      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
          mem_ram[addr] = val;
       }
    } else if (addr >= 0xA000 && addr < 0xC000) {
@@ -251,29 +296,49 @@ void mem_wb(word addr, byte val) {
    } else if (addr >= SPRITE_RAM_START_ADDR && addr <= SPRITE_RAM_END_ADDR) {
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
-//      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
-      if (mode < 2) {
+      // If we're in hblank / vblank or lcd is disabled
+      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
          mem_ram[addr] = val;
       }
-   } else if (addr == DIV_REGISTER_ADDR) {
-      mem_ram[DIV_REGISTER_ADDR] = 0;
-   } else if (addr == LCD_LINE_Y_ADDR) {
-      mem_ram[LCD_LINE_Y_ADDR] = 0;
-      ppu_ly = 0;
-      ppu_win_ly = 0;
-   } else if (addr == 0xFF46) { // OAM DMA Transfer
-      word dma = val << 8;
-      word ad  = SPRITE_RAM_START_ADDR;
-      while (ad <= SPRITE_RAM_END_ADDR) {
-         mem_ram[ad++] = mem_ram[dma++];
-      }
-   } else if (addr == INPUT_REGISTER_ADDR) {
-      mem_input_last_write = val & 0x30;
    } else {
-      if (addr >= 0xE000 && addr <= 0xFE00) {
-         addr -= 0x2000; // Mirrored memory
+      // Hardware registers
+      switch (addr) {
+         case DIV_REGISTER_ADDR:
+            DEBUG("DIV RESET\n");
+            mem_ram[DIV_REGISTER_ADDR] = 0;
+            break;
+         case TIMER_CONTROL_ADDR:
+            if (val & 0x04) {
+               DEBUG("TIMER ENABLED\n");
+            } else {
+               DEBUG("TIMER DISABLED\n");
+            }
+            if (val & 0x3) {
+               DEBUG("TIMER MODE: %d\n", val & 3);
+               cpu_tima_timer = 0;
+            }
+            mem_ram[addr] = val;
+            break;
+         case LCD_CONTROL_ADDR:
+         case LCD_STATUS_ADDR:
+         case LCD_SCY_ADDR:
+         case LCD_SCX_ADDR:
+         case LCD_LINE_Y_ADDR:
+         case LCD_LINE_Y_C_ADDR:
+            ppu_update_register(addr, val);
+            break;
+         case OAM_DMA_ADDR:
+            mem_dma(val);
+           break;
+         case INPUT_REGISTER_ADDR:
+            mem_input_last_write = val & 0x30;
+            break;
+         default:
+            if (addr >= 0xE000 && addr <= 0xFE00) {
+               addr -= 0x2000; // Mirrored memory
+            }
+            mem_ram[addr] = val;
       }
-      mem_ram[addr] = val;
    }
    cpu_advance_time(4);
 }
@@ -305,7 +370,11 @@ byte mem_get_current_rom_bank() {
          return bank;
       }
    }
+   // TODO: Make sure MBC2 doesn't need special behavior here
    // Other MBCs
+   if (mem_current_rom_bank & 0x7F == 0) {
+      return 1;
+   }
    return mem_current_rom_bank & 0x7F;
 }
 
@@ -332,7 +401,7 @@ byte mem_rb(word addr) {
       // The external RAM could be up to 2kb, 8kb, or 32kb
       // 32kb mode required 4 RAM banks
       addr -= 0xA000;
-      if (mem_mbc_bankmode == ROM4_RAM32) {
+      if (mem_mbc_type < MBC3 && mem_mbc_bankmode == ROM4_RAM32) {
          return mem_ram_bank[addr];
       }
       return mem_ram_bank[mem_current_ram_bank * 0x2000 + addr];

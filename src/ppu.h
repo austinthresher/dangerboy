@@ -32,5 +32,5 @@ void ppu_advance_time(tick ticks);
 void ppu_do_scanline();
 void ppu_buildobj(word addr, byte val);
 byte ppu_pick_color(byte col, byte pal);
-
+void ppu_update_register(word addr, byte val);
 #endif
