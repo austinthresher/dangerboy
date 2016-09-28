@@ -308,6 +308,10 @@ void mem_wb(word addr, byte val) {
             DEBUG("DIV RESET\n");
             mem_ram[DIV_REGISTER_ADDR] = 0;
             break;
+         case TIMA_ADDR:
+            DEBUG("TIMA WRITE: %d\n", val);
+            mem_ram[addr] = val;
+            break;
          case TIMER_CONTROL_ADDR:
             if (val & 0x04) {
                DEBUG("TIMER ENABLED\n");
@@ -316,13 +320,13 @@ void mem_wb(word addr, byte val) {
             }
             if (val & 0x3) {
                DEBUG("TIMER MODE: %d\n", val & 3);
-               /*switch (val & 3) {
+               switch (val & 3) {
                   case 0: cpu_tima_timer = 1024; break;
                   case 1: cpu_tima_timer = 16;   break;
                   case 2: cpu_tima_timer = 64;   break;
                   case 3: cpu_tima_timer = 256;  break;
                   default: ERROR("timer error");
-               }*/
+               }
             }
             mem_ram[addr] = val;
             break;

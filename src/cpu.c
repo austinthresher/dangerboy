@@ -464,12 +464,12 @@ void cpu_reset() {
 
 void cpu_advance_time(tick dt) {
    ticks += dt;
-   cpu_ticks += dt;
 }
 
 void cpu_update_timers() {
    tick dt = ticks;
    ticks = 0;
+   cpu_ticks += dt;
    cpu_div_timer += dt;
 
    if (cpu_div_timer >= 0xFF) {
@@ -1417,14 +1417,17 @@ void cpu_INC16_SP() {
 
 void cpu_DEC16_BC() {
    cpu_DEC16(&cpu_B, &cpu_C);
+   cpu_advance_time(4);
 }
 
 void cpu_DEC16_DE() {
    cpu_DEC16(&cpu_D, &cpu_E);
+   cpu_advance_time(4);
 }
 
 void cpu_DEC16_HL() {
    cpu_DEC16(&cpu_H, &cpu_L);
+   cpu_advance_time(4);
 }
 
 void cpu_DEC16_SP() {
