@@ -177,6 +177,7 @@ byte mem_direct_read(word addr) {
 
 // Write byte
 void mem_wb(word addr, byte val) {
+   cpu_advance_time(4);
    
    // Interrupt debug messages
    if (addr == INT_ENABLED_ADDR) {
@@ -315,7 +316,13 @@ void mem_wb(word addr, byte val) {
             }
             if (val & 0x3) {
                DEBUG("TIMER MODE: %d\n", val & 3);
-               cpu_tima_timer = 0;
+               /*switch (val & 3) {
+                  case 0: cpu_tima_timer = 1024; break;
+                  case 1: cpu_tima_timer = 16;   break;
+                  case 2: cpu_tima_timer = 64;   break;
+                  case 3: cpu_tima_timer = 256;  break;
+                  default: ERROR("timer error");
+               }*/
             }
             mem_ram[addr] = val;
             break;
@@ -340,7 +347,6 @@ void mem_wb(word addr, byte val) {
             mem_ram[addr] = val;
       }
    }
-   cpu_advance_time(4);
 }
 
 byte mem_get_current_rom_bank() {

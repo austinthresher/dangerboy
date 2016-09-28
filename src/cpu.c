@@ -122,10 +122,13 @@ static bool FLAG_H;
 static bool FLAG_Z;
 static bool FLAG_N;
 
+tick ticks = 0;
+void cpu_update_timers();
+   
 void cpu_init(char* romname) {
    cpu_ei         = false;
    cpu_ei_delay   = false;
-   cpu_tima_timer = 0;
+   cpu_tima_timer = 1024;
    cpu_div_timer  = 0;
    cpu_halt       = false;
    cpu_stop       = false;
@@ -460,7 +463,13 @@ void cpu_reset() {
 }
 
 void cpu_advance_time(tick dt) {
-   cpu_ticks     += dt;
+   ticks += dt;
+   cpu_ticks += dt;
+}
+
+void cpu_update_timers() {
+   tick dt = ticks;
+   ticks = 0;
    cpu_div_timer += dt;
 
    if (cpu_div_timer >= 0xFF) {
@@ -474,21 +483,22 @@ void cpu_advance_time(tick dt) {
       cpu_tima_timer -= dt;
       int max = 0;
       // Bits 1-2 control the timer speed
-      switch (mem_direct_read(TIMER_CONTROL_ADDR) & 0x3) {
-         case 0: max = 1024; break;
-         case 1: max = 16; break;
-         case 2: max = 64; break;
-         case 3: max = 256; break;
-         default: ERROR("timer error");
-      }
       while (cpu_tima_timer <= 0) { 
+         switch (mem_direct_read(TIMER_CONTROL_ADDR) & 0x3) {
+            case 0: max = 1024; break;
+            case 1: max = 16; break;
+            case 2: max = 64; break;
+            case 3: max = 256; break;
+            default: ERROR("timer error");
+         }
          cpu_tima_timer += max;
          // Technically this interrupt happens 4 cycles after the overflow.
          // TODO: Delay this
          mem_direct_write(TIMA_ADDR,
                           mem_direct_read(TIMA_ADDR) + 1);
          if (mem_direct_read(TIMA_ADDR) == 0) {
-            DEBUG("TIMA OVERFLOW\n");
+            DEBUG("TIMA OVERFLOW (MOD %02X)\n",
+                  mem_direct_read(TMA_ADDR));
             mem_direct_write(INT_FLAG_ADDR,
                              mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
             mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
@@ -569,6 +579,7 @@ void cpu_execute_step() {
          cpu_advance_time(4);
       }
    }
+   cpu_update_timers();
 }
 
 void cpu_NI() {
