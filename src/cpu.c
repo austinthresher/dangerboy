@@ -1,8 +1,6 @@
 #include "cpu.h"
 #include "ppu.h"
 
-#define PRECISE_TIME
-
 // Opcode macros
 
 #define TIME(x) cpu_advance_time((x) * 4)
@@ -123,8 +121,6 @@ static bool FLAG_Z;
 static bool FLAG_N;
 
 bool raise_tima = false;
-tick ticks = 0;
-void cpu_update_timers();
    
 void cpu_init(char* romname) {
    cpu_ei         = false;
@@ -438,41 +434,32 @@ void cpu_reset() {
    // Setup our in-memory registers
    mem_direct_write(INPUT_REGISTER_ADDR, 0xFF);
    mem_direct_write(DIV_REGISTER_ADDR, 0xAF);
-   mem_direct_write(TIMER_CONTROL_ADDR, 0xF8);
-   mem_direct_write(0xFF10, 0x80);
-   mem_direct_write(0xFF11, 0xBF);
-   mem_direct_write(0xFF12, 0xF3);
-   mem_direct_write(0xFF14, 0xBF);
-   mem_direct_write(0xFF16, 0x3F);
-   mem_direct_write(0xFF19, 0xBF);
-   mem_direct_write(0xFF1A, 0x7F);
-   mem_direct_write(0xFF1B, 0xFF);
-   mem_direct_write(0xFF1C, 0x9F);
-   mem_direct_write(0xFF1E, 0xBF);
-   mem_direct_write(0xFF20, 0xFF);
-   mem_direct_write(0xFF23, 0xBF);
-   mem_direct_write(0xFF24, 0x77);
-   mem_direct_write(0xFF25, 0xF3);
-   mem_direct_write(0xFF26, 0xF1);
-   mem_direct_write(LCD_CONTROL_ADDR, 0x83);
-   mem_direct_write(0xFF47, 0xFC);
-   mem_direct_write(0xFF48, 0xFF);
-   mem_direct_write(0xFF49, 0xFF);
+   mem_wb(TIMER_CONTROL_ADDR, 0xF8);
+   mem_wb(0xFF10, 0x80);
+   mem_wb(0xFF11, 0xBF);
+   mem_wb(0xFF12, 0xF3);
+   mem_wb(0xFF14, 0xBF);
+   mem_wb(0xFF16, 0x3F);
+   mem_wb(0xFF19, 0xBF);
+   mem_wb(0xFF1A, 0x7F);
+   mem_wb(0xFF1B, 0xFF);
+   mem_wb(0xFF1C, 0x9F);
+   mem_wb(0xFF1E, 0xBF);
+   mem_wb(0xFF20, 0xFF);
+   mem_wb(0xFF23, 0xBF);
+   mem_wb(0xFF24, 0x77);
+   mem_wb(0xFF25, 0xF3);
+   mem_wb(0xFF26, 0xF1);
+   mem_wb(LCD_CONTROL_ADDR, 0x83);
+   mem_wb(0xFF47, 0xFC);
+   mem_wb(0xFF48, 0xFF);
+   mem_wb(0xFF49, 0xFF);
 
    mem_load_image(cpu_rom_fname);
    mem_get_rom_info();
 }
 
 void cpu_advance_time(tick dt) {
-   ticks += dt;
-#ifdef PRECISE_TIME
-   cpu_update_timers();
-#endif
-}
-
-void cpu_update_timers() {
-   tick dt = ticks;
-   ticks = 0;
    cpu_ticks += dt;
    
    if (raise_tima) {
@@ -510,7 +497,6 @@ void cpu_update_timers() {
             // TIMA interrupt happens 4 cycles after
             // the overflow
             raise_tima = true;
-            // TODO: Is modulo copy also delayed?
             mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
          }
       }
@@ -589,13 +575,6 @@ void cpu_execute_step() {
          cpu_NOP();
       }
    }
-
-   // If PRECISE_TIME is not defined, we only tick timers
-   // between opcodes. Otherwise it happens in smaller steps
-   // multiple times per opcode.
-#ifndef PRECISE_TIME
-   cpu_update_timers();
-#endif
 }
 
 void cpu_NI() {

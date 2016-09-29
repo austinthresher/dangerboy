@@ -162,7 +162,7 @@ void mem_dma(byte val) {
    word dma = val << 8;
    word ad  = SPRITE_RAM_START_ADDR;
    while (ad <= SPRITE_RAM_END_ADDR) {
-      mem_ram[ad++] = mem_ram[dma++];
+      mem_ram[ad++] = mem_rb(dma++);
    }
 }
 
@@ -255,12 +255,11 @@ void mem_wb(word addr, byte val) {
             if (val < 0x4) {
                mem_current_ram_bank = val & 0x03;
                DEBUG("RAM Bank switched to %02X\n", mem_current_ram_bank);
+            } else {
+               // TODO: MBC3 can also map real time
+               // clock registers by writing here
             }
          }
-
-         // TODO: MBC3 can also map real time
-         // clock registers by writing here
-
       } else if (addr < 0x8000) {
          // This register selects our ROM / RAM banking mode
          // for MBC1 and MBC2. MBC3 uses this location to
@@ -279,14 +278,14 @@ void mem_wb(word addr, byte val) {
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
       // If we're in hblank / vblank or lcd is disabled
-      if (mode == 0 || mode == 1 || (mem_ram[LCD_CONTROL_ADDR] & 0x80) == 0) {
+      if (mode == 0 || mode == 1 || lcd_disable) {
          mem_ram[addr] = val;
       }
    } else if (addr >= 0xA000 && addr < 0xC000) {
       // Maybe need to check if banking is enabled here?
       if (mem_mbc_type == NONE) {
          mem_ram[addr] = val;
-      } else if (mem_mbc_type >= MBC1) {
+      } else  {
          if (mem_ram_bank_locked == false) {
             addr -= 0xA000;
             mem_ram_bank[addr + mem_current_ram_bank * 0x2000] = val;
@@ -316,9 +315,9 @@ void mem_wb(word addr, byte val) {
             } else {
                DEBUG("TIMER DISABLED\n");
             }
-            if (val & 0x3) {
-               cpu_tima_timer = 0;
-            }
+            //if (val & 0x3) {
+            //   cpu_tima_timer = 0;
+            //}
             mem_ram[addr] = val;
             break;
          case LCD_CONTROL_ADDR:

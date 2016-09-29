@@ -38,6 +38,9 @@ int main(int argc, char* args[]) {
                            0x000000FF, 0xFF000000);
    
    bool  is_running   = true;
+   bool  turbo        = false;
+   int   turbo_skip   = 3;
+   int   turbo_count  = 0;
    int   t_prev       = SDL_GetTicks();
    int   i_prev       = SDL_GetTicks();
    char* file         = args[1];
@@ -54,6 +57,10 @@ int main(int argc, char* args[]) {
                   if (event.key.keysym.sym == SDLK_ESCAPE) {
                      is_running = false;
                      break;
+                  }
+                  if (event.key.keysym.sym == SDLK_SPACE) {
+                     printf("Turbo off\n");
+                     turbo = false;
                   }
                   if (event.key.keysym.sym == SDLK_LEFT) {
                      mem_dpad |= 0x02;
@@ -90,6 +97,10 @@ int main(int argc, char* args[]) {
                   break;
 
                case SDL_KEYDOWN:
+                  if (event.key.keysym.sym == SDLK_SPACE) {
+                     printf("Turbo on\n");
+                     turbo = true;
+                  }
                   if (event.key.keysym.sym == SDLK_LEFT) {
                      mem_dpad &= 0xFD;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
@@ -141,9 +152,16 @@ int main(int argc, char* args[]) {
       // be flipped to prevent emulating faster than 60 fps
       if (ppu_ready_to_draw == false) {
          cpu_execute_step();
-         inc_debug_time();
       } else {
-         if (t - t_prev > 16) { // 60 fps
+         if (turbo) {
+            if (turbo_count < turbo_skip) {
+               turbo_count++;
+               ppu_ready_to_draw = false;
+               continue;
+            }
+            turbo_count = 0;
+         }
+         if (t - t_prev > 16 || turbo) { // 60 fps
             t_prev = t;
             if (lcd_disable) {
                SDL_FillRect(screen, NULL, 0xFFFFFFFF);
@@ -177,7 +195,7 @@ int main(int argc, char* args[]) {
             SDL_Flip(screen);
 
             ppu_ready_to_draw = false;
-         } else {
+         } else if (!turbo) {
             SDL_Delay(1);
          }
       }

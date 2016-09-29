@@ -43,6 +43,7 @@ void ppu_update_register(word addr, byte val) {
          if (val & 0x80) {
             if (lcd_disable) {
                DEBUG("LCD ENABLED\n");
+               mode = PPU_MODE_SCAN_OAM;
             }
             lcd_disable = false;
          } else {
@@ -54,10 +55,6 @@ void ppu_update_register(word addr, byte val) {
             mode = PPU_MODE_HBLANK;
             ppu_ly = 0;
             ppu_update_stat();
-            // When the LCD is re-enabled, we'll start
-            // at the beginning of the display cycle
-            timer = 456;
-            ppu_ly = 153;
          }
          break;
       default:
@@ -90,7 +87,9 @@ void ppu_update_stat() {
    if ((mode == PPU_MODE_HBLANK   && (stat_reg & 0x08))
     || (mode == PPU_MODE_VBLANK   && (stat_reg & 0x10))
     || (mode == PPU_MODE_SCAN_OAM && (stat_reg & 0x20))
-    || (ppu_ly == lyc             && (stat_reg & 0x40))) {
+    || (ppu_ly == lyc
+       && (mode == PPU_MODE_HBLANK || mode == PPU_MODE_VBLANK)
+       && (stat_reg & 0x40))) {
       mem_direct_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
    } else if (ppu_ly == 144) {
       // The OAM interrupt can still fire on scanline 144. This only
@@ -147,11 +146,17 @@ void ppu_advance_time(tick ticks) {
          if (timer >= 456) {
             timer -= 456;
             ppu_ly++;
-            if (ppu_ly > 153) {
-               mode = PPU_MODE_SCAN_OAM;
+            // LYC == LY will be true at scanline 153.
+            // Hang out here for one more scanline and
+            // then go back to SCAN_OAM
+            if (ppu_ly == 153) {
                ppu_ly = 0;
                ppu_win_ly = 0;
-            }
+            } else if (ppu_ly == 1) {
+               ppu_ly = 0;
+               ppu_win_ly = 0;
+               mode = PPU_MODE_SCAN_OAM;
+            } 
             ppu_update_stat();
          }
          break;
@@ -173,8 +178,8 @@ void ppu_do_scanline() {
    bool win_tile_map = mem_direct_read(LCD_CONTROL_ADDR) & 0x40;
    bool bg_tile_map  = mem_direct_read(LCD_CONTROL_ADDR) & 0x08;
    bool tile_bank    = mem_direct_read(LCD_CONTROL_ADDR) & 0x10;
-   word bg_map_loc   = 0x9800 + bg_tile_map  * 0x400;
-   word win_map_loc  = 0x9800 + win_tile_map * 0x400;
+   word bg_map_loc   = 0x9800 + (bg_tile_map  ? 0x400 : 0);
+   word win_map_loc  = 0x9800 + (win_tile_map ? 0x400 : 0);
    word bg_map_off   = (((ppu_ly + scroll_y) & 0xFF) >> 3) * 32;
    word win_map_off  = ((ppu_win_ly & 0xFF) >> 3) * 32;
    byte bg_x_off     = (scroll_x >> 3) & 0x1F;
