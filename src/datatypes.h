@@ -19,8 +19,8 @@ tick get_debug_time();
 // TODO: Should this print to stderr?
 
 #define DEBUG_RANGE_BEGIN 0
-#define DEBUG_RANGE_END 0 
-// #define DEBUG_OUTPUT
+#define DEBUG_RANGE_END 99999999999999999 
+//#define DEBUG_OUTPUT
 
 #define ERROR(...) \
       printf("[%20" PRIu64 "] %s:%d: ", \

@@ -2,7 +2,6 @@
 
 byte mode;
 byte win_y;
-bool lcd_disable;
 tick timer;
 
 void ppu_update_stat();
@@ -52,10 +51,13 @@ void ppu_update_register(word addr, byte val) {
                ppu_ready_to_draw = true;
             }
             lcd_disable = true;
-            //timer = 456;
-            mode = PPU_MODE_VBLANK;
-            ppu_ly = 153;
+            mode = PPU_MODE_HBLANK;
+            ppu_ly = 0;
             ppu_update_stat();
+            // When the LCD is re-enabled, we'll start
+            // at the beginning of the display cycle
+            timer = 456;
+            ppu_ly = 153;
          }
          break;
       default:
@@ -94,7 +96,7 @@ void ppu_update_stat() {
       // The OAM interrupt can still fire on scanline 144. This only
       // happens if the STAT VBlank interrupt did not fire.
       // TODO: Does this happen if normal VBlank interrupt fires?
-      if (stat_reg & 0x20 && stat_reg & 0x10 == 0) {
+      if ((stat_reg & 0x20) && !(stat_reg & 0x10)) {
          mem_direct_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
       }
    }
@@ -102,6 +104,7 @@ void ppu_update_stat() {
 
 void ppu_advance_time(tick ticks) {
    if (lcd_disable) {
+      ppu_update_stat();
       return;
    }
 
@@ -159,15 +162,6 @@ void ppu_do_scanline() {
    bool window = false;
    int  vram_addr = ppu_ly * 160 * 3;
 
-   if (lcd_disable) {
-      for (int i = 0; i < 160; i++) {
-         ppu_vram[vram_addr++] = 0xFF;
-         ppu_vram[vram_addr++] = 0xFF;
-         ppu_vram[vram_addr++] = 0xFF;
-      }
-      return;
-   }
-
    byte win_x = mem_direct_read(WIN_X_ADDR);
    if (ppu_ly == 0) {
       win_y = mem_direct_read(WIN_Y_ADDR);
@@ -208,11 +202,16 @@ void ppu_do_scanline() {
          window = true;
       }
 
+      byte tile_index = window ? win_tile : bg_tile;
       int tile_addr;
-      if (!tile_bank) {
-         tile_addr = 0x9000 + (sbyte)(window ? win_tile : bg_tile) * 16;
+      if (tile_index < 128) {
+         if (tile_bank) {
+            tile_addr = 0x8000 + tile_index * 16;
+         } else {
+            tile_addr = 0x9000 + tile_index * 16;
+         }
       } else {
-         tile_addr = 0x8000 + (byte)(window ? win_tile : bg_tile) * 16;
+         tile_addr = 0x8800 + (tile_index - 128) * 16;
       }
 
       if (!window) {
@@ -272,7 +271,7 @@ void ppu_do_scanline() {
    }
 
    // Check if sprites are enabled
-   if(mem_direct_read(LCD_CONTROL_ADDR) & 0x02 == 0) {
+   if(!(mem_direct_read(LCD_CONTROL_ADDR) & 0x02)) {
       return;
    }
 

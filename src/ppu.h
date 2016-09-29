@@ -25,6 +25,7 @@ byte  ppu_ly;
 byte  ppu_win_ly;
 byte* ppu_vram;
 bool  ppu_ready_to_draw;
+bool  lcd_disable;
 
 void ppu_init();
 void ppu_reset();

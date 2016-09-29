@@ -145,7 +145,12 @@ int main(int argc, char* args[]) {
       } else {
          if (t - t_prev > 16) { // 60 fps
             t_prev = t;
-//            SDL_FillRect(screen, NULL, 0xF00000);
+            if (lcd_disable) {
+               SDL_FillRect(screen, NULL, 0xFFFFFFFF);
+               SDL_Flip(screen);
+               ppu_ready_to_draw = false;
+               continue;
+            }
             SDL_LockSurface(gb_screen);
 
             // Copy the display over one row at a time.

@@ -177,7 +177,6 @@ byte mem_direct_read(word addr) {
 
 // Write byte
 void mem_wb(word addr, byte val) {
-   cpu_advance_time(4);
    
    // Interrupt debug messages
    if (addr == INT_ENABLED_ADDR) {
@@ -207,7 +206,6 @@ void mem_wb(word addr, byte val) {
 
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
-         cpu_advance_time(4);
          // Nothing under 0x8000 is writable without banking
          return;
       }
@@ -319,14 +317,7 @@ void mem_wb(word addr, byte val) {
                DEBUG("TIMER DISABLED\n");
             }
             if (val & 0x3) {
-               DEBUG("TIMER MODE: %d\n", val & 3);
-               switch (val & 3) {
-                  case 0: cpu_tima_timer = 1024; break;
-                  case 1: cpu_tima_timer = 16;   break;
-                  case 2: cpu_tima_timer = 64;   break;
-                  case 3: cpu_tima_timer = 256;  break;
-                  default: ERROR("timer error");
-               }
+               cpu_tima_timer = 0;
             }
             mem_ram[addr] = val;
             break;
@@ -382,7 +373,7 @@ byte mem_get_current_rom_bank() {
    }
    // TODO: Make sure MBC2 doesn't need special behavior here
    // Other MBCs
-   if (mem_current_rom_bank & 0x7F == 0) {
+   if ((mem_current_rom_bank & 0x7F) == 0) {
       return 1;
    }
    return mem_current_rom_bank & 0x7F;
@@ -390,7 +381,6 @@ byte mem_get_current_rom_bank() {
 
 // Read byte
 byte mem_rb(word addr) {
-   cpu_advance_time(4);
 
    // 0x0000 to 0x3FFF always contains the first 16 kb of ROM
    if (addr < 0x4000) {
