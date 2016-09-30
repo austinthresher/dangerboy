@@ -1,23 +1,23 @@
 #include "disas.h"
 #include <ncurses.h>
 
-#define PRINT(...) \
-   printw(__VA_ARGS__); break;
+#define PRINT(...)      \
+   printw(__VA_ARGS__); \
+   break;
 
 void disas_at(word addr) {
    byte opcode = mem_rb(addr++);
    byte cbop   = 0;
    byte index  = 0;
    if (opcode != 0xCB) {
-      printw("%02X\t", opcode);
-   }
-   else {
+      printw("%02X    ", opcode);
+   } else {
       cbop = mem_rb(addr++);
-      printw("%02X %02X\t", opcode, cbop);
+      printw("%02X %02X ", opcode, cbop);
    }
 
    switch (opcode) {
-      case 0x00: PRINT("NOP");   
+      case 0x00: PRINT("NOP");
       case 0x01: PRINT("LD BC %04X", mem_rw(addr));
       case 0x02: PRINT("LD A, (BC)");
       case 0x03: PRINT("INC BC");
@@ -261,7 +261,8 @@ void disas_at(word addr) {
       case 0xE5: PRINT("PUSH HL");
       case 0xE6: PRINT("AND %02X", mem_rb(addr));
       case 0xE7: PRINT("RST 20");
-      case 0xE8: PRINT("ADD SP, %02X \t; %d", mem_rb(addr), (sbyte)mem_rb(addr));
+      case 0xE8:
+         PRINT("ADD SP, %02X \t; %d", mem_rb(addr), (sbyte)mem_rb(addr));
       case 0xE9: PRINT("JP (HL)");
       case 0xEA: PRINT("LD (%04X), A", mem_rw(addr));
       case 0xEB: PRINT("ERROR");
@@ -278,7 +279,8 @@ void disas_at(word addr) {
       case 0xF5: PRINT("PUSH AF");
       case 0xF6: PRINT("OR %02X", mem_rb(addr));
       case 0xF7: PRINT("RST 30");
-      case 0xF8: PRINT("LD HL, SP + %02X \t; %d", mem_rb(addr), (sbyte)mem_rb(addr));
+      case 0xF8:
+         PRINT("LD HL, SP + %02X \t; %d", mem_rb(addr), (sbyte)mem_rb(addr));
       case 0xF9: PRINT("LD SP, HL");
       case 0xFA: PRINT("LD A, (%04X)", mem_rw(addr));
       case 0xFB: PRINT("EI");
@@ -294,20 +296,20 @@ void disas_at(word addr) {
             switch (cbop & 0xF0) {
                case 0x00: PRINT("RRC ");
                case 0x10: PRINT("RR ");
-               case 0x20: PRINT("SRA "); 
-               case 0x30: PRINT("SRL "); 
-               case 0x40: PRINT("BIT 1, "); 
-               case 0x50: PRINT("BIT 3, "); 
-               case 0x60: PRINT("BIT 5, "); 
-               case 0x70: PRINT("BIT 7, "); 
-               case 0x80: PRINT("RES 1, "); 
-               case 0x90: PRINT("RES 3, "); 
-               case 0xA0: PRINT("RES 5, "); 
-               case 0xB0: PRINT("RES 7, "); 
-               case 0xC0: PRINT("SET 1, "); 
-               case 0xD0: PRINT("SET 3, "); 
-               case 0xE0: PRINT("SET 5, "); 
-               case 0xF0: PRINT("SET 7, "); 
+               case 0x20: PRINT("SRA ");
+               case 0x30: PRINT("SRL ");
+               case 0x40: PRINT("BIT 1, ");
+               case 0x50: PRINT("BIT 3, ");
+               case 0x60: PRINT("BIT 5, ");
+               case 0x70: PRINT("BIT 7, ");
+               case 0x80: PRINT("RES 1, ");
+               case 0x90: PRINT("RES 3, ");
+               case 0xA0: PRINT("RES 5, ");
+               case 0xB0: PRINT("RES 7, ");
+               case 0xC0: PRINT("SET 1, ");
+               case 0xD0: PRINT("SET 3, ");
+               case 0xE0: PRINT("SET 5, ");
+               case 0xF0: PRINT("SET 7, ");
                default: break;
             }
          } else {
@@ -332,18 +334,33 @@ void disas_at(word addr) {
             }
          }
          // This is to prevent a nested switch
-         if (index == 0) { printw("B"); }
-         if (index == 1) { printw("C"); }
-         if (index == 2) { printw("D"); }
-         if (index == 3) { printw("E"); }
-         if (index == 4) { printw("H"); }
-         if (index == 5) { printw("L"); }
-         if (index == 6) { printw("(HL)"); }
-         if (index == 7) { printw("A"); }
+         if (index == 0) {
+            printw("B");
+         }
+         if (index == 1) {
+            printw("C");
+         }
+         if (index == 2) {
+            printw("D");
+         }
+         if (index == 3) {
+            printw("E");
+         }
+         if (index == 4) {
+            printw("H");
+         }
+         if (index == 5) {
+            printw("L");
+         }
+         if (index == 6) {
+            printw("(HL)");
+         }
+         if (index == 7) {
+            printw("A");
+         }
          break;
 
-      default: 
-         break;
+      default: break;
    }
 
    printw("\n");

@@ -1,14 +1,14 @@
 ---
 Language:        Cpp
 AccessModifierOffset: -2
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: DontAlign 
 AlignConsecutiveAssignments: true 
-AlignConsecutiveDeclarations: true
+AlignConsecutiveDeclarations: false 
 AlignEscapedNewlinesLeft: true
 AlignOperands:   true
 AlignTrailingComments: true
 AllowAllParametersOfDeclarationOnNextLine: true
-AllowShortBlocksOnASingleLine: false
+AllowShortBlocksOnASingleLine: true 
 AllowShortCaseLabelsOnASingleLine: true 
 AllowShortFunctionsOnASingleLine: All 
 AllowShortIfStatementsOnASingleLine: false
@@ -17,17 +17,17 @@ AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: false
-BinPackArguments: true
-BinPackParameters: true
-BreakBeforeBinaryOperators: None
+BinPackArguments: false 
+BinPackParameters: false 
+BreakBeforeBinaryOperators: NonAssignment 
 BreakBeforeBraces: Attach 
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializersBeforeComma: false
 ColumnLimit:     80
 CommentPragmas:  '^ IWYU pragma:'
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
-ConstructorInitializerIndentWidth: 3
-ContinuationIndentWidth: 3
+ConstructorInitializerIndentWidth: 6
+ContinuationIndentWidth: 6
 DerivePointerAlignment: false
 IncludeCategories: 
   - Regex:           '^\"'

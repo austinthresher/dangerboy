@@ -1,12 +1,12 @@
 #include <SDL/SDL.h>
 #include <stdio.h>
 
-#include "ppu.h"
 #include "cpu.h"
 #include "debugger.h"
+#include "ppu.h"
 
 #define INPUT_POLL_RATE 8 // Poll for input every 8 ms (120 times a second)
-#define SCALE_FACTOR 2 
+#define SCALE_FACTOR 2
 
 int main(int argc, char* args[]) {
    if (argc < 2) {
@@ -35,24 +35,24 @@ int main(int argc, char* args[]) {
    uint32_t screenFlags = SDL_HWSURFACE | SDL_DOUBLEBUF;
    SDL_Init(SDL_INIT_EVERYTHING);
    SDL_WM_SetCaption("Danger Boy", "Danger Boy");
-   SDL_Surface* screen = SDL_SetVideoMode(160 * SCALE_FACTOR,
-                                          144 * SCALE_FACTOR,
-                                          32, screenFlags);
-   SDL_Surface* gb_screen =
-      SDL_CreateRGBSurface(SDL_HWSURFACE,
-                           160 * SCALE_FACTOR,
-                           144 * SCALE_FACTOR,
-                           32,
-                           0x00FF0000, 0x0000FF00,
-                           0x000000FF, 0xFF000000);
-   
-   bool  is_running   = true;
-   bool  turbo        = false;
-   int   turbo_skip   = 3;
-   int   turbo_count  = 0;
-   int   t_prev       = SDL_GetTicks();
-   int   i_prev       = SDL_GetTicks();
-   char* file         = args[1];
+   SDL_Surface* screen = SDL_SetVideoMode(
+         160 * SCALE_FACTOR, 144 * SCALE_FACTOR, 32, screenFlags);
+   SDL_Surface* gb_screen = SDL_CreateRGBSurface(SDL_HWSURFACE,
+         160 * SCALE_FACTOR,
+         144 * SCALE_FACTOR,
+         32,
+         0x00FF0000,
+         0x0000FF00,
+         0x000000FF,
+         0xFF000000);
+
+   bool is_running = true;
+   bool turbo      = false;
+   int turbo_skip  = 3;
+   int turbo_count = 0;
+   int t_prev      = SDL_GetTicks();
+   int i_prev      = SDL_GetTicks();
+   char* file      = args[1];
 
    cpu_init(file);
    ppu_init(gb_screen);
@@ -130,7 +130,6 @@ int main(int argc, char* args[]) {
                      mem_dpad &= 0xFE;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
                      DEBUG("DPAD RIGHT PRESSED\n");
-
                   }
                   if (event.key.keysym.sym == SDLK_DOWN) {
                      mem_dpad &= 0xF7;
@@ -169,7 +168,7 @@ int main(int argc, char* args[]) {
          if (debugger_should_break()) {
             debugger_cli();
          }
-         cpu_execute_step(); 
+         cpu_execute_step();
       } else {
          if (turbo) {
             if (turbo_count < turbo_skip) {
@@ -194,16 +193,17 @@ int main(int argc, char* args[]) {
             for (int y = 0; y < gb_screen->h; ++y) {
                for (int x = 0; x < gb_screen->w; ++x) {
                   *(uint8_t*)(gb_screen->pixels
-                           + (y * gb_screen->pitch
-                           +  x * gb_screen->format->BytesPerPixel + 3)
-                           ) = 255;
+                              + (y * gb_screen->pitch
+                                      + x * gb_screen->format->BytesPerPixel
+                                      + 3)) = 255;
                   for (int c = 0; c < 3; ++c) {
                      int small_x = x / SCALE_FACTOR;
                      int small_y = y / SCALE_FACTOR;
                      *(uint8_t*)(gb_screen->pixels
                                  + (y * gb_screen->pitch
-                                 +  x * gb_screen->format->BytesPerPixel + c)
-                                 ) = ppu_vram[small_y * 160*3 + small_x*3 + c];
+                                         + x * gb_screen->format->BytesPerPixel
+                                         + c)) =
+                           ppu_vram[small_y * 160 * 3 + small_x * 3 + c];
                   }
                }
             }

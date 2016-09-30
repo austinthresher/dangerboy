@@ -63,7 +63,7 @@ void mem_load_image(char* fname) {
    // Load the first 32kb of the ROM to RAM
    uint32_t i = 0;
    while (!feof(fin) && i < 0x8000) {
-      byte   data       = 0;
+      byte data         = 0;
       size_t bytes_read = fread(&data, 1, 1, fin);
       if (bytes_read != 1) {
          ERROR("Error reading %s\n", fname);
@@ -80,7 +80,7 @@ void mem_load_image(char* fname) {
    fseek(fin, 0, SEEK_SET);
    i = 0;
    while (!feof(fin) && i < fsize * 1024) {
-      byte   data;
+      byte data;
       size_t bytes_read = fread(&data, 1, 1, fin);
       if (bytes_read != 1) {
          ERROR("Error reading %s\n", fname);
@@ -100,37 +100,37 @@ void mem_get_rom_info(void) {
          mem_mbc_type = NONE;
          break;
       case 0x03:
-         // ROM + MBC1 + RAM + BATT
+      // ROM + MBC1 + RAM + BATT
       case 0x02:
-         // ROM + MBC1 + RAM
+      // ROM + MBC1 + RAM
       case 0x01:
          // ROM + MBC1
          mem_mbc_type = MBC1;
          break;
       case 0x06:
-         // ROM + MBC2 + BATTERY
+      // ROM + MBC2 + BATTERY
       case 0x05:
          // ROM + MBC2
          mem_mbc_type = MBC2;
          break;
       case 0x0F:
-         // ROM + MBC3 + TIMER + BATT
+      // ROM + MBC3 + TIMER + BATT
       case 0x10:
-         // ROM + MBC3 + TIMER + RAM + BATT
+      // ROM + MBC3 + TIMER + RAM + BATT
       case 0x11:
-         // ROM + MBC3
+      // ROM + MBC3
       case 0x12:
-         // ROM + MBC3 + RAM
+      // ROM + MBC3 + RAM
       case 0x13:
          // ROM + MBC3 + RAM + BATT
          mem_mbc_type = MBC3;
          break;
-         // MBC5 currently unsupported
+      // MBC5 currently unsupported
       default: ERROR("Unknown banking mode: %X", mem_rom[CART_TYPE_ADDR]);
    }
 
    mem_rom_bank_count =
-      (int)pow((double)2, (double)(1 + mem_rom[ROM_SIZE_ADDR]));
+         (int)pow((double)2, (double)(1 + mem_rom[ROM_SIZE_ADDR]));
 
    // RAM Size
    switch (mem_rom[RAM_SIZE_ADDR]) {
@@ -167,20 +167,16 @@ void mem_dma(byte val) {
 }
 
 // Use these to implement system read writes, like OAM transfer
-void mem_direct_write(word addr, byte val) {
-   mem_ram[addr] = val;
-}
+void mem_direct_write(word addr, byte val) { mem_ram[addr] = val; }
 
-byte mem_direct_read(word addr) {
-   return mem_ram[addr];
-}
+byte mem_direct_read(word addr) { return mem_ram[addr]; }
 
 // Write byte
 void mem_wb(word addr, byte val) {
-   
+
    // Interrupt debug messages
    if (addr == INT_ENABLED_ADDR) {
-      DEBUG("INT:\n"); 
+      DEBUG("INT:\n");
       if (val & INT_VBLANK) {
          DEBUG("\t+VBLANK\n");
       } else {
@@ -202,7 +198,6 @@ void mem_wb(word addr, byte val) {
          DEBUG("\t-INPUT\n");
       }
    }
-
 
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
@@ -264,8 +259,7 @@ void mem_wb(word addr, byte val) {
          // This register selects our ROM / RAM banking mode
          // for MBC1 and MBC2. MBC3 uses this location to
          // latch current time into RTC registers (TODO: That.)
-         if (mem_mbc_type == MBC1
-          || mem_mbc_type == MBC2) {
+         if (mem_mbc_type == MBC1 || mem_mbc_type == MBC2) {
             if ((val & 0x01) == 0) {
                mem_mbc_bankmode = ROM16_RAM8;
             }
@@ -285,7 +279,7 @@ void mem_wb(word addr, byte val) {
       // Maybe need to check if banking is enabled here?
       if (mem_mbc_type == NONE) {
          mem_ram[addr] = val;
-      } else  {
+      } else {
          if (mem_ram_bank_locked == false) {
             addr -= 0xA000;
             mem_ram_bank[addr + mem_current_ram_bank * 0x2000] = val;
@@ -315,7 +309,7 @@ void mem_wb(word addr, byte val) {
             } else {
                DEBUG("TIMER DISABLED\n");
             }
-            //if (val & 0x3) {
+            // if (val & 0x3) {
             //   cpu_tima_timer = 0;
             //}
             mem_ram[addr] = val;
@@ -325,15 +319,9 @@ void mem_wb(word addr, byte val) {
          case LCD_SCY_ADDR:
          case LCD_SCX_ADDR:
          case LCD_LINE_Y_ADDR:
-         case LCD_LINE_Y_C_ADDR:
-            ppu_update_register(addr, val);
-            break;
-         case OAM_DMA_ADDR:
-            mem_dma(val);
-           break;
-         case INPUT_REGISTER_ADDR:
-            mem_input_last_write = val & 0x30;
-            break;
+         case LCD_LINE_Y_C_ADDR: ppu_update_register(addr, val); break;
+         case OAM_DMA_ADDR: mem_dma(val); break;
+         case INPUT_REGISTER_ADDR: mem_input_last_write = val & 0x30; break;
          default:
             if (addr >= 0xE000 && addr <= 0xFE00) {
                addr -= 0x2000; // Mirrored memory
