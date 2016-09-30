@@ -3,6 +3,7 @@
 
 #include "ppu.h"
 #include "cpu.h"
+#include "debugger.h"
 
 #define INPUT_POLL_RATE 8 // Poll for input every 8 ms (120 times a second)
 #define SCALE_FACTOR 2 
@@ -13,14 +14,22 @@ int main(int argc, char* args[]) {
       exit(0);
    }
 
-   if (argc >= 3 && strcmp(args[2], "-i") == 0) {
-      mem_init();
-      mem_load_image(args[1]);
-      mem_get_rom_info();
-      mem_print_rom_info();
-      mem_free();
-      fflush(stdout);
-      exit(0);
+   bool debug_flag = false;
+   if (argc > 2) {
+      for (int a = 0; a < argc - 2; ++a) {
+         if (strcmp(args[a + 2], "-i") == 0) {
+            mem_init();
+            mem_load_image(args[1]);
+            mem_get_rom_info();
+            mem_print_rom_info();
+            mem_free();
+            fflush(stdout);
+            exit(0);
+         }
+         if (strcmp(args[a + 2], "-d") == 0) {
+            debug_flag = true;
+         }
+      }
    }
 
    uint32_t screenFlags = SDL_HWSURFACE | SDL_DOUBLEBUF;
@@ -44,8 +53,13 @@ int main(int argc, char* args[]) {
    int   t_prev       = SDL_GetTicks();
    int   i_prev       = SDL_GetTicks();
    char* file         = args[1];
+
    cpu_init(file);
    ppu_init(gb_screen);
+   debugger_init();
+   if (debug_flag) {
+      debugger_break();
+   }
    while (is_running && !check_error()) {
       int t = SDL_GetTicks();
       if (t - i_prev > INPUT_POLL_RATE) {
@@ -59,7 +73,6 @@ int main(int argc, char* args[]) {
                      break;
                   }
                   if (event.key.keysym.sym == SDLK_SPACE) {
-                     printf("Turbo off\n");
                      turbo = false;
                   }
                   if (event.key.keysym.sym == SDLK_LEFT) {
@@ -97,8 +110,10 @@ int main(int argc, char* args[]) {
                   break;
 
                case SDL_KEYDOWN:
+                  if (event.key.keysym.sym == SDLK_d) {
+                     debugger_break();
+                  }
                   if (event.key.keysym.sym == SDLK_SPACE) {
-                     printf("Turbo on\n");
                      turbo = true;
                   }
                   if (event.key.keysym.sym == SDLK_LEFT) {
@@ -151,7 +166,10 @@ int main(int argc, char* args[]) {
       // We pause execution when the screen is ready to
       // be flipped to prevent emulating faster than 60 fps
       if (ppu_ready_to_draw == false) {
-         cpu_execute_step();
+         if (debugger_should_break()) {
+            debugger_cli();
+         }
+         cpu_execute_step(); 
       } else {
          if (turbo) {
             if (turbo_count < turbo_skip) {

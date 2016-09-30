@@ -134,9 +134,7 @@ void cpu_init(char* romname) {
    for (size_t i = 0; i < 0x100; i++) {
       cpu_opcodes[i] = &cpu_NI;
    }
-
                                            // Timing
-
    cpu_opcodes[0x00] = &cpu_NOP;           /* 1 */ 
    cpu_opcodes[0x01] = &cpu_LDBC_nn;       /* 3 */
    cpu_opcodes[0x02] = &cpu_LD_AT_BC_A;    /* 2 */
