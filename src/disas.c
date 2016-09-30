@@ -6,11 +6,14 @@
 
 void disas_at(word addr) {
    byte opcode = mem_rb(addr++);
+   byte cbop   = 0;
+   byte index  = 0;
    if (opcode != 0xCB) {
       printw("%02X\t", opcode);
    }
    else {
-      printw("%02X %02X\t", opcode, mem_rb(addr++));
+      cbop = mem_rb(addr++);
+      printw("%02X %02X\t", opcode, cbop);
    }
 
    switch (opcode) {
@@ -285,6 +288,58 @@ void disas_at(word addr) {
       case 0xFF: PRINT("RST 38");
 
       case 0xCB:
+         index = cbop & 0x0F;
+         if (index >= 8) {
+            index -= 8;
+            switch (cbop & 0xF0) {
+               case 0x00: PRINT("RRC ");
+               case 0x10: PRINT("RR ");
+               case 0x20: PRINT("SRA "); 
+               case 0x30: PRINT("SRL "); 
+               case 0x40: PRINT("BIT 1, "); 
+               case 0x50: PRINT("BIT 3, "); 
+               case 0x60: PRINT("BIT 5, "); 
+               case 0x70: PRINT("BIT 7, "); 
+               case 0x80: PRINT("RES 1, "); 
+               case 0x90: PRINT("RES 3, "); 
+               case 0xA0: PRINT("RES 5, "); 
+               case 0xB0: PRINT("RES 7, "); 
+               case 0xC0: PRINT("SET 1, "); 
+               case 0xD0: PRINT("SET 3, "); 
+               case 0xE0: PRINT("SET 5, "); 
+               case 0xF0: PRINT("SET 7, "); 
+               default: break;
+            }
+         } else {
+            switch (cbop & 0xF0) {
+               case 0x00: PRINT("RLC ");
+               case 0x10: PRINT("RL ");
+               case 0x20: PRINT("SLA ");
+               case 0x30: PRINT("SWAP ");
+               case 0x40: PRINT("BIT 0, ");
+               case 0x50: PRINT("BIT 2, ");
+               case 0x60: PRINT("BIT 4, ");
+               case 0x70: PRINT("BIT 6, ");
+               case 0x80: PRINT("RES 0, ");
+               case 0x90: PRINT("RES 2, ");
+               case 0xA0: PRINT("RES 4, ");
+               case 0xB0: PRINT("RES 6, ");
+               case 0xC0: PRINT("SET 0, ");
+               case 0xD0: PRINT("SET 2, ");
+               case 0xE0: PRINT("SET 4, ");
+               case 0xF0: PRINT("SET 6, ");
+               default: break;
+            }
+         }
+         // This is to prevent a nested switch
+         if (index == 0) { printw("B"); }
+         if (index == 1) { printw("C"); }
+         if (index == 2) { printw("D"); }
+         if (index == 3) { printw("E"); }
+         if (index == 4) { printw("H"); }
+         if (index == 5) { printw("L"); }
+         if (index == 6) { printw("(HL)"); }
+         if (index == 7) { printw("A"); }
          break;
 
       default: 

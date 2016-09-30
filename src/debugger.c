@@ -41,14 +41,14 @@ void store_regs() {
 }
 
 void print_reg_diff() {
-   if (a != cpu_A)   { printw("\tA:  %02X => %02X\n", a, cpu_A); }
-   if (b != cpu_B)   { printw("\tB:  %02X => %02X\n", b, cpu_B); }
-   if (c != cpu_C)   { printw("\tC:  %02X => %02X\n", c, cpu_C); }
-   if (d != cpu_D)   { printw("\tD:  %02X => %02X\n", d, cpu_D); }
-   if (e != cpu_E)   { printw("\tE:  %02X => %02X\n", e, cpu_E); }
-   if (h != cpu_H)   { printw("\tH:  %02X => %02X\n", h, cpu_H); }
-   if (l != cpu_L)   { printw("\tL:  %02X => %02X\n", l, cpu_L); }
-   if (sp != cpu_SP) { printw("\tSP: %04X => %04X\n", sp, cpu_SP); }
+   if (a != cpu_A)   { printw("\t  A:  %02X => %02X\n", a, cpu_A); }
+   if (b != cpu_B)   { printw("\t  B:  %02X => %02X\n", b, cpu_B); }
+   if (c != cpu_C)   { printw("\t  C:  %02X => %02X\n", c, cpu_C); }
+   if (d != cpu_D)   { printw("\t  D:  %02X => %02X\n", d, cpu_D); }
+   if (e != cpu_E)   { printw("\t  E:  %02X => %02X\n", e, cpu_E); }
+   if (h != cpu_H)   { printw("\t  H:  %02X => %02X\n", h, cpu_H); }
+   if (l != cpu_L)   { printw("\t  L:  %02X => %02X\n", l, cpu_L); }
+   if (sp != cpu_SP) { printw("\t  SP: %04X => %04X\n", sp, cpu_SP); }
    if (ei != cpu_ei) {
       if (ei) { printw("\tEI: true  => false\n"); }
       else    { printw("\tEI: false => true\n"); }
