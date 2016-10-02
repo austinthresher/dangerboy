@@ -25,12 +25,12 @@
    FLAG_Z                   = !cpu_A;
 
 #define PUSH(hi, lo)                 \
-   mem_direct_write(--cpu_SP, (hi)); \
-   mem_direct_write(--cpu_SP, (lo));
+   mem_wb(--cpu_SP, (hi)); \
+   mem_wb(--cpu_SP, (lo));
 
 #define POP(hi, lo)                \
-   lo = mem_direct_read(cpu_SP++); \
-   hi = mem_direct_read(cpu_SP++);
+   lo = mem_rb(cpu_SP++); \
+   hi = mem_rb(cpu_SP++);
 
 #define PUSHW(val) \
    cpu_SP -= 2;    \

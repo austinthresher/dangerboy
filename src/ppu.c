@@ -1,4 +1,5 @@
 #include "ppu.h"
+#include "debugger.h"
 
 byte mode;
 byte win_y;
@@ -71,6 +72,7 @@ void ppu_update_register(word addr, byte val) {
 void ppu_update_stat() {
 
    mem_direct_write(LCD_LINE_Y_ADDR, ppu_ly);
+   debugger_notify_mem_write(LCD_LINE_Y_ADDR, ppu_ly);
 
    // If lyc == scanline and bit 6 of stat is set, interrupt
    byte lyc = mem_direct_read(LCD_LINE_Y_C_ADDR);
@@ -83,20 +85,18 @@ void ppu_update_stat() {
 
    // The STAT interrupt has 4 different modes, based on bits 3-6
    if ((mode == PPU_MODE_HBLANK && (stat_reg & 0x08))
-         || (mode == PPU_MODE_VBLANK && (stat_reg & 0x10))
-         || (mode == PPU_MODE_SCAN_OAM && (stat_reg & 0x20))
-         || (ppu_ly == lyc
+    || (mode == PPU_MODE_VBLANK && (stat_reg & 0x10))
+    || (mode == PPU_MODE_SCAN_OAM && (stat_reg & 0x20))
+    || (ppu_ly == lyc
                   && (mode == PPU_MODE_HBLANK || mode == PPU_MODE_VBLANK)
                   && (stat_reg & 0x40))) {
-      mem_direct_write(
-            INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+      mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
    } else if (ppu_ly == 144) {
       // The OAM interrupt can still fire on scanline 144. This only
       // happens if the STAT VBlank interrupt did not fire.
       // TODO: Does this happen if normal VBlank interrupt fires?
       if ((stat_reg & 0x20) && !(stat_reg & 0x10)) {
-         mem_direct_write(
-               INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+         mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
       }
    }
 }
@@ -133,7 +133,7 @@ void ppu_advance_time(tick ticks) {
                DEBUG("PPU: VBLANK\n");
                mode              = PPU_MODE_VBLANK;
                ppu_ready_to_draw = true;
-               mem_direct_write(INT_FLAG_ADDR,
+               mem_wb(INT_FLAG_ADDR,
                      mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
             } else {
                mode = PPU_MODE_SCAN_OAM;

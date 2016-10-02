@@ -39,9 +39,9 @@ void init_curses() {
       start_color();
       init_pair(COL_NORMAL, COLOR_WHITE, COLOR_BLACK);
       init_pair(COL_STATUS, COLOR_BLACK, COLOR_GREEN);
-      init_pair(COL_MEMVAL, COLOR_BLACK, COLOR_BLUE);
-      init_pair(COL_MEMADD, COLOR_WHITE, COLOR_BLUE);
-      init_pair(COL_HILITE, COLOR_GREEN, COLOR_BLACK);
+      init_pair(COL_MEMVAL, COLOR_BLUE, COLOR_BLACK);
+      init_pair(COL_MEMADD, COLOR_GREEN, COLOR_BLACK);
+      init_pair(COL_HILITE, COLOR_YELLOW, COLOR_BLACK); // fix color here
       init_pair(COL_OPCODE, COLOR_RED, COLOR_BLACK);
       init_pair(COL_VALUES, COLOR_BLUE, COLOR_BLACK);
    }
@@ -220,6 +220,16 @@ void print_status_bar() {
          mem_rb(INT_ENABLED_ADDR),
          mem_rb(INT_FLAG_ADDR),
          cpu_ticks);
+   wprintw(status_bar, "\t[IME:%d]", cpu_ime ? 1 : 0);
+   wprintw(status_bar, "\t[LCD:%d STAT:%02X]",
+         (mem_direct_read(0xFF40) & 0x80) ? 1 : 0,
+         mem_direct_read(LCD_STATUS_ADDR));
+   wprintw(status_bar, "\t[RAM:%d ROM:%02X]",
+         mem_current_ram_bank,
+         mem_current_rom_bank); 
+   if (mem_mbc_type == MBC1) {
+      wprintw(status_bar, "\t[MBC1:%d]", mem_mbc_bankmode);
+   }
    wmove(status_bar, 1, 0);
    wprintw(status_bar, 
          "[PC:%04X SP:%04X]\t"
@@ -248,7 +258,7 @@ void debugger_cli() {
    print_reg_diff();
    wmove(console_pane, console_height - 1, 0);
    if (show_pc) {
-      COLOR(console_pane, COL_HILITE);
+      COLOR(console_pane, COL_MEMADD);
       wprintw(console_pane, "[%04X] ", cpu_PC);
       COLOR(console_pane, COL_NORMAL);
    }
@@ -396,7 +406,7 @@ bool handle_input(const char* str) {
       word add = start_addr;
       while (add <= end_addr) {
          if (show_pc) {
-            COLOR(console_pane, COL_HILITE);
+            COLOR(console_pane, COL_MEMADD);
             wprintw(console_pane, "[%04X] ", add);
             COLOR(console_pane, COL_NORMAL);
          }     

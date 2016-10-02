@@ -229,6 +229,9 @@ void mem_wb(word addr, byte val) {
             // Writing to this region selects the lower 5 bits
             // of the ROM bank index
             val &= 0x1F;
+            if (val == 0) {
+               val = 1;
+            }
             mem_current_rom_bank = val;
          } else if (mem_mbc_type == MBC2) {
 
@@ -250,7 +253,7 @@ void mem_wb(word addr, byte val) {
          if (mem_mbc_type >= MBC1) {
             // This either selects our RAM bank for ROM4_RAM32
             // bank mode, or bits 5-6 of our ROM for ROM16_RAM8
-            if (val < 0x4) {
+            if (mem_mbc_type != MBC3 || val < 0x4) {
                mem_current_ram_bank = val & 0x03;
                DEBUG("RAM Bank switched to %02X\n", mem_current_ram_bank);
             } else {
@@ -285,7 +288,11 @@ void mem_wb(word addr, byte val) {
       } else {
          if (mem_ram_bank_locked == false) {
             addr -= 0xA000;
-            mem_ram_bank[addr + mem_current_ram_bank * 0x2000] = val;
+            if (mem_mbc_bankmode == ROM16_RAM8) {
+               mem_ram_bank[addr] = val;
+            } else {
+               mem_ram_bank[addr + mem_current_ram_bank * 0x2000] = val;
+            }
          }
       }
    } else if (addr >= SPRITE_RAM_START_ADDR && addr <= SPRITE_RAM_END_ADDR) {
@@ -339,25 +346,10 @@ byte mem_get_current_rom_bank() {
       // In ROM16_RAM8 mode, mem_current_ram_bank
       // holds bits 5-6 of our ROM bank index.
       if (mem_mbc_bankmode == ROM16_RAM8) {
-         byte bank = mem_current_rom_bank | (mem_current_ram_bank << 5);
-         if (bank == 0) {
-            bank = 1;
-         }
-         if (bank == 0x20) {
-            bank = 0x21;
-         }
-         if (bank == 0x40) {
-            bank = 0x41;
-         }
-         if (bank == 0x60) {
-            bank = 0x61;
-         }
+         byte bank = (mem_current_rom_bank & 0x1F) | ((mem_current_ram_bank & 0x3) << 5);
          return bank;
       } else {
          byte bank = mem_current_rom_bank & 0x1F;
-         if (bank == 0) {
-            bank = 1;
-         }
          return bank;
       }
    }
@@ -389,11 +381,11 @@ byte mem_rb(word addr) {
    // TODO: Make sure this works with MBC2, which has 512x4 bits
    // of "external" RAM. The full address space is not used there.
    if (mem_mbc_type != NONE && addr >= 0xA000 && addr < 0xC000) {
-
+      
       // The external RAM could be up to 2kb, 8kb, or 32kb
       // 32kb mode required 4 RAM banks
       addr -= 0xA000;
-      if (mem_mbc_type < MBC3 && mem_mbc_bankmode == ROM4_RAM32) {
+      if (mem_mbc_type < MBC3 || mem_mbc_bankmode != ROM4_RAM32) {
          return mem_ram_bank[addr];
       }
       return mem_ram_bank[mem_current_ram_bank * 0x2000 + addr];
@@ -410,7 +402,7 @@ byte mem_rb(word addr) {
 
    if ((addr > 0x8000 && addr < 0xA000) || (addr > 0xFE00 && addr < 0xFE9F)) {
       // This memory is only accessible during hblank or vblank
-      byte mode = mem_ram[0xFF41] & 0x03;
+      byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
       if (mode == 0 || mode == 1) { // HBlank or VBlank
          return mem_ram[addr];
       }
