@@ -287,7 +287,7 @@ word disas_at(word addr, WINDOW *win) {
       case 0xEE: PRINT("XOR %02X", rb(&addr));
       case 0xEF: PRINT("RST 28");
 
-      case 0xF0: PRINT("LD A, %02X", rb(&addr));
+      case 0xF0: PRINT("LD A, (FF%02X)", rb(&addr));
       case 0xF1: PRINT("POP AF");
       case 0xF2: PRINT("LD A, (FF00 + C)");
       case 0xF3: PRINT("DI");

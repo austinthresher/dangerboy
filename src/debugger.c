@@ -17,6 +17,7 @@ bool curses_on;
 int console_width;
 int console_height;
 bool show_pc;
+bool break_on_op[256];
 WINDOW *memory_map, *console_pane, *status_bar;
 
 struct BreakpointEntry {
@@ -287,12 +288,35 @@ bool handle_input(const char* str) {
    if (args == &inp[0]) {
       args = strtok(NULL, " ");
    }
+   
+   // TODO: Add a reset command
 
    // Help command
    if (sc(inp, "help") || sc(inp, "h") || sc(inp, "?")) {
       wprintw(console_pane, "Available commands:\n");
-      wprintw(console_pane, "\tquit\n\tstep\n\tmem\n\tdisas\n\tbreak\n\tcontinue\n");
+      wprintw(console_pane, "\tquit\n\tstep\n\tmem\n\tdisas\n\tbreak\n\tbreakop\n\tcontinue\n");
       return false;
+   }
+
+   // Break on opcode
+   if (sc(inp, "breakop") || sc(inp, "bo")) {
+      if (args == NULL) {
+         wprintw(console_pane, "USAGE:\nbreakop [opcode]\n");
+         return false;
+      }
+      int op = (int)strtol(args, NULL, 16);
+      if (op < 0 || op > 0xFF) {
+         wprintw(console_pane, "Opcode must be from 0 to FF\n");
+         return false;
+      }
+      break_on_op[op] = !break_on_op[op];
+      if (break_on_op[op]) {
+         wprintw(console_pane, "Breaking on opcode %02X\n", op);
+      } else {
+         wprintw(console_pane, "Disabled break on opcode %02X\n", op);
+      }
+      return false;
+ 
    }
 
    // Breakpoint command
@@ -436,6 +460,9 @@ void debugger_init() {
    for (int i = 0; i < 0x10000; ++i) {
       debugger_clear_breakpoint(i);
    }
+   for (int i = 0; i < 0x100; ++i) {
+      break_on_op[i] = false;
+   }
    curses_on = false;
    memory_map = NULL;
    memory_view_addr = 0;
@@ -473,14 +500,24 @@ void debugger_break_on_equal(word addr, byte value) {
 }
 
 void debugger_notify_mem_exec(word addr) {
+   if (need_break) {
+      return;
+   }
    if (breakpoints[addr].break_on_exec) {
       need_break = true;
       memory_view_addr = addr;
       wprintw(console_pane, "%04X is about to execute. Breaking.\n", addr);
+   } else if (break_on_op[mem_rb(addr)]) {
+      need_break = true;
+      memory_view_addr = addr;
+      wprintw(console_pane, "%02X is about to execute. Breaking.\n", mem_rb(addr));
    }
 }
 
 void debugger_notify_mem_write(word addr, byte val) {
+   if (need_break) {
+      return;
+   }
    if (breakpoints[addr].break_on_equal
          && breakpoints[addr].watch_value == val) {
       need_break = true;
@@ -495,6 +532,9 @@ void debugger_notify_mem_write(word addr, byte val) {
 }
 
 void debugger_notify_mem_read(word addr) {
+   if (need_break) {
+      return;
+   }
    if (breakpoints[addr].break_on_read) {
       need_break = true;
       memory_view_addr = addr;

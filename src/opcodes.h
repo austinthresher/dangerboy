@@ -944,11 +944,14 @@ void cpu_SET(byte* inp, byte bit) {
 }
 
 void cpu_cb() {
-   TIME(3);
+   TIME(2);
    byte sub_op  = mem_rb(cpu_PC++);
    byte* regs[] = {
          &cpu_B, &cpu_C, &cpu_D, &cpu_E, &cpu_H, &cpu_L, NULL, &cpu_A};
    byte index = sub_op & 0x0F;
+   if (index == 6 || index == 14) {
+      TIME(1);
+   }
    if (index >= 8) {
       index -= 8;
       switch (sub_op & 0xF0) {
