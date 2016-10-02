@@ -58,12 +58,14 @@ void init_curses() {
       }
       console_pane = newwin(console_height, console_width, 2, 0);
       scrollok(console_pane, true);
-      wsetscrreg(console_pane, 0, console_height - 1);
-      idlok(console_pane, true);
    }
 }
 
 void store_regs() {
+
+   // Save the state of CPU registers after each
+   // step so that we can view what each operation
+   // changed.
    a  = cpu_A;
    b  = cpu_B;
    c  = cpu_C;
@@ -76,6 +78,9 @@ void store_regs() {
 }
 
 void print_reg_diff() {
+
+   // Print any registers whose values changed
+   // since they were last recorded.
    COLOR(console_pane, COL_VALUES);
    if (a != cpu_A) {
       wprintw(console_pane, "A: %02X => %02X\n", a, cpu_A);
@@ -231,7 +236,7 @@ void print_status_bar() {
 }
 
 void debugger_cli() {
-   char input[256], buff[256];
+   char buff[256];
 
    if (!curses_on) {
       init_curses();
@@ -286,7 +291,62 @@ bool handle_input(const char* str) {
    // Help command
    if (sc(inp, "help") || sc(inp, "h") || sc(inp, "?")) {
       wprintw(console_pane, "Available commands:\n");
-      wprintw(console_pane, "\tquit\n\tstep\n\tmem\n\tdisas\n\tcontinue\n");
+      wprintw(console_pane, "\tquit\n\tstep\n\tmem\n\tdisas\n\tbreak\n\tcontinue\n");
+      return false;
+   }
+
+   // Breakpoint command
+   if (sc(inp, "break") || sc(inp, "b")) {
+      char *addr_str = args;
+      char *cmd_str = strtok(NULL, " ");
+      char *val_str = strtok(NULL, " ");
+      if (addr_str != NULL && cmd_str != NULL) {
+         int addr = strtol(addr_str, NULL, 16);
+         if (addr < 0 || addr > 0xFFFF) {
+            wprintw(console_pane, "invalid address\n");
+            return false;
+         }
+         if (sc(cmd_str, "read") || sc(cmd_str, "r")) {
+            debugger_break_on_read(addr);
+            wprintw(console_pane, "Breaking on read of %04X\n", addr);
+            return false;
+         }
+         if (sc(cmd_str, "write") || sc(cmd_str, "w")) {
+            debugger_break_on_write(addr);
+            wprintw(console_pane, "Breaking on write of %04X\n", addr);
+            return false;
+         }
+         if (sc(cmd_str, "exec") || sc(cmd_str, "x")) {
+            debugger_break_on_exec(addr);
+            wprintw(console_pane, "Breaking on exec of %04X\n", addr);
+            return false;
+         }
+         if (sc(cmd_str, "clear") || sc(cmd_str, "c")) {
+            debugger_clear_breakpoint(addr);
+            wprintw(console_pane, "Breakpoints at %04X cleared.\n", addr);
+            return false;
+         }
+         if (sc(cmd_str, "equal") || sc(cmd_str, "e")) {
+            if (val_str == NULL) {
+               wprintw(console_pane, "USAGE:\nbreak [ad] equal [value]\n");
+               return false;
+            }
+            int eq_val = strtol(val_str, NULL, 16);
+            if (eq_val < 0 || eq_val > 0xFF) {
+               wprintw(console_pane, "invalid value (0 to 0xFF)\n");
+               return false;
+            }
+            debugger_break_on_equal(addr, (byte)eq_val);
+            wprintw(console_pane, "Breaking when (%04X) == %02X\n", addr, eq_val);
+            return false;
+         }
+      }
+      wprintw(console_pane, "USAGE:\n"
+                            "break [addr] [read | r]\n"
+                            "break [addr] [write | w]\n"
+                            "break [addr] [exec | x]\n"
+                            "break [addr] [equal | e] [value]\n"
+                            "break [addr] [clear | c]\n");
       return false;
    }
 
@@ -330,6 +390,7 @@ bool handle_input(const char* str) {
 
    // Step forward command
    if (sc(inp, "step") || sc(inp, "s")) {
+      // TODO: Allow specifying a number of steps to advance
       return true;
    }
 
@@ -364,7 +425,7 @@ bool debugger_should_break() { return need_break; }
 void debugger_break() { need_break = true; }
 
 void debugger_continue() {
-   printf("Continuing.\n");
+   wprintw(console_pane, "Continuing.\n");
    need_break = false;
 }
 
@@ -385,8 +446,6 @@ void debugger_free() {
       free(breakpoints);
    }
 }
-
-
 
 void debugger_clear_breakpoint(word addr) {
    breakpoints[addr].break_on_read  = false;
@@ -416,21 +475,29 @@ void debugger_break_on_equal(word addr, byte value) {
 void debugger_notify_mem_exec(word addr) {
    if (breakpoints[addr].break_on_exec) {
       need_break = true;
+      memory_view_addr = addr;
+      wprintw(console_pane, "%04X is about to execute. Breaking.\n", addr);
    }
 }
 
 void debugger_notify_mem_write(word addr, byte val) {
-   if (breakpoints[addr].break_on_write) {
-      need_break = true;
-   }
    if (breakpoints[addr].break_on_equal
          && breakpoints[addr].watch_value == val) {
       need_break = true;
+      memory_view_addr = addr;
+      wprintw(console_pane, "%02X was written to %04X. Breaking.\n", val, addr);
+   }
+   else if (breakpoints[addr].break_on_write) {
+      need_break = true;
+      memory_view_addr = addr;
+      wprintw(console_pane, "%04X was written to. Breaking.\n", addr);
    }
 }
 
 void debugger_notify_mem_read(word addr) {
    if (breakpoints[addr].break_on_read) {
       need_break = true;
+      memory_view_addr = addr;
+      wprintw(console_pane, "%04X was read. Breaking.\n", addr);
    }
 }

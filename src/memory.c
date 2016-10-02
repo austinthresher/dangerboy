@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "debugger.h"
 #include "memory.h"
 #include "ppu.h"
 
@@ -173,6 +174,8 @@ byte mem_direct_read(word addr) { return mem_ram[addr]; }
 
 // Write byte
 void mem_wb(word addr, byte val) {
+
+   debugger_notify_mem_write(addr, val);
 
    // Interrupt debug messages
    if (addr == INT_ENABLED_ADDR) {
@@ -368,6 +371,8 @@ byte mem_get_current_rom_bank() {
 
 // Read byte
 byte mem_rb(word addr) {
+
+   debugger_notify_mem_read(addr);
 
    // 0x0000 to 0x3FFF always contains the first 16 kb of ROM
    if (addr < 0x4000) {

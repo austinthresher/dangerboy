@@ -1,6 +1,7 @@
 #include "cpu.h"
 #include "opcodes.h"
 #include "ppu.h"
+#include "debugger.h"
 
 bool raise_tima = false;
 
@@ -437,6 +438,7 @@ void cpu_execute_step() {
          cpu_last_pc = cpu_PC;
          cpu_last_op = mem_rb(cpu_PC++);
          (*cpu_opcodes[cpu_last_op])();
+         debugger_notify_mem_exec(cpu_PC);
       } else {
          cpu_nop();
       }

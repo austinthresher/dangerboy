@@ -54,9 +54,9 @@ int main(int argc, char* args[]) {
    int i_prev      = SDL_GetTicks();
    char* file      = args[1];
 
+   debugger_init();
    cpu_init(file);
    ppu_init(gb_screen);
-   debugger_init();
    if (debug_flag) {
       debugger_break();
    }
