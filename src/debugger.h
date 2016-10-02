@@ -1,5 +1,17 @@
 #include "datatypes.h"
 
+// ncurses utility defines
+// TODO: Move shared ncurses stuff to its own .h
+#define COL_NORMAL 0
+#define COL_STATUS 1
+#define COL_MEMVAL 2
+#define COL_MEMADD 3
+#define COL_HILITE 4
+#define COL_OPCODE 5
+#define COL_VALUES 6
+
+#define COLOR(w, x) if(has_colors()) wattrset((w), COLOR_PAIR(x));
+
 bool debugger_should_break();
 void debugger_cli();
 void debugger_break();

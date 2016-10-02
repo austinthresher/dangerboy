@@ -14,8 +14,10 @@ word sp;
 bool ei;
 bool need_break;
 bool curses_on;
-// TODO: Finish switching main display to windows
-WINDOW *memory_map, *debug_pane, *status_bar;
+int console_width;
+int console_height;
+bool show_pc;
+WINDOW *memory_map, *console_pane, *status_bar;
 
 struct BreakpointEntry {
    bool break_on_read;
@@ -30,6 +32,37 @@ struct BreakpointEntry* breakpoints;
 bool handle_input(const char* string);
 bool sc(const char* strA, const char* strB) { return strcmp(strA, strB) == 0; }
 
+void init_curses() {
+   initscr();
+   if (has_colors()) {
+      start_color();
+      init_pair(COL_NORMAL, COLOR_WHITE, COLOR_BLACK);
+      init_pair(COL_STATUS, COLOR_BLACK, COLOR_GREEN);
+      init_pair(COL_MEMVAL, COLOR_BLACK, COLOR_BLUE);
+      init_pair(COL_MEMADD, COLOR_WHITE, COLOR_BLUE);
+      init_pair(COL_HILITE, COLOR_GREEN, COLOR_BLACK);
+      init_pair(COL_OPCODE, COLOR_RED, COLOR_BLACK);
+      init_pair(COL_VALUES, COLOR_BLUE, COLOR_BLACK);
+   }
+   if (console_pane == NULL) {
+      // The 2 here is status bar height. TODO: Change to variable
+      console_height = LINES - 2;
+      console_width = COLS / 2;
+      show_pc = false;
+      if (console_width < 32) {
+         console_width = 32;
+      }
+      if (console_width > 40) {
+         show_pc = true;
+         console_width = 40;
+      }
+      console_pane = newwin(console_height, console_width, 2, 0);
+      scrollok(console_pane, true);
+      wsetscrreg(console_pane, 0, console_height - 1);
+      idlok(console_pane, true);
+   }
+}
+
 void store_regs() {
    a  = cpu_A;
    b  = cpu_B;
@@ -43,85 +76,112 @@ void store_regs() {
 }
 
 void print_reg_diff() {
+   COLOR(console_pane, COL_VALUES);
    if (a != cpu_A) {
-      wprintw(debug_pane, "\t  A:  %02X => %02X\n", a, cpu_A);
+      wprintw(console_pane, "A: %02X => %02X\n", a, cpu_A);
    }
    if (b != cpu_B) {
-      wprintw(debug_pane, "\t  B:  %02X => %02X\n", b, cpu_B);
+      wprintw(console_pane, "B: %02X => %02X\n", b, cpu_B);
    }
    if (c != cpu_C) {
-      wprintw(debug_pane, "\t  C:  %02X => %02X\n", c, cpu_C);
+      wprintw(console_pane, "C: %02X => %02X\n", c, cpu_C);
    }
    if (d != cpu_D) {
-      wprintw(debug_pane, "\t  D:  %02X => %02X\n", d, cpu_D);
+      wprintw(console_pane, "D: %02X => %02X\n", d, cpu_D);
    }
    if (e != cpu_E) {
-      wprintw(debug_pane, "\t  E:  %02X => %02X\n", e, cpu_E);
+      wprintw(console_pane, "E: %02X => %02X\n", e, cpu_E);
    }
    if (h != cpu_H) {
-      wprintw(debug_pane, "\t  H:  %02X => %02X\n", h, cpu_H);
+      wprintw(console_pane, "H: %02X => %02X\n", h, cpu_H);
    }
    if (l != cpu_L) {
-      wprintw(debug_pane, "\t  L:  %02X => %02X\n", l, cpu_L);
+      wprintw(console_pane, "L: %02X => %02X\n", l, cpu_L);
    }
    if (sp != cpu_SP) {
-      wprintw(debug_pane, "\t  SP: %04X => %04X\n", sp, cpu_SP);
+      wprintw(console_pane, "SP: %04X => %04X\n", sp, cpu_SP);
    }
    if (ei != cpu_ime) {
       if (ei) {
-         wprintw(debug_pane, "\tIME: true  => false\n");
+         wprintw(console_pane, "IME: true => false\n");
       } else {
-         wprintw(debug_pane, "\tIME: false => true\n");
+         wprintw(console_pane, "IME: false => true\n");
       }
    }
+   COLOR(console_pane, COL_NORMAL);
 }
-
 
 void print_memory_map(int x, word addr) {
    // 2 lines for status bar, 1 for prompt
    int width = COLS - x;
-   int height = LINES - 3;
+   int height = console_height - 1;
    if (memory_map == NULL) {
       memory_map = newwin(height, width, 2, x);
    }
  
    // 4 digits for addr, then a space, and 2 for border
-   int bytes_per_line = (width - 6) / 2;
-   // Display memory in 4 byte chunks
-   int chunks = bytes_per_line / 5; 
-   bytes_per_line = chunks * 5;;
+   // Right now, this is characters per line
+   int bytes_per_line = (width - 7);
 
+   // Display memory in 4 byte + 1 space chunks
+   // (4 * 2) + 1 = 9 characters per 4 bytes
+   int chunks = bytes_per_line / 9; 
+   bytes_per_line = chunks * 5;
+
+   int cur_addr = addr;
    for (int i = 0; i < height-2; ++i) {
-      int line_addr = addr + i * bytes_per_line;
+      // Clear this row (TODO: There's probably a better way to do this)
       wmove(memory_map, i+1, 1);
-      if (has_colors()) {
-         wattron(memory_map, COLOR_PAIR(3));
+      COLOR(memory_map, COL_MEMVAL);
+      for (int w = 0; w < width; w++) {
+         wprintw(memory_map, ".");
       }
-      if (line_addr <= 0xFFFF) {
-         wprintw(memory_map, "%04X ", line_addr);
+
+      // Print the address for this row
+      wmove(memory_map, i+1, 1);
+      COLOR(memory_map, COL_MEMADD); 
+      if (cur_addr <= 0xFFFF) {
+         wprintw(memory_map, "%04X ", cur_addr);
       } else {
          wprintw(memory_map, ".... ");
       }
-      if (has_colors()) {
-         wattron(memory_map, COLOR_PAIR(2));
-      }
+
+      // Print the values for this memory row
+      COLOR(memory_map, COL_MEMVAL);
       for (int b = 0; b < bytes_per_line; ++b) {
-         if (line_addr + b <= 0xFFFF) {
-            if (b % 5 == 4) {
-               wprintw(memory_map, " ");
-            } else {
-               wprintw(memory_map, "%02X", mem_rb(line_addr + b));
-            }
+         if (b % 5 == 4) {
+            wprintw(memory_map, " ");
          } else {
-            wprintw(memory_map, "..");
+            if (cur_addr <= 0xFFFF) {
+
+               // Check if the value we're printing needs hilighting
+               // (breakpoint, program counter, etc)
+               bool hilite = false;
+               if (cur_addr == cpu_PC) {
+                  COLOR(memory_map, COL_OPCODE);
+                  hilite = true;
+               } else if (breakpoints[cur_addr].break_on_read
+                       || breakpoints[cur_addr].break_on_write
+                       || breakpoints[cur_addr].break_on_exec
+                       || breakpoints[cur_addr].break_on_equal) {
+                  COLOR(memory_map, COL_HILITE);
+                  hilite = true;
+               }
+               
+               wprintw(memory_map, "%02X", mem_rb(cur_addr++));
+              
+               // Reset the color if we changed it
+               if (hilite) {
+                  COLOR(memory_map, COL_MEMVAL);
+               }
+            } else {
+               // Print this if we're out of range
+               wprintw(memory_map, "..");
+            }
          }
       }
-
    }
-   if(has_colors()) {
-      wattroff(memory_map, COLOR_PAIR(3));
-      wattroff(memory_map, COLOR_PAIR(2));
-   }
+   COLOR(memory_map, COL_NORMAL);
    box(memory_map, 0, 0);
    wrefresh(memory_map);
 }
@@ -131,10 +191,8 @@ void print_status_bar() {
    int height = 2;
    if (status_bar == NULL) {
       status_bar = newwin(height, width, 0, 0);
-   }   
-   if (has_colors()) {
-      wattron(status_bar, COLOR_PAIR(1));
    }
+   COLOR(status_bar, COL_STATUS);
 
    // Clear the space for the header
    for (int rows = 0; rows < 2; rows++) {
@@ -176,46 +234,38 @@ void debugger_cli() {
    char input[256], buff[256];
 
    if (!curses_on) {
-      initscr();
-      if (has_colors()) {
-         start_color();
-         init_pair(1, COLOR_BLACK, COLOR_GREEN);
-         init_pair(2, COLOR_BLACK, COLOR_BLUE);
-         init_pair(3, COLOR_WHITE, COLOR_BLUE);
-      }
-      if (debug_pane == NULL) {
-         debug_pane = newwin(LINES - 2, 32, 2, 0);
-         scrollok(debug_pane, true);
-         wsetscrreg(debug_pane, 0, LINES - 3);
-         idlok(debug_pane, true);
-       }
+      init_curses();
       curses_on = true;
-      print_memory_map(32, memory_view_addr);
    }
 
    // Print prompt 
    print_reg_diff();
-   wmove(debug_pane, LINES - 3, 0);
-   disas_at(cpu_PC, debug_pane);
+   wmove(console_pane, console_height - 1, 0);
+   if (show_pc) {
+      COLOR(console_pane, COL_HILITE);
+      wprintw(console_pane, "[%04X] ", cpu_PC);
+      COLOR(console_pane, COL_NORMAL);
+   }
+   disas_at(cpu_PC, console_pane);
 
    do {
       print_status_bar();
+      print_memory_map(console_width, memory_view_addr);
 
-      print_memory_map(32, memory_view_addr);
-      wmove(debug_pane, LINES - 3, 0);
-      wprintw(debug_pane, "debug: ");
-      wrefresh(debug_pane);
-//      wmove(debug_pane, LINES - 3, 0);
-      wgetstr(debug_pane, buff);
+      wmove(console_pane, console_height - 1, 0);
+      wprintw(console_pane, "debug: ");
+      wrefresh(console_pane);
+
+      // Get input. If input is empty, don't scroll and repeat last command.
+      wgetstr(console_pane, buff);
       if (sc(buff, "")) {
-        wscrl(debug_pane, -1);
+         wscrl(console_pane, -1);
       } else {
          strcpy(cmd, buff);
       }
    } while (!handle_input(cmd));
    
    store_regs();
-   //refresh();
 
    if (curses_on && !debugger_should_break()) {
       endwin();
@@ -224,42 +274,88 @@ void debugger_cli() {
 }
 
 bool handle_input(const char* str) {
+   
+   // Attempt splitting our input at spaces to parse arguments
    char inp[256];
    strcpy(inp, str);
    char *args = strtok(inp, " ");
    if (args == &inp[0]) {
       args = strtok(NULL, " ");
    }
+
+   // Help command
    if (sc(inp, "help") || sc(inp, "h") || sc(inp, "?")) {
-      wprintw(debug_pane, "Available commands:\n");
-      wprintw(debug_pane, "\tquit\n\tstep\n\tmem\n\tcontinue\n");
+      wprintw(console_pane, "Available commands:\n");
+      wprintw(console_pane, "\tquit\n\tstep\n\tmem\n\tdisas\n\tcontinue\n");
+      return false;
    }
+
+   // Disassemble command
+   if (sc(inp, "disas") || sc(inp, "d")) {
+      char *start_addr_str = args;
+      char *end_addr_str = strtok(NULL, " ");
+      if (start_addr_str == NULL || end_addr_str == NULL) {
+         wprintw(console_pane, "USAGE:\ndisas [start addr] [end addr]\n");
+         return false;
+      }
+      int start_addr = strtol(start_addr_str, NULL, 16);
+      int end_addr = strtol(end_addr_str, NULL, 16);
+      if (start_addr > end_addr) {
+         wprintw(console_pane, "start addr must be less than end addr\n");
+         return false;
+      }
+      if (start_addr < 0 || start_addr > 0xFFFF
+       || end_addr < 0 || end_addr > 0xFFFF) {
+         wprintw(console_pane, "invalid range\n");
+         return false;
+      }
+      word add = start_addr;
+      while (add <= end_addr) {
+         if (show_pc) {
+            COLOR(console_pane, COL_HILITE);
+            wprintw(console_pane, "[%04X] ", add);
+            COLOR(console_pane, COL_NORMAL);
+         }     
+         add = disas_at(add, console_pane);
+      }
+      return false; 
+   }
+
+   // Continue execution command
    if (sc(inp, "continue") || sc(inp, "c")) {
       strcpy(cmd, ""); // Clear last command
       debugger_continue();
       return true;
    }
+
+   // Step forward command
    if (sc(inp, "step") || sc(inp, "s")) {
       return true;
    }
+
+   // Quit program command
    if (sc(inp, "quit") || sc(inp, "q")) {
       endwin();
       exit(0);
    }
+
+   // View memory command
    if (sc(inp, "mem") || sc(inp, "m")) {
       if (args == NULL) {
-         wprintw(debug_pane, "USAGE: mem [hex address]\n");
+         wprintw(console_pane, "USAGE:\nmem [hex address]\n");
          return false;
       }
       int address = (int)strtol(args, NULL, 16);
       if (address < 0 || address > 0xFFFF) {
-         wprintw(debug_pane, "Address must be from 0 to FFFF\n");
+         wprintw(console_pane, "Address must be from 0 to FFFF\n");
          return false;
       }
       memory_view_addr = address;
       print_memory_map(32, memory_view_addr);
       return false;
    }
+
+   // Return false = don't advance time, true = advance time
    return false;
 }
 
@@ -289,6 +385,8 @@ void debugger_free() {
       free(breakpoints);
    }
 }
+
+
 
 void debugger_clear_breakpoint(word addr) {
    breakpoints[addr].break_on_read  = false;

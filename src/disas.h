@@ -5,4 +5,4 @@
 
 #include <ncurses.h>
 
-void disas_at(word addr, WINDOW *win);
+word disas_at(word addr, WINDOW *win);
