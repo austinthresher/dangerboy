@@ -2,18 +2,18 @@
 #include <ncurses.h>
 
 #define PRINT(...)      \
-   printw(__VA_ARGS__); \
+   wprintw(win, __VA_ARGS__); \
    break;
 
-void disas_at(word addr) {
+void disas_at(word addr, WINDOW *win) {
    byte opcode = mem_rb(addr++);
    byte cbop   = 0;
    byte index  = 0;
    if (opcode != 0xCB) {
-      printw("%02X    ", opcode);
+      wprintw(win, "%02X    ", opcode);
    } else {
       cbop = mem_rb(addr++);
-      printw("%02X %02X ", opcode, cbop);
+      wprintw(win, "%02X %02X ", opcode, cbop);
    }
 
    switch (opcode) {
@@ -335,33 +335,33 @@ void disas_at(word addr) {
          }
          // This is to prevent a nested switch
          if (index == 0) {
-            printw("B");
+            wprintw(win, "B");
          }
          if (index == 1) {
-            printw("C");
+            wprintw(win, "C");
          }
          if (index == 2) {
-            printw("D");
+            wprintw(win, "D");
          }
          if (index == 3) {
-            printw("E");
+            wprintw(win, "E");
          }
          if (index == 4) {
-            printw("H");
+            wprintw(win, "H");
          }
          if (index == 5) {
-            printw("L");
+            wprintw(win, "L");
          }
          if (index == 6) {
-            printw("(HL)");
+            wprintw(win, "(HL)");
          }
          if (index == 7) {
-            printw("A");
+            wprintw(win, "A");
          }
          break;
 
       default: break;
    }
 
-   printw("\n");
+   wprintw(win, "\n");
 }

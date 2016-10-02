@@ -110,10 +110,40 @@ bool FLAG_H;
 bool FLAG_Z;
 bool FLAG_N;
 
+// Helper operations
+
 void cpu_none() {
    ERROR("Invalid instruction at PC %04X, potentially opcode %02X\n",
          cpu_last_pc,
          cpu_last_op);
+}
+
+void cpu_ADD16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
+   word a = (*a_hi << 8) | *a_low;
+   word b = (b_hi << 8) | b_low;
+
+   uint32_t carryCheck = a + b;
+   FLAG_H              = ((0x0FFF & a) + (0x0FFF & b) > 0x0FFF);
+   FLAG_C              = (carryCheck > 0x0000FFFF);
+   FLAG_N              = (false);
+
+   a += b;
+   *a_hi  = (a & 0xFF00) >> 8;
+   *a_low = a & 0x00FF;
+}
+
+void cpu_INC16(byte* hi, byte* low) {
+   if ((*low) == 0xFF) {
+      (*hi)++;
+   }
+   (*low)++;
+}
+
+void cpu_DEC16(byte* hi, byte* low) {
+   if ((*low) == 0) {
+      (*hi)--;
+   }
+   (*low)--;
 }
 
 void cpu_nop() { TIME(1); }
@@ -1236,34 +1266,6 @@ void cpu_reti() {
 }
 
 // 16 bit math
-
-void cpu_ADD16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
-   word a = (*a_hi << 8) | *a_low;
-   word b = (b_hi << 8) | b_low;
-
-   uint32_t carryCheck = a + b;
-   FLAG_H              = ((0x0FFF & a) + (0x0FFF & b) > 0x0FFF);
-   FLAG_C              = (carryCheck > 0x0000FFFF);
-   FLAG_N              = (false);
-
-   a += b;
-   *a_hi  = (a & 0xFF00) >> 8;
-   *a_low = a & 0x00FF;
-}
-
-void cpu_INC16(byte* hi, byte* low) {
-   if ((*low) == 0xFF) {
-      (*hi)++;
-   }
-   (*low)++;
-}
-
-void cpu_DEC16(byte* hi, byte* low) {
-   if ((*low) == 0) {
-      (*hi)--;
-   }
-   (*low)--;
-}
 
 void cpu_add16_hl_bc() {
    TIME(2);

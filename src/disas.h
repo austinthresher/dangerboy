@@ -3,4 +3,6 @@
 #include "datatypes.h"
 #include "memory.h"
 
-void disas_at(word addr);
+#include <ncurses.h>
+
+void disas_at(word addr, WINDOW *win);
