@@ -1263,7 +1263,7 @@ void cpu_ret_c() {
 void cpu_reti() {
    TIME(4);
    cpu_ime       = true;
-   cpu_ime_delay = true; // TODO: I don't know if RETI should delay
+   cpu_ime_delay = true;
    ret();
 }
 
