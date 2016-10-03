@@ -118,11 +118,12 @@ void cpu_none() {
          cpu_last_op);
 }
 
-void cpu_ADD16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
+void add16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
    word a = (*a_hi << 8) | *a_low;
    word b = (b_hi << 8) | b_low;
 
    uint32_t carryCheck = a + b;
+   
    FLAG_H              = ((0x0FFF & a) + (0x0FFF & b) > 0x0FFF);
    FLAG_C              = (carryCheck > 0x0000FFFF);
    FLAG_N              = (false);
@@ -132,23 +133,260 @@ void cpu_ADD16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
    *a_low = a & 0x00FF;
 }
 
-void cpu_INC16(byte* hi, byte* low) {
+void inc16(byte* hi, byte* low) {
    if ((*low) == 0xFF) {
       (*hi)++;
    }
    (*low)++;
 }
 
-void cpu_DEC16(byte* hi, byte* low) {
+void dec16(byte* hi, byte* low) {
    if ((*low) == 0) {
       (*hi)--;
    }
    (*low)--;
 }
 
-void cpu_nop() { TIME(1); }
+void call() {
+   PUSHW(cpu_PC + 2);
+   cpu_PC = mem_rw(cpu_PC);
+}
 
+void ret() {
+   POPW(cpu_PC);
+}
+
+void cpu_nop() {
+   TIME(1);
+}
+
+void rlc(byte* inp) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   FLAG_C = (t & 0x80);
+   t      = (t << 1) | FLAG_C;
+   FLAG_Z = (t == 0);
+   FLAG_N = (false);
+   FLAG_H = (false);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void rrc(byte* inp) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   FLAG_C = (t & 0x01);
+   t      = (t >> 1) | (FLAG_C << 7);
+   FLAG_Z = (t == 0);
+   FLAG_N = (false);
+   FLAG_H = (false);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void rl(byte* inp) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   byte old_carry = FLAG_C;
+   FLAG_C         = (t & 0x80);
+   t              = (t << 1) | old_carry;
+   FLAG_Z         = (t == 0);
+   FLAG_N         = (false);
+   FLAG_H         = (false);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void rr(byte* inp) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   byte old_carry = FLAG_C;
+   FLAG_C         = (t & 0x01);
+   t              = (t >> 1) | (old_carry << 7);
+   FLAG_Z         = (t == 0);
+   FLAG_N         = (false);
+   FLAG_H         = (false);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void sla(byte* inp) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   FLAG_C = (t & 0x80);
+   t      = t << 1;
+   FLAG_Z = (t == 0);
+   FLAG_N = (false);
+   FLAG_H = (false);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void sra(byte* inp) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   byte msb = t & 0x80;
+   FLAG_C   = (t & 0x01);
+   t        = (t >> 1) | msb;
+   FLAG_Z   = (t == 0);
+   FLAG_N   = (false);
+   FLAG_H   = (false);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void swap(byte* inp) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   t = ((t << 4) | (t >> 4));
+   CLEAR_FLAGS();
+   FLAG_Z = (t == 0);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void srl(byte* inp) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   FLAG_C = (t & 0x01);
+   t      = t >> 1;
+   FLAG_Z = (t == 0);
+   FLAG_N = (false);
+   FLAG_H = (false);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void bit(byte* inp, byte bit) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   FLAG_Z = (!(t & (1 << bit)));
+   FLAG_N = (false);
+   FLAG_H = (true);
+}
+
+void res(byte* inp, byte bit) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   t = t & ~(1 << bit);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
+
+void set(byte* inp, byte bit) {
+   byte t;
+   if (inp != NULL) {
+      t = *inp;
+   } else {
+      t = FETCH(cpu_H, cpu_L);
+   }
+
+   t = t | (1 << bit);
+
+   if (inp == NULL) {
+      TIME(1);
+      STORE(cpu_H, cpu_L, t);
+   } else {
+      *inp = t;
+   }
+}
 // LOAD / STORES
+
 void cpu_lda_n() {
    TIME(2);
    LOAD(cpu_A, mem_rb(cpu_PC++));
@@ -473,25 +711,25 @@ void cpu_ld_at_nn_a() {
 void cpu_lda_at_hld() {
    TIME(2);
    cpu_A = FETCH(cpu_H, cpu_L);
-   cpu_DEC16(&cpu_H, &cpu_L);
+   dec16(&cpu_H, &cpu_L);
 }
 
 void cpu_lda_at_hli() {
    TIME(2);
    cpu_A = FETCH(cpu_H, cpu_L);
-   cpu_INC16(&cpu_H, &cpu_L);
+   inc16(&cpu_H, &cpu_L);
 }
 
 void cpu_ld_at_hld_a() {
    TIME(2);
    STORE(cpu_H, cpu_L, cpu_A);
-   cpu_DEC16(&cpu_H, &cpu_L);
+   dec16(&cpu_H, &cpu_L);
 }
 
 void cpu_ld_at_hli_a() {
    TIME(2);
    STORE(cpu_H, cpu_L, cpu_A);
-   cpu_INC16(&cpu_H, &cpu_L);
+   inc16(&cpu_H, &cpu_L);
 }
 
 void cpu_ld_n_a() {
@@ -717,232 +955,6 @@ void cpu_xor_n() {
    XOR(mem_rb(cpu_PC++));
 }
 
-void cpu_RLC(byte* inp) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   FLAG_C = (t & 0x80);
-   t      = (t << 1) | FLAG_C;
-   FLAG_Z = (t == 0);
-   FLAG_N = (false);
-   FLAG_H = (false);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_RRC(byte* inp) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   FLAG_C = (t & 0x01);
-   t      = (t >> 1) | (FLAG_C << 7);
-   FLAG_Z = (t == 0);
-   FLAG_N = (false);
-   FLAG_H = (false);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_RL(byte* inp) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   byte old_carry = FLAG_C;
-   FLAG_C         = (t & 0x80);
-   t              = (t << 1) | old_carry;
-   FLAG_Z         = (t == 0);
-   FLAG_N         = (false);
-   FLAG_H         = (false);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_RR(byte* inp) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   byte old_carry = FLAG_C;
-   FLAG_C         = (t & 0x01);
-   t              = (t >> 1) | (old_carry << 7);
-   FLAG_Z         = (t == 0);
-   FLAG_N         = (false);
-   FLAG_H         = (false);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_SLA(byte* inp) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   FLAG_C = (t & 0x80);
-   t      = t << 1;
-   FLAG_Z = (t == 0);
-   FLAG_N = (false);
-   FLAG_H = (false);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_SRA(byte* inp) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   byte msb = t & 0x80;
-   FLAG_C   = (t & 0x01);
-   t        = (t >> 1) | msb;
-   FLAG_Z   = (t == 0);
-   FLAG_N   = (false);
-   FLAG_H   = (false);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_SWAP(byte* inp) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   t = ((t << 4) | (t >> 4));
-   CLEAR_FLAGS();
-   FLAG_Z = (t == 0);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_SRL(byte* inp) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   FLAG_C = (t & 0x01);
-   t      = t >> 1;
-   FLAG_Z = (t == 0);
-   FLAG_N = (false);
-   FLAG_H = (false);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_BIT(byte* inp, byte bit) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   FLAG_Z = (!(t & (1 << bit)));
-   FLAG_N = (false);
-   FLAG_H = (true);
-}
-
-void cpu_RES(byte* inp, byte bit) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   t = t & ~(1 << bit);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
-void cpu_SET(byte* inp, byte bit) {
-   byte t;
-   if (inp != NULL) {
-      t = *inp;
-   } else {
-      t = FETCH(cpu_H, cpu_L);
-   }
-
-   t = t | (1 << bit);
-
-   if (inp == NULL) {
-      TIME(1);
-      STORE(cpu_H, cpu_L, t);
-   } else {
-      *inp = t;
-   }
-}
-
 void cpu_cb() {
    TIME(2);
    byte sub_op  = mem_rb(cpu_PC++);
@@ -955,43 +967,43 @@ void cpu_cb() {
    if (index >= 8) {
       index -= 8;
       switch (sub_op & 0xF0) {
-         case 0x00: cpu_RRC(regs[index]); break;
-         case 0x10: cpu_RR(regs[index]); break;
-         case 0x20: cpu_SRA(regs[index]); break;
-         case 0x30: cpu_SRL(regs[index]); break;
-         case 0x40: cpu_BIT(regs[index], 1); break;
-         case 0x50: cpu_BIT(regs[index], 3); break;
-         case 0x60: cpu_BIT(regs[index], 5); break;
-         case 0x70: cpu_BIT(regs[index], 7); break;
-         case 0x80: cpu_RES(regs[index], 1); break;
-         case 0x90: cpu_RES(regs[index], 3); break;
-         case 0xA0: cpu_RES(regs[index], 5); break;
-         case 0xB0: cpu_RES(regs[index], 7); break;
-         case 0xC0: cpu_SET(regs[index], 1); break;
-         case 0xD0: cpu_SET(regs[index], 3); break;
-         case 0xE0: cpu_SET(regs[index], 5); break;
-         case 0xF0: cpu_SET(regs[index], 7); break;
+         case 0x00: rrc(regs[index]); break;
+         case 0x10: rr(regs[index]); break;
+         case 0x20: sra(regs[index]); break;
+         case 0x30: srl(regs[index]); break;
+         case 0x40: bit(regs[index], 1); break;
+         case 0x50: bit(regs[index], 3); break;
+         case 0x60: bit(regs[index], 5); break;
+         case 0x70: bit(regs[index], 7); break;
+         case 0x80: res(regs[index], 1); break;
+         case 0x90: res(regs[index], 3); break;
+         case 0xA0: res(regs[index], 5); break;
+         case 0xB0: res(regs[index], 7); break;
+         case 0xC0: set(regs[index], 1); break;
+         case 0xD0: set(regs[index], 3); break;
+         case 0xE0: set(regs[index], 5); break;
+         case 0xF0: set(regs[index], 7); break;
          default: ERROR("CB opcode error"); break;
       }
 
    } else {
       switch (sub_op & 0xF0) {
-         case 0x00: cpu_RLC(regs[index]); break;
-         case 0x10: cpu_RL(regs[index]); break;
-         case 0x20: cpu_SLA(regs[index]); break;
-         case 0x30: cpu_SWAP(regs[index]); break;
-         case 0x40: cpu_BIT(regs[index], 0); break;
-         case 0x50: cpu_BIT(regs[index], 2); break;
-         case 0x60: cpu_BIT(regs[index], 4); break;
-         case 0x70: cpu_BIT(regs[index], 6); break;
-         case 0x80: cpu_RES(regs[index], 0); break;
-         case 0x90: cpu_RES(regs[index], 2); break;
-         case 0xA0: cpu_RES(regs[index], 4); break;
-         case 0xB0: cpu_RES(regs[index], 6); break;
-         case 0xC0: cpu_SET(regs[index], 0); break;
-         case 0xD0: cpu_SET(regs[index], 2); break;
-         case 0xE0: cpu_SET(regs[index], 4); break;
-         case 0xF0: cpu_SET(regs[index], 6); break;
+         case 0x00: rlc(regs[index]); break;
+         case 0x10: rl(regs[index]); break;
+         case 0x20: sla(regs[index]); break;
+         case 0x30: swap(regs[index]); break;
+         case 0x40: bit(regs[index], 0); break;
+         case 0x50: bit(regs[index], 2); break;
+         case 0x60: bit(regs[index], 4); break;
+         case 0x70: bit(regs[index], 6); break;
+         case 0x80: res(regs[index], 0); break;
+         case 0x90: res(regs[index], 2); break;
+         case 0xA0: res(regs[index], 4); break;
+         case 0xB0: res(regs[index], 6); break;
+         case 0xC0: set(regs[index], 0); break;
+         case 0xD0: set(regs[index], 2); break;
+         case 0xE0: set(regs[index], 4); break;
+         case 0xF0: set(regs[index], 6); break;
          default: ERROR("CB opcode error"); break;
       }
    }
@@ -1094,20 +1106,15 @@ void cpu_jr_c_n() {
    }
 }
 
-void cpu_CALL() {
-   PUSHW(cpu_PC + 2);
-   cpu_PC = mem_rw(cpu_PC);
-}
-
 void cpu_call_nn() {
    TIME(6);
-   cpu_CALL();
+   call();
 }
 
 void cpu_call_nz_nn() {
    if (!FLAG_Z) {
       TIME(6);
-      cpu_CALL();
+      call();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1117,7 +1124,7 @@ void cpu_call_nz_nn() {
 void cpu_call_z_nn() {
    if (FLAG_Z) {
       TIME(6);
-      cpu_CALL();
+      call();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1127,7 +1134,7 @@ void cpu_call_z_nn() {
 void cpu_call_nc_nn() {
    if (!FLAG_C) {
       TIME(6);
-      cpu_CALL();
+      call();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1137,7 +1144,7 @@ void cpu_call_nc_nn() {
 void cpu_call_c_nn() {
    if (FLAG_C) {
       TIME(6);
-      cpu_CALL();
+      call();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1208,26 +1215,19 @@ void cpu_rst_38h() {
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x38;
-
-   // If reset 38 is pointing to itself, error out
-   if (mem_direct_read(cpu_PC) == 0xFF) {
-      ERROR("Reset 38H loop detected.\n");
-   }
 }
 
 // Returns
 
-void cpu_RETURN() { POPW(cpu_PC); }
-
 void cpu_ret() {
    TIME(4);
-   cpu_RETURN();
+   ret();
 }
 
 void cpu_ret_nz() {
    if (!FLAG_Z) {
       TIME(5);
-      cpu_RETURN();
+      ret();
    } else {
       TIME(2);
    }
@@ -1236,7 +1236,7 @@ void cpu_ret_nz() {
 void cpu_ret_z() {
    if (FLAG_Z) {
       TIME(5);
-      cpu_RETURN();
+      ret();
    } else {
       TIME(2);
    }
@@ -1245,7 +1245,7 @@ void cpu_ret_z() {
 void cpu_ret_nc() {
    if (!FLAG_C) {
       TIME(5);
-      cpu_RETURN();
+      ret();
    } else {
       TIME(2);
    }
@@ -1254,7 +1254,7 @@ void cpu_ret_nc() {
 void cpu_ret_c() {
    if (FLAG_C) {
       TIME(5);
-      cpu_RETURN();
+      ret();
    } else {
       TIME(2);
    }
@@ -1264,30 +1264,29 @@ void cpu_reti() {
    TIME(4);
    cpu_ime       = true;
    cpu_ime_delay = true; // TODO: I don't know if RETI should delay
-   DEBUG("INTERRUPTS ENABLED\n");
-   cpu_RETURN();
+   ret();
 }
 
 // 16 bit math
 
 void cpu_add16_hl_bc() {
    TIME(2);
-   cpu_ADD16(&cpu_H, &cpu_L, cpu_B, cpu_C);
+   add16(&cpu_H, &cpu_L, cpu_B, cpu_C);
 }
 
 void cpu_add16_hl_de() {
    TIME(2);
-   cpu_ADD16(&cpu_H, &cpu_L, cpu_D, cpu_E);
+   add16(&cpu_H, &cpu_L, cpu_D, cpu_E);
 }
 
 void cpu_add16_hl_hl() {
    TIME(2);
-   cpu_ADD16(&cpu_H, &cpu_L, cpu_H, cpu_L);
+   add16(&cpu_H, &cpu_L, cpu_H, cpu_L);
 }
 
 void cpu_add16_hl_sp() {
    TIME(2);
-   cpu_ADD16(&cpu_H, &cpu_L, (cpu_SP & 0xFF00) >> 8, cpu_SP & 0x00FF);
+   add16(&cpu_H, &cpu_L, (cpu_SP & 0xFF00) >> 8, cpu_SP & 0x00FF);
 }
 
 void cpu_add16_sp_n() {
@@ -1303,17 +1302,17 @@ void cpu_add16_sp_n() {
 // 0x03
 void cpu_inc16_bc() {
    TIME(2);
-   cpu_INC16(&cpu_B, &cpu_C);
+   inc16(&cpu_B, &cpu_C);
 }
 
 void cpu_inc16_de() {
    TIME(2);
-   cpu_INC16(&cpu_D, &cpu_E);
+   inc16(&cpu_D, &cpu_E);
 }
 
 void cpu_inc16_hl() {
    TIME(2);
-   cpu_INC16(&cpu_H, &cpu_L);
+   inc16(&cpu_H, &cpu_L);
 }
 
 void cpu_inc16_sp() {
@@ -1323,17 +1322,17 @@ void cpu_inc16_sp() {
 
 void cpu_dec16_bc() {
    TIME(2);
-   cpu_DEC16(&cpu_B, &cpu_C);
+   dec16(&cpu_B, &cpu_C);
 }
 
 void cpu_dec16_de() {
    TIME(2);
-   cpu_DEC16(&cpu_D, &cpu_E);
+   dec16(&cpu_D, &cpu_E);
 }
 
 void cpu_dec16_hl() {
    TIME(2);
-   cpu_DEC16(&cpu_H, &cpu_L);
+   dec16(&cpu_H, &cpu_L);
 }
 
 void cpu_dec16_sp() {
@@ -1345,25 +1344,25 @@ void cpu_dec16_sp() {
 
 void cpu_rla() {
    TIME(1);
-   cpu_RL(&cpu_A);
+   rl(&cpu_A);
    FLAG_Z = false;
 }
 
 void cpu_rlca() {
    TIME(1);
-   cpu_RLC(&cpu_A);
+   rlc(&cpu_A);
    FLAG_Z = false;
 }
 
 void cpu_rrca() {
    TIME(1);
-   cpu_RRC(&cpu_A);
+   rrc(&cpu_A);
    FLAG_Z = false;
 }
 
 void cpu_rra() {
    TIME(1);
-   cpu_RR(&cpu_A);
+   rr(&cpu_A);
    FLAG_Z = false;
 }
 
@@ -1371,12 +1370,10 @@ void cpu_di() {
    TIME(1);
    cpu_ime       = false;
    cpu_ime_delay = false;
-   DEBUG("INTERRUPTS DISABLED\n");
 }
 
 void cpu_ie() {
    TIME(1);
-   DEBUG("INTERRUPTS ENABLED\n");
    cpu_ime       = true;
    cpu_ime_delay = true;
 }
@@ -1669,59 +1666,15 @@ void cpu_scf() {
 void cpu_halt() {
    TIME(1);
    cpu_halted = true;
-   DEBUG("HALT\n");
 }
 
 void cpu_stop() {
    TIME(1);
    cpu_stopped = true;
-   DEBUG("STOP\n");
 }
-/*
-void cpu_daa() {
-   word a = cpu_A;
-   if (!FLAG_N) {
-      if (FLAG_H) {
-         if (FLAG_C) {
-            a += 0x100;
-         }
-         CLEAR_FLAGS();
-         a += 0x06;
-         if (a >= 0xA0) {
-            a -= 0xA0;
-            FLAG_C = true;
-         }
-      } else {
-         if (FLAG_C) {
-            a += 0x100;
-         }
-         if (a > 0x99) {
-            a += 0x60;
-         }
-         a = (a & 0xF)
-           + (a & 0xF) > 9
-                 ? 6
-                 : 0
-           + (a & 0xFF0);
-         FLAG_C = a > 0xFF;
-      }
-  } else {
-      if (FLAG_H) {
-         if (FLAG_C) {
-            a += 0x9A;
-         } else {
-            a += 0xFA;
-         }
-      } else if (FLAG_C) {
-         a += 0xA0;
-      }
-   }
 
-   cpu_A = 0xFF & a;
-   FLAG_H = false;
-   FLAG_Z = cpu_A == 0;
-}
-*/
+// DAA implementation based on code found at
+// http://forums.nesdev.com/viewtopic.php?t=9088
 void cpu_daa() {
    TIME(1);
    int a = cpu_A;
@@ -1740,10 +1693,10 @@ void cpu_daa() {
          a -= 0x60;
       }
    }
-
-   FLAG_H = false;
-   FLAG_C = (a & 0x100) == 100;
-   a      = a & 0xFF;
-   FLAG_Z = a == 0;
    cpu_A  = (byte)a;
+   FLAG_H = false;
+   FLAG_Z = !cpu_A;
+   if ((a & 0x100) == 0x100) {
+      FLAG_C = true;
+   }
 }
