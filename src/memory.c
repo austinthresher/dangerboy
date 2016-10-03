@@ -58,7 +58,8 @@ void mem_load_image(char* fname) {
    assert(mem_ram != NULL);
    FILE* fin = fopen(fname, "rb");
    if (fin == NULL) {
-      ERROR("Could not open file %s\n", fname);
+      fprintf(stderr, "Could not open file %s\n", fname);
+      exit(1);
    }
 
    // Load the first 32kb of the ROM to RAM
@@ -67,7 +68,8 @@ void mem_load_image(char* fname) {
       byte data         = 0;
       size_t bytes_read = fread(&data, 1, 1, fin);
       if (bytes_read != 1) {
-         ERROR("Error reading %s\n", fname);
+         fprintf(stderr, "Error reading %s\n", fname);
+         exit(1);
       }
       mem_ram[i] = data;
       i++;
@@ -84,7 +86,8 @@ void mem_load_image(char* fname) {
       byte data;
       size_t bytes_read = fread(&data, 1, 1, fin);
       if (bytes_read != 1) {
-         ERROR("Error reading %s\n", fname);
+         fprintf(stderr, "Error reading %s\n", fname);
+         exit(1);
       }
       mem_rom[i] = data;
       i++;
@@ -127,7 +130,10 @@ void mem_get_rom_info(void) {
          mem_mbc_type = MBC3;
          break;
       // MBC5 currently unsupported
-      default: ERROR("Unknown banking mode: %X", mem_rom[CART_TYPE_ADDR]);
+      default:
+         fprintf(stderr, "Unknown banking mode: %X", mem_rom[CART_TYPE_ADDR]);
+         exit(1);
+         break;
    }
 
    mem_rom_bank_count =
@@ -140,7 +146,10 @@ void mem_get_rom_info(void) {
       case 2: mem_ram_bank_count = 1; break;
       case 3: mem_ram_bank_count = 4; break;
       case 4: mem_ram_bank_count = 16; break;
-      default: ERROR("Unknown RAM bank count: %X", mem_rom[RAM_SIZE_ADDR]);
+      default:
+         fprintf(stderr, "Unknown RAM bank count: %X", mem_rom[RAM_SIZE_ADDR]);
+         exit(1);
+         break;
    }
 
    mem_current_rom_bank = 1;
@@ -176,31 +185,6 @@ byte mem_direct_read(word addr) { return mem_ram[addr]; }
 void mem_wb(word addr, byte val) {
 
    debugger_notify_mem_write(addr, val);
-
-   // Interrupt debug messages
-   if (addr == INT_ENABLED_ADDR) {
-      DEBUG("INT:\n");
-      if (val & INT_VBLANK) {
-         DEBUG("\t+VBLANK\n");
-      } else {
-         DEBUG("\t-VBLANK\n");
-      }
-      if (val & INT_STAT) {
-         DEBUG("\t+STAT\n");
-      } else {
-         DEBUG("\t-STAT\n");
-      }
-      if (val & INT_TIMA) {
-         DEBUG("\t+TIMA\n");
-      } else {
-         DEBUG("\t-TIMA\n");
-      }
-      if (val & INT_INPUT) {
-         DEBUG("\t+INPUT\n");
-      } else {
-         DEBUG("\t-INPUT\n");
-      }
-   }
 
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
@@ -248,14 +232,12 @@ void mem_wb(word addr, byte val) {
             val &= 0x7F;
             mem_current_rom_bank = val;
          }
-         DEBUG("ROM Bank switched to %02X\n", mem_current_rom_bank);
       } else if (addr < 0x6000) {
          if (mem_mbc_type >= MBC1) {
             // This either selects our RAM bank for ROM4_RAM32
             // bank mode, or bits 5-6 of our ROM for ROM16_RAM8
             if (mem_mbc_type != MBC3 || val < 0x4) {
                mem_current_ram_bank = val & 0x03;
-               DEBUG("RAM Bank switched to %02X\n", mem_current_ram_bank);
             } else {
                // TODO: MBC3 can also map real time
                // clock registers by writing here
@@ -306,23 +288,7 @@ void mem_wb(word addr, byte val) {
       // Hardware registers
       switch (addr) {
          case DIV_REGISTER_ADDR:
-            DEBUG("DIV RESET\n");
             mem_ram[DIV_REGISTER_ADDR] = 0;
-            break;
-         case TIMA_ADDR:
-            DEBUG("TIMA WRITE: %d\n", val);
-            mem_ram[addr] = val;
-            break;
-         case TIMER_CONTROL_ADDR:
-            if (val & 0x04) {
-               DEBUG("TIMER ENABLED\n");
-            } else {
-               DEBUG("TIMER DISABLED\n");
-            }
-            // if (val & 0x3) {
-            //   cpu_tima_timer = 0;
-            //}
-            mem_ram[addr] = val;
             break;
          case LCD_CONTROL_ADDR:
          case LCD_STATUS_ADDR:

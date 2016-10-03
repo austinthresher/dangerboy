@@ -294,6 +294,10 @@ void cpu_init(char* romname) {
 }
 
 void cpu_reset() {
+   
+   // These startup values are based on
+   // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
+   mem_init();
    cpu_PC    = 0x0100;
    cpu_A     = 0x01;
    cpu_B     = 0x00;
@@ -303,6 +307,7 @@ void cpu_reset() {
    cpu_SP    = 0xFFFE;
    cpu_H     = 0x01;
    cpu_L     = 0x4D;
+   cpu_ime   = false;
    cpu_ticks = 0;
 
    FLAG_C = true;
@@ -310,31 +315,38 @@ void cpu_reset() {
    FLAG_Z = true;
    FLAG_N = false;
 
-   mem_init();
-
    // Setup our in-memory registers
-   mem_direct_write(INPUT_REGISTER_ADDR, 0xFF);
-   mem_direct_write(DIV_REGISTER_ADDR, 0xAF);
-   mem_wb(TIMER_CONTROL_ADDR, 0xF8);
-   mem_wb(0xFF10, 0x80);
-   mem_wb(0xFF11, 0xBF);
-   mem_wb(0xFF12, 0xF3);
-   mem_wb(0xFF14, 0xBF);
-   mem_wb(0xFF16, 0x3F);
-   mem_wb(0xFF19, 0xBF);
-   mem_wb(0xFF1A, 0x7F);
-   mem_wb(0xFF1B, 0xFF);
-   mem_wb(0xFF1C, 0x9F);
-   mem_wb(0xFF1E, 0xBF);
-   mem_wb(0xFF20, 0xFF);
-   mem_wb(0xFF23, 0xBF);
-   mem_wb(0xFF24, 0x77);
-   mem_wb(0xFF25, 0xF3);
-   mem_wb(0xFF26, 0xF1);
-   mem_wb(LCD_CONTROL_ADDR, 0x83);
-   mem_wb(0xFF47, 0xFC);
-   mem_wb(0xFF48, 0xFF);
-   mem_wb(0xFF49, 0xFF);
+   mem_wb(0xFF05, 0x00); // TIMA
+   mem_wb(0xFF06, 0x00); // TMA
+   mem_wb(0xFF07, 0x00); // TAC
+   mem_wb(0xFF10, 0x80); // NR10
+   mem_wb(0xFF11, 0xBF); // NR11
+   mem_wb(0xFF12, 0xF3); // NR12
+   mem_wb(0xFF14, 0xBF); // NR14
+   mem_wb(0xFF16, 0x3F); // NR21
+   mem_wb(0xFF17, 0x00); // NR22
+   mem_wb(0xFF19, 0xBF); // NR24
+   mem_wb(0xFF1A, 0x7F); // NR30
+   mem_wb(0xFF1B, 0xFF); // NR31
+   mem_wb(0xFF1C, 0x9F); // NR32
+   mem_wb(0xFF1E, 0xBF); // NR33
+   mem_wb(0xFF20, 0xFF); // NR41
+   mem_wb(0xFF21, 0x00); // NR42
+   mem_wb(0xFF22, 0x00); // NR43
+   mem_wb(0xFF23, 0xBF); // NR30
+   mem_wb(0xFF24, 0x77); // NR50
+   mem_wb(0xFF25, 0xF3); // NR51
+   mem_wb(0xFF26, 0xF1); // NR52
+   mem_wb(0xFF40, 0x91); // LCDC
+   mem_wb(0xFF42, 0x00); // SCY
+   mem_wb(0xFF43, 0x00); // SCX
+   mem_wb(0xFF45, 0x00); // LYC
+   mem_wb(0xFF47, 0xFC); // BG PAL
+   mem_wb(0xFF48, 0xFF); // OBJ0 PAL
+   mem_wb(0xFF49, 0xFF); // OBJ1 PAL
+   mem_wb(0xFF4A, 0x00); // WINX
+   mem_wb(0xFF4B, 0x00); // WINY
+   mem_wb(0xFFFF, 0x00); // IE
 
    mem_load_image(cpu_rom_fname);
    mem_get_rom_info();
@@ -344,7 +356,6 @@ void cpu_advance_time(tick dt) {
    cpu_ticks += dt;
 
    if (raise_tima) {
-      DEBUG("TIMA OVERFLOW (MOD %02X)\n", mem_direct_read(TMA_ADDR));
       mem_direct_write(
             INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
       raise_tima = false;
@@ -367,7 +378,7 @@ void cpu_advance_time(tick dt) {
          case 1: max = 16; break;
          case 2: max = 64; break;
          case 3: max = 256; break;
-         default: ERROR("timer error");
+         default: break;
       }
       while (cpu_tima >= max) {
          cpu_tima -= max;
@@ -391,12 +402,10 @@ void cpu_execute_step() {
    byte irq         = int_IE & int_IF;
 
    if (int_IF != 0 && cpu_halted) {
-      DEBUG("IRQ ENDED HALT\n");
       cpu_halted = false;
    }
 
    if (int_IF != 0 && cpu_stopped) {
-      DEBUG("IRQ ENDED STOP\n");
       cpu_stopped = false;
    }
 
@@ -406,19 +415,15 @@ void cpu_execute_step() {
          if ((irq & INT_VBLANK) != 0) {
             target = 0x40;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
-            DEBUG("VBLANK INTERRUPT\n");
          } else if ((irq & INT_STAT) != 0) {
             target = 0x48;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_STAT);
-            DEBUG("STAT INTERRUPT\n");
          } else if ((irq & INT_TIMA) != 0) {
             target = 0x50;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
-            DEBUG("TIMA INTERRUPT\n");
          } else if ((irq & INT_INPUT) != 0) {
             target = 0x60;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
-            DEBUG("INPUT INTERRUPT\n");
          }
 
          if (target != 0x00) {

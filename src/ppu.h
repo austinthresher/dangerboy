@@ -21,14 +21,15 @@
 #define COLOR_DARK 0x7C
 #define COLOR_BLACK 0x00
 
+byte* ppu_vram;
 byte ppu_ly;
 byte ppu_win_ly;
-byte* ppu_vram;
-bool ppu_ready_to_draw;
+bool ppu_draw;
 bool lcd_disable;
 
 void ppu_init();
 void ppu_reset();
+void ppu_free();
 void ppu_advance_time(tick ticks);
 void ppu_do_scanline();
 void ppu_buildobj(word addr, byte val);

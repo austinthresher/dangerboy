@@ -113,9 +113,8 @@ bool FLAG_N;
 // Helper operations
 
 void cpu_none() {
-   ERROR("Invalid instruction at PC %04X, potentially opcode %02X\n",
-         cpu_last_pc,
-         cpu_last_op);
+   // Undefined opcode
+   cpu_stopped = true;
 }
 
 void add16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
@@ -983,7 +982,7 @@ void cpu_cb() {
          case 0xD0: set(regs[index], 3); break;
          case 0xE0: set(regs[index], 5); break;
          case 0xF0: set(regs[index], 7); break;
-         default: ERROR("CB opcode error"); break;
+         default: cpu_none(); break;
       }
 
    } else {
@@ -1004,7 +1003,7 @@ void cpu_cb() {
          case 0xD0: set(regs[index], 2); break;
          case 0xE0: set(regs[index], 4); break;
          case 0xF0: set(regs[index], 6); break;
-         default: ERROR("CB opcode error"); break;
+         default: cpu_none(); break;
       }
    }
 }

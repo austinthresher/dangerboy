@@ -60,7 +60,7 @@ int main(int argc, char* args[]) {
    if (debug_flag) {
       debugger_break();
    }
-   while (is_running && !check_error()) {
+   while (is_running) {
       int t = SDL_GetTicks();
       if (t - i_prev > INPUT_POLL_RATE) {
          i_prev = t;
@@ -77,35 +77,27 @@ int main(int argc, char* args[]) {
                   }
                   if (event.key.keysym.sym == SDLK_LEFT) {
                      mem_dpad |= 0x02;
-                     DEBUG("DPAD LEFT RELEASED\n");
                   }
                   if (event.key.keysym.sym == SDLK_UP) {
                      mem_dpad |= 0x04;
-                     DEBUG("DPAD UP RELEASED\n");
                   }
                   if (event.key.keysym.sym == SDLK_RIGHT) {
                      mem_dpad |= 0x01;
-                     DEBUG("DPAD RIGHT RELEASED\n");
                   }
                   if (event.key.keysym.sym == SDLK_DOWN) {
                      mem_dpad |= 0x08;
-                     DEBUG("DPAD DOWN RELEASED\n");
                   }
                   if (event.key.keysym.sym == SDLK_z) { // A
                      mem_buttons |= 0x01;
-                     DEBUG("BUTTON A RELEASED\n");
                   }
                   if (event.key.keysym.sym == SDLK_x) { // B
                      mem_buttons |= 0x2;
-                     DEBUG("BUTTON B RELEASED\n");
                   }
                   if (event.key.keysym.sym == SDLK_RETURN) { // Start
                      mem_buttons |= 0x08;
-                     DEBUG("BUTTON START RELEASED\n");
                   }
                   if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
                      mem_buttons |= 0x04;
-                     DEBUG("BUTTON SELECT RELEASED\n");
                   }
                   break;
 
@@ -119,42 +111,34 @@ int main(int argc, char* args[]) {
                   if (event.key.keysym.sym == SDLK_LEFT) {
                      mem_dpad &= 0xFD;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
-                     DEBUG("DPAD LEFT PRESSED\n");
                   }
                   if (event.key.keysym.sym == SDLK_UP) {
                      mem_dpad &= 0xFB;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
-                     DEBUG("DPAD UP PRESSED\n");
                   }
                   if (event.key.keysym.sym == SDLK_RIGHT) {
                      mem_dpad &= 0xFE;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
-                     DEBUG("DPAD RIGHT PRESSED\n");
                   }
                   if (event.key.keysym.sym == SDLK_DOWN) {
                      mem_dpad &= 0xF7;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
-                     DEBUG("DPAD DOWN PRESSED\n");
                   }
                   if (event.key.keysym.sym == SDLK_z) { // A
                      mem_buttons &= 0xFE;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
-                     DEBUG("BUTTON A PRESSED\n");
                   }
                   if (event.key.keysym.sym == SDLK_x) { // B
                      mem_buttons &= 0xFD;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
-                     DEBUG("BUTTON B PRESSED\n");
                   }
                   if (event.key.keysym.sym == SDLK_RETURN) { // Start
                      mem_buttons &= 0xF7;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
-                     DEBUG("BUTTON START PRESSED\n");
                   }
                   if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
                      mem_buttons &= 0xFB;
                      mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
-                     DEBUG("BUTTON SELECT PRESSED\n");
                   }
                   break;
                case SDL_QUIT: is_running = false; break;
@@ -164,7 +148,7 @@ int main(int argc, char* args[]) {
       }
       // We pause execution when the screen is ready to
       // be flipped to prevent emulating faster than 60 fps
-      if (ppu_ready_to_draw == false) {
+      if (ppu_draw == false) {
          if (debugger_should_break()) {
             debugger_cli();
          }
@@ -173,7 +157,7 @@ int main(int argc, char* args[]) {
          if (turbo) {
             if (turbo_count < turbo_skip) {
                turbo_count++;
-               ppu_ready_to_draw = false;
+               ppu_draw = false;
                continue;
             }
             turbo_count = 0;
@@ -183,7 +167,7 @@ int main(int argc, char* args[]) {
             if (lcd_disable) {
                SDL_FillRect(screen, NULL, 0xFFFFFFFF);
                SDL_Flip(screen);
-               ppu_ready_to_draw = false;
+               ppu_draw = false;
                continue;
             }
             SDL_LockSurface(gb_screen);
@@ -212,21 +196,16 @@ int main(int argc, char* args[]) {
             SDL_BlitSurface(gb_screen, NULL, screen, NULL);
             SDL_Flip(screen);
 
-            ppu_ready_to_draw = false;
+            ppu_draw = false;
          } else if (!turbo) {
             SDL_Delay(1);
          }
       }
    }
 
-   fflush(stderr);
-
-   if (check_error()) {
-      printf("An error occured. Exiting.\n");
-      fflush(stdout);
-   }
-
+   ppu_free();
    mem_free();
+   debugger_free();
    SDL_FreeSurface(screen);
    SDL_FreeSurface(gb_screen);
    SDL_Quit();
