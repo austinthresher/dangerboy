@@ -94,6 +94,8 @@ void mem_load_image(char* fname) {
    }
 
    fclose(fin);
+
+   mem_get_rom_info();
 }
 
 void mem_get_rom_info(void) {

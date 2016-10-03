@@ -34,11 +34,10 @@ bool cpu_stopped;
 tick cpu_ticks;
 tick cpu_div;
 tick cpu_tima;
-char* cpu_rom_fname;
 void (*cpu_opcodes[0x100])();
 
 void cpu_execute_step();
-void cpu_init(char* romname);
+void cpu_init();
 void cpu_reset();
 void cpu_advance_time(tick dt);
 

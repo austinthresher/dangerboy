@@ -5,14 +5,13 @@
 
 bool raise_tima = false;
 
-void cpu_init(char* romname) {
+void cpu_init() {
    cpu_ime       = false;
    cpu_ime_delay = false;
    cpu_tima      = 0;
    cpu_div       = 0;
    cpu_halted    = false;
    cpu_stopped   = false;
-   cpu_rom_fname = romname;
 
    for (size_t i = 0; i < 0x100; i++) {
       cpu_opcodes[i] = &cpu_none;
@@ -297,7 +296,6 @@ void cpu_reset() {
    
    // These startup values are based on
    // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
-   mem_init();
    cpu_PC    = 0x0100;
    cpu_A     = 0x01;
    cpu_B     = 0x00;
@@ -347,9 +345,6 @@ void cpu_reset() {
    mem_wb(0xFF4A, 0x00); // WINX
    mem_wb(0xFF4B, 0x00); // WINY
    mem_wb(0xFFFF, 0x00); // IE
-
-   mem_load_image(cpu_rom_fname);
-   mem_get_rom_info();
 }
 
 void cpu_advance_time(tick dt) {

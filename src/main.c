@@ -20,7 +20,6 @@ int main(int argc, char* args[]) {
          if (strcmp(args[a + 2], "-i") == 0) {
             mem_init();
             mem_load_image(args[1]);
-            mem_get_rom_info();
             mem_print_rom_info();
             mem_free();
             fflush(stdout);
@@ -55,8 +54,10 @@ int main(int argc, char* args[]) {
    char* file      = args[1];
 
    debugger_init();
-   cpu_init(file);
+   mem_init();
+   mem_load_image(file);
    ppu_init(gb_screen);
+   cpu_init();
    if (debug_flag) {
       debugger_break();
    }
