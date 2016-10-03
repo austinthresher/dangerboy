@@ -192,6 +192,8 @@ void print_memory_map(int x, word addr) {
    wrefresh(memory_map);
 }
 
+// TODO: Make status bar only over memory map,
+// different lines for different categories
 void print_status_bar() {
    int width = COLS;
    int height = 2;
@@ -221,9 +223,11 @@ void print_status_bar() {
          mem_rb(INT_FLAG_ADDR),
          cpu_ticks);
    wprintw(status_bar, "\t[IME:%d]", cpu_ime ? 1 : 0);
-   wprintw(status_bar, "\t[LCD:%d STAT:%02X]",
+   wprintw(status_bar, "\t[LCD:%d STAT:%02X LY:%02X LYC:%02X]",
          (mem_direct_read(0xFF40) & 0x80) ? 1 : 0,
-         mem_direct_read(LCD_STATUS_ADDR));
+         mem_direct_read(LCD_STATUS_ADDR),
+         mem_direct_read(LCD_LINE_Y_ADDR),
+         mem_direct_read(LCD_LINE_Y_C_ADDR));
    wprintw(status_bar, "\t[RAM:%d ROM:%02X]",
          mem_current_ram_bank,
          mem_current_rom_bank); 
