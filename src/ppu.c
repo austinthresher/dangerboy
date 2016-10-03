@@ -44,9 +44,10 @@ void check_lyc() {
 
    if (ppu_ly == lyc) {
       stat |= 0x04; // LYC bit
-      if ((mode == PPU_MODE_HBLANK || mode == PPU_MODE_VBLANK)
-       && (stat & 0x40)) {
-         mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+      if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
+         if (stat & 0x40) {
+            mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+         }
       }
    } else {
       stat &= ~0x04; // Clear LYC bit
@@ -77,42 +78,69 @@ void ppu_update_register(word addr, byte val) {
                ppu_draw = true;
             }
             lcd_disable = true;
-            mode        = PPU_MODE_HBLANK;
-            ppu_ly      = 0;
-            ppu_update_stat();
+            mode &= 2; // Bit 2 is preserved when disabling LCD
+            ppu_update_stat(0);
          }
          break;
       default: mem_direct_write(addr, val);
    }
 }
 
-void ppu_update_stat() {
-   mem_direct_write(LCD_LINE_Y_ADDR, ppu_ly);
-   debugger_notify_mem_write(LCD_LINE_Y_ADDR, ppu_ly);
+void ppu_update_stat(int ly) {
+   mem_direct_write(LCD_LINE_Y_ADDR, ly);
+   debugger_notify_mem_write(LCD_LINE_Y_ADDR, ly);
 
    // Bits 0-2 indicate the gpu mode.
    // Higher bits are interrupt enable flags.
-   byte new_stat = mode & 0x03;
    byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
-   mem_direct_write(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_stat & 0x07));
+   byte new_mode = mode & 0x03;
+   byte old_mode = stat_reg & 0x03;
+   mem_direct_write(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_mode & 0x07));
    check_lyc();
 
-   // The STAT interrupt has 4 different modes, based on bits 3-6
-   if ((mode == PPU_MODE_HBLANK
-            && (stat_reg & 0x08)
-            && (stat_reg & 0x44) != 0x44) // lyc interrupt masks hblank
-    || (mode == PPU_MODE_VBLANK && (stat_reg & 0x10))
-    || (mode == PPU_MODE_SCAN_OAM
-       && (stat_reg & 0x20)
-       && !(stat_reg & 0x08) // hblank mit masks oam bit
-       && (stat_reg & 0x44) != 0x44)) { // lyc interrupt also masks oam
-     
-      mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
-   } else if (ppu_ly == 144) {
-      // The OAM interrupt can still fire on scanline 144. This only
-      // happens if the STAT VBlank interrupt did not fire.
-      // TODO: Does this happen if normal VBlank interrupt fires?
-      if ((stat_reg & 0x20) && !(stat_reg & 0x10)) {
+   if (mode != old_mode) {
+      // The STAT interrupt has 4 different modes, based on bits 3-6
+      bool raise_interrupt = false;
+      switch (mode) {
+         case PPU_MODE_HBLANK:
+            // Check if HBLANK STAT interrupt is enabled
+            if (stat_reg & 0x08) {
+               // LY == LYC interrupt masks HBLANK interrupt
+               if ((stat_reg & 0x44) == 0x44) {
+                  break;
+               }
+               raise_interrupt = true;
+            }
+            break;
+
+         case PPU_MODE_VBLANK: 
+            if (stat_reg & 0x10) {
+               raise_interrupt = true;
+            } else if(ly == 144 && (stat_reg & 0x20)) {
+               // OAM interrupt still fires on ly == 144,
+               // but only if VBLANK interrupt did not
+               raise_interrupt = true;
+            }
+
+            break;
+
+         case PPU_MODE_SCAN_OAM:
+            if (stat_reg & 0x20) {
+               // HBLANK masks OAM interrupt
+               if (stat_reg & 0x08) {
+                  break;
+               }
+               // LY == LYC interrupt masks OAM interrupt
+               if ((stat_reg & 0x44) == 0x44) {
+                  break;
+               }
+               raise_interrupt = true;
+            }
+            break;
+         default: break;
+      }
+
+      if (raise_interrupt) {
          mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
       }
    }
@@ -120,7 +148,7 @@ void ppu_update_stat() {
 
 void ppu_advance_time(tick ticks) {
    if (lcd_disable) {
-      ppu_update_stat();
+      ppu_update_stat(0);
       return;
    }
 
@@ -131,7 +159,7 @@ void ppu_advance_time(tick ticks) {
          if (timer >= 80) {
             mode = PPU_MODE_SCAN_VRAM;
             timer -= 80;
-            ppu_update_stat();
+            ppu_update_stat(ppu_ly);
          }
          break;
       case PPU_MODE_SCAN_VRAM:
@@ -139,7 +167,7 @@ void ppu_advance_time(tick ticks) {
             mode = PPU_MODE_HBLANK;
             timer -= 172;
             ppu_do_scanline();
-            ppu_update_stat();
+            ppu_update_stat(ppu_ly);
          }
          break;
       case PPU_MODE_HBLANK:
@@ -154,7 +182,7 @@ void ppu_advance_time(tick ticks) {
             } else {
                mode = PPU_MODE_SCAN_OAM;
             }
-            ppu_update_stat();
+            ppu_update_stat(ppu_ly);
          }
          break;
       case PPU_MODE_VBLANK:
@@ -169,17 +197,16 @@ void ppu_advance_time(tick ticks) {
                ppu_win_ly = 0;
                mode       = PPU_MODE_SCAN_OAM;
             }
-            ppu_update_stat();
+            ppu_update_stat(ppu_ly);
          } else if (timer > 4 && ppu_ly == 153) {
             ppu_ly     = 0;
             ppu_win_ly = 0;
-            ppu_update_stat();
+            ppu_update_stat(ppu_ly);
          }
          break;
    }
 }
 
-// TODO: Change this to ppu_do_pixel for mid-scanline changes
 void ppu_do_scanline() {
    bool bg_is_zero[160];
 

@@ -395,16 +395,23 @@ void cpu_execute_step() {
    byte int_IE      = mem_direct_read(INT_ENABLED_ADDR);
    byte int_IF      = mem_direct_read(INT_FLAG_ADDR);
    byte irq         = int_IE & int_IF;
+   bool freeze_pc   = false;
+   bool skip_int    = false;
 
-   if (int_IF != 0 && cpu_halted) {
+   if (irq && cpu_halted) {
       cpu_halted = false;
+      skip_int   = true;
+      if (cpu_ime == false) {
+         freeze_pc = true;
+      }
    }
 
+   // TODO: Should this be checking the input bit?
    if (int_IF != 0 && cpu_stopped) {
       cpu_stopped = false;
    }
 
-   if (cpu_ime) {
+   if (cpu_ime && !skip_int) {
       if (!cpu_ime_delay) {
          byte target = 0x00;
          if ((irq & INT_VBLANK) != 0) {
@@ -438,6 +445,9 @@ void cpu_execute_step() {
          cpu_last_pc = cpu_PC;
          cpu_last_op = mem_rb(cpu_PC++);
          (*cpu_opcodes[cpu_last_op])();
+         if (freeze_pc) {
+            cpu_PC = cpu_last_pc;
+         }
          debugger_notify_mem_exec(cpu_PC);
       } else {
          cpu_nop();
