@@ -74,19 +74,21 @@ void cpu_reset() {
 }
 
 void cpu_advance_time(tick dt) {
+   ppu_advance_time(dt);
    cpu_ticks += dt;
+   cpu_div += dt;
+
+   if (cpu_div >= 0xFF) {
+      cpu_div -= 0xFF;
+      mem_direct_write(
+            DIV_REGISTER_ADDR, mem_direct_read(DIV_REGISTER_ADDR) + 1);
+   }
+
    if (last_tima_overflow != -1 && cpu_ticks > last_tima_overflow + 4) {
       mem_direct_write(
             INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
       mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
       last_tima_overflow = -1;
-   }
-
-   cpu_div += dt;
-   if (cpu_div >= 0xFF) {
-      cpu_div -= 0xFF;
-      mem_direct_write(
-            DIV_REGISTER_ADDR, mem_direct_read(DIV_REGISTER_ADDR) + 1);
    }
 
    // Bit 3 enables or disables timers
@@ -112,7 +114,6 @@ void cpu_advance_time(tick dt) {
          }
       }
    }
-   ppu_advance_time(dt);
 }
 
 void cpu_execute_step() {
@@ -126,7 +127,6 @@ void cpu_execute_step() {
 
    if (irq && cpu_halted) {
       cpu_halted = false;
-      skip_int   = true;
       if (cpu_ime == false) {
          freeze_pc = true;
       }
@@ -137,7 +137,7 @@ void cpu_execute_step() {
       cpu_stopped = false;
    }
 
-   if (cpu_ime && !skip_int) {
+   if (cpu_ime) {
       if (!cpu_ime_delay) {
          byte target = 0x00;
          if (irq & INT_VBLANK) {
@@ -165,14 +165,13 @@ void cpu_execute_step() {
          if (target != 0x00) {
             interrupted = true;
             cpu_ime     = false;
-            // Other emulators seem to take 3 cycles here
-            // instead of 4, but that causes STAT timing
-            // tests to fail. Where is this extra cycle
-            // supposed to be?
             TIME(2);
             PUSHW(cpu_PC);
             TIME(2);
             cpu_PC = target;
+            TIME(1); // This additional step makes intr_timing test pass
+                     // but causes stat timing tests to fail. Where is
+                     // the extra step coming from?
          }
       } else {
          cpu_ime_delay = false;

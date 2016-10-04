@@ -117,7 +117,7 @@ void ppu_update_register(word addr, byte val) {
 
 // Based on Mooneye's implementation
 void update_scroll_mod() {
-   byte scx = mem_direct_read(LCD_SCX_ADDR);
+   byte scx = mem_direct_read(LCD_SCX_ADDR) % 8;
    if (scx > 4) {
       scroll_tick_mod = 8;
    } else if (scx > 0) {
@@ -132,6 +132,7 @@ void ppu_advance_time(tick ticks) {
       check_lyc();
       return;
    }
+
    int vram_length = 172 + scroll_tick_mod;
    tick old_timer  = timer;
    byte stat_reg   = mem_direct_read(LCD_STATUS_ADDR);
