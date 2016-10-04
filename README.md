@@ -2,7 +2,7 @@
 Game Boy emulator written in C. Runs many games and includes a full debugger.
 Usage:
 
-    dangerboy \[filename\] \[-i | -d\]
+    dangerboy [filename] [-i | -d]
 
 Type 'help' or '?' inside the debugger to see a list of commands.
 
