@@ -4,8 +4,10 @@
 byte mode;
 byte win_y;
 tick timer;
+int scroll_tick_mod;
 
-void ppu_update_stat();
+void update_stat_mod();
+void update_stat();
 
 void ppu_init() {
    mode        = PPU_MODE_SCAN_OAM;
@@ -17,10 +19,13 @@ void ppu_init() {
    ppu_reset();
 }
 
+
+tick ppu_get_timer() { return timer; }
+
 void ppu_reset() {
    mode   = PPU_MODE_HBLANK;
    ppu_ly = 0;
-   ppu_update_stat();
+   update_stat();
 }
 
 void check_lyc() {
@@ -65,14 +70,24 @@ void ppu_update_register(word addr, byte val) {
             }
             lcd_disable = true;
             mode &= 2; // Bit 2 is preserved when disabling LCD
-            ppu_update_stat(0);
+            update_stat(0);
+         }
+         break;
+      case LCD_STATUS_ADDR:
+         val &= 0x78;
+         // Writing to stat during vblank is supposed to raise an interrupt,
+         // but this is causing the mooneye stat test to fail?
+         mem_direct_write(LCD_STATUS_ADDR,  val);
+         if (mode == PPU_MODE_VBLANK) {
+            mem_direct_write(INT_FLAG_ADDR,
+                  mem_direct_read(INT_FLAG_ADDR) | 0x02);
          }
          break;
       default: mem_direct_write(addr, val);
    }
 }
 
-void ppu_update_stat(int ly) {
+void update_stat(int ly) {
    mem_direct_write(LCD_LINE_Y_ADDR, ly);
    debugger_notify_mem_write(LCD_LINE_Y_ADDR, ly);
 
@@ -132,9 +147,20 @@ void ppu_update_stat(int ly) {
    }
 }
 
+void update_scroll_mod() {
+   byte scx = mem_direct_read(LCD_SCX_ADDR);
+   if (scx > 4) {
+      scroll_tick_mod = 2;
+   } else if (scx > 0) {
+      scroll_tick_mod = 1;
+   } else {
+      scroll_tick_mod = 0;
+   }
+}
+
 void ppu_advance_time(tick ticks) {
    if (lcd_disable) {
-      ppu_update_stat(0);
+      update_stat(0);
       return;
    }
 
@@ -142,24 +168,25 @@ void ppu_advance_time(tick ticks) {
 
    switch (mode) {
       case PPU_MODE_SCAN_OAM:
-         if (timer >= 80) {
+         if (timer >= 84) {
             mode = PPU_MODE_SCAN_VRAM;
-            timer -= 80;
-            ppu_update_stat(ppu_ly);
+            timer -= 84;
+            update_stat(ppu_ly);
+            update_scroll_mod();
          }
          break;
       case PPU_MODE_SCAN_VRAM:
-         if (timer >= 172) {
+         if (timer >= 172 + scroll_tick_mod) {
             mode = PPU_MODE_HBLANK;
-            timer -= 172;
+            timer -= 172 + scroll_tick_mod;
             ppu_do_scanline(); // TODO: Is this the right timing?
-            ppu_update_stat(ppu_ly);
+            ppu_ly++;
+            update_stat(ppu_ly);
          }
          break;
       case PPU_MODE_HBLANK:
-         if (timer >= 204) {
-            timer -= 204;
-            ppu_ly++;
+         if (timer >= 200 - scroll_tick_mod) {
+            timer -= 200 - scroll_tick_mod;
             if (ppu_ly > 143) {
                mode     = PPU_MODE_VBLANK;
                ppu_draw = true;
@@ -168,7 +195,7 @@ void ppu_advance_time(tick ticks) {
             } else {
                mode = PPU_MODE_SCAN_OAM;
             }
-            ppu_update_stat(ppu_ly);
+            update_stat(ppu_ly);
          }
          break;
       case PPU_MODE_VBLANK:
@@ -183,11 +210,11 @@ void ppu_advance_time(tick ticks) {
                ppu_win_ly = 0;
                mode       = PPU_MODE_SCAN_OAM;
             }
-            ppu_update_stat(ppu_ly);
+            update_stat(ppu_ly);
          } else if (timer > 8 && ppu_ly == 153) {
             ppu_ly     = 0;
             ppu_win_ly = 0;
-            ppu_update_stat(ppu_ly);
+            update_stat(ppu_ly);
          }
          break;
    }
@@ -382,10 +409,10 @@ void ppu_do_scanline() {
 byte ppu_pick_color(byte col, byte pal) {
    byte temp = (pal >> (col * 2)) & 0x03;
    switch (temp) {
-      case 3: return COLOR_BLACK;
-      case 2: return COLOR_DARK;
-      case 1: return COLOR_LITE;
-      case 0: return COLOR_WHITE;
+      case 3: return LCD_BLACK;
+      case 2: return LCD_DARK;
+      case 1: return LCD_LITE;
+      case 0: return LCD_WHITE;
    }
-   return COLOR_WHITE;
+   return LCD_WHITE;
 }

@@ -5,7 +5,7 @@
 #include "debugger.h"
 #include "ppu.h"
 
-#define INPUT_POLL_RATE 8 // Poll for input every 8 ms (120 times a second)
+#define INPUT_POLL_RATE 12 // Poll for input every 12 ms
 #define SCALE_FACTOR 2
 
 int main(int argc, char* args[]) {

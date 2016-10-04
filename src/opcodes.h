@@ -1,4 +1,6 @@
 // Opcode macros
+#ifndef __OPCODES_H__
+#define __OPCODES_H__
 
 #define TIME(x) cpu_advance_time((x)*4)
 
@@ -1371,7 +1373,7 @@ void cpu_di() {
    cpu_ime_delay = false;
 }
 
-void cpu_ie() {
+void cpu_ei() {
    TIME(1);
    cpu_ime       = true;
    cpu_ime_delay = true;
@@ -1525,60 +1527,60 @@ void cpu_sbc_a_at_hl() {
 
 // INCREMENT / DECREMENT
 void cpu_inc_a() {
-   TIME(1);
    INC(cpu_A);
+   TIME(1);
 }
 void cpu_inc_b() {
-   TIME(1);
    INC(cpu_B);
+   TIME(1);
 }
 void cpu_inc_c() {
-   TIME(1);
    INC(cpu_C);
+   TIME(1);
 }
 void cpu_inc_d() {
-   TIME(1);
    INC(cpu_D);
+   TIME(1);
 }
 void cpu_inc_e() {
-   TIME(1);
    INC(cpu_E);
+   TIME(1);
 }
 void cpu_inc_h() {
    TIME(1);
    INC(cpu_H);
 }
 void cpu_inc_l() {
-   TIME(1);
    INC(cpu_L);
+   TIME(1);
 }
 void cpu_dec_a() {
-   TIME(1);
    DEC(cpu_A);
+   TIME(1);
 }
 void cpu_dec_b() {
-   TIME(1);
    DEC(cpu_B);
+   TIME(1);
 }
 void cpu_dec_c() {
-   TIME(1);
    DEC(cpu_C);
+   TIME(1);
 }
 void cpu_dec_d() {
-   TIME(1);
    DEC(cpu_D);
+   TIME(1);
 }
 void cpu_dec_e() {
-   TIME(1);
    DEC(cpu_E);
+   TIME(1);
 }
 void cpu_dec_h() {
-   TIME(1);
    DEC(cpu_H);
+   TIME(1);
 }
 void cpu_dec_l() {
-   TIME(1);
    DEC(cpu_L);
+   TIME(1);
 }
 
 void cpu_inc_at_hl() {
@@ -1699,3 +1701,5 @@ void cpu_daa() {
       FLAG_C = true;
    }
 }
+
+#endif

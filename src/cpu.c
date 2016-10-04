@@ -155,9 +155,11 @@ void cpu_execute_step() {
          if (target != 0x00) {
             interrupted = true;
             cpu_ime     = false;
+            TIME(2);
             PUSHW(cpu_PC);
+            TIME(2);
             cpu_PC = target;
-            TIME(3);
+            TIME(1);
          }
       } else {
          cpu_ime_delay = false;
@@ -450,7 +452,7 @@ void build_op_table() {
    cpu_opcodes[0xF8] = &cpu_ldhl_sp_n; /* 3 */
    cpu_opcodes[0xF9] = &cpu_ldsp_hl;   /* 2 */
    cpu_opcodes[0xFA] = &cpu_lda_at_nn; /* 4 */
-   cpu_opcodes[0xFB] = &cpu_ie;        /* 1 */
+   cpu_opcodes[0xFB] = &cpu_ei;        /* 1 */
    cpu_opcodes[0xFC] = &cpu_none;      /* 0 */
    cpu_opcodes[0xFD] = &cpu_none;      /* 0 */
    cpu_opcodes[0xFE] = &cpu_cp_a_n;    /* 2 */

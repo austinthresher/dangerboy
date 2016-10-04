@@ -1,3 +1,6 @@
+#ifndef __DEBUGGER_H__
+#define __DEBUGGER_H__
+
 #include "datatypes.h"
 
 // ncurses utility defines
@@ -26,3 +29,5 @@ void debugger_break_on_equal(word addr, byte value);
 void debugger_notify_mem_exec(word addr);
 void debugger_notify_mem_write(word addr, byte val);
 void debugger_notify_mem_read(word addr);
+
+#endif
