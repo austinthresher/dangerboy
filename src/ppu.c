@@ -115,66 +115,8 @@ void ppu_update_register(word addr, byte val) {
    }
 }
 
-/*void update_stat() {
-   // Bits 0-2 indicate the gpu mode.
-   // Higher bits are interrupt enable flags.
-   byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
-   byte new_mode = mode & 0x03;
-   byte old_mode = stat_reg & 0x03;
-   mem_direct_write(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_mode & 0x07));
-
-   if (new_mode != old_mode) {
-      // The STAT interrupt has 4 different modes, based on bits 3-6
-      bool raise_interrupt = false;
-      switch (new_mode) {
-         case PPU_MODE_HBLANK:
-            // Check if HBLANK STAT interrupt is enabled
-            if (stat_reg & 0x08) {
-               // LY == LYC interrupt masks HBLANK interrupt
-               if ((stat_reg & 0x44) == 0x44) {
-                  break;
-               }
-               raise_interrupt = true;
-            }
-            break;
-
-         case PPU_MODE_VBLANK: 
-            if (stat_reg & 0x10) {
-               raise_interrupt = true;
-            } else if(ppu_ly == 144 && (stat_reg & 0x20)) {
-               // OAM interrupt still fires on ly == 144,
-               // but only if VBLANK interrupt did not
-               raise_interrupt = true;
-            }
-
-            break;
-
-         case PPU_MODE_SCAN_OAM:
-            if (stat_reg & 0x20) {
-               // HBLANK masks OAM interrupt
-               if (stat_reg & 0x08) {
-                  break;
-               }
-               // LY == LYC interrupt masks OAM interrupt
-               if ((stat_reg & 0x44) == 0x44) {
-                  break;
-               }
-               raise_interrupt = true;
-            }
-            break;
-         default: break;
-      }
-
-      if (raise_interrupt) {
-         mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
-      }
-   }
-}*/
-
 // Based on Mooneye's implementation
 void update_scroll_mod() {
-   scroll_tick_mod = 0;
-   return;
    byte scx = mem_direct_read(LCD_SCX_ADDR);
    if (scx > 4) {
       scroll_tick_mod = 8;

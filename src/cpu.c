@@ -159,7 +159,6 @@ void cpu_execute_step() {
             PUSHW(cpu_PC);
             TIME(2);
             cpu_PC = target;
-            TIME(1);
          }
       } else {
          cpu_ime_delay = false;
