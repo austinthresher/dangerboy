@@ -4,9 +4,7 @@
 byte mode;
 byte win_y;
 tick timer;
-int scroll_tick_mod;
 
-void update_stat_mod();
 void update_stat();
 
 void ppu_init() {
@@ -147,17 +145,6 @@ void update_stat(int ly) {
    }
 }
 
-void update_scroll_mod() {
-   byte scx = mem_direct_read(LCD_SCX_ADDR);
-   if (scx > 4) {
-      scroll_tick_mod = 2;
-   } else if (scx > 0) {
-      scroll_tick_mod = 1;
-   } else {
-      scroll_tick_mod = 0;
-   }
-}
-
 void ppu_advance_time(tick ticks) {
    if (lcd_disable) {
       update_stat(0);
@@ -172,21 +159,20 @@ void ppu_advance_time(tick ticks) {
             mode = PPU_MODE_SCAN_VRAM;
             timer -= 84;
             update_stat(ppu_ly);
-            update_scroll_mod();
          }
          break;
       case PPU_MODE_SCAN_VRAM:
-         if (timer >= 172 + scroll_tick_mod) {
+         if (timer >= 172) {
             mode = PPU_MODE_HBLANK;
-            timer -= 172 + scroll_tick_mod;
+            timer -= 172;
             ppu_do_scanline(); // TODO: Is this the right timing?
             ppu_ly++;
             update_stat(ppu_ly);
          }
          break;
       case PPU_MODE_HBLANK:
-         if (timer >= 200 - scroll_tick_mod) {
-            timer -= 200 - scroll_tick_mod;
+         if (timer >= 200) {
+            timer -= 200;
             if (ppu_ly > 143) {
                mode     = PPU_MODE_VBLANK;
                ppu_draw = true;
