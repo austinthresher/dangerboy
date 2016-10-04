@@ -21,6 +21,7 @@ void debugger_break();
 void debugger_continue();
 void debugger_init();
 void debugger_free();
+void debugger_log(const char* str);
 void debugger_clear_breakpoint(word addr);
 void debugger_break_on_read(word addr);
 void debugger_break_on_write(word addr);

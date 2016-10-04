@@ -192,6 +192,12 @@ void print_memory_map(int x, word addr) {
    wrefresh(memory_map);
 }
 
+void debugger_log(const char* str) {
+   if (console_pane != NULL) {
+      wprintw(console_pane, "%s\n", str);
+   }
+}
+
 // TODO: Make status bar only over memory map,
 // different lines for different categories
 void print_status_bar() {

@@ -11,6 +11,7 @@
 #define INT_VBLANK 0x01
 #define INT_STAT 0x02
 #define INT_TIMA 0x04
+#define INT_SERIAL 0x08
 #define INT_INPUT 0x10
 
 // For debugging

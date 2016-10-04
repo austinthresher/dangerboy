@@ -3,7 +3,7 @@
 #include "ppu.h"
 #include "debugger.h"
 
-bool raise_tima = false;
+tick last_tima_overflow;
 
 void build_op_table();
 
@@ -11,6 +11,7 @@ void cpu_init() {
    build_op_table();
    cpu_tima = 0;
    cpu_div  = 0;
+   last_tima_overflow = -1;
    cpu_reset();
 }
 
@@ -74,15 +75,16 @@ void cpu_reset() {
 
 void cpu_advance_time(tick dt) {
    cpu_ticks += dt;
-   if (raise_tima) {
+   if (last_tima_overflow != -1 && cpu_ticks > last_tima_overflow + 4) {
       mem_direct_write(
             INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
-      raise_tima = false;
+      mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
+      last_tima_overflow = -1;
    }
 
    cpu_div += dt;
    if (cpu_div >= 0xFF) {
-      cpu_div = 0;
+      cpu_div -= 0xFF;
       mem_direct_write(
             DIV_REGISTER_ADDR, mem_direct_read(DIV_REGISTER_ADDR) + 1);
    }
@@ -104,9 +106,9 @@ void cpu_advance_time(tick dt) {
          mem_direct_write(TIMA_ADDR, (mem_direct_read(TIMA_ADDR) + 1) & 0xFF);
          if (mem_direct_read(TIMA_ADDR) == 0) {
             // TIMA interrupt happens 4 cycles after
-            // the overflow
-            raise_tima = true;
-            mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
+            // the overflow. It holds 0 until then.
+            mem_direct_write(TIMA_ADDR, 0);
+            last_tima_overflow = cpu_ticks;
          }
       }
    }
@@ -138,23 +140,35 @@ void cpu_execute_step() {
    if (cpu_ime && !skip_int) {
       if (!cpu_ime_delay) {
          byte target = 0x00;
-         if ((irq & INT_VBLANK) != 0) {
+         if (irq & INT_VBLANK) {
             target = 0x40;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
-         } else if ((irq & INT_STAT) != 0) {
+            debugger_log("VBLANK Interrupt");
+         } else if (irq & INT_STAT) {
             target = 0x48;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_STAT);
-         } else if ((irq & INT_TIMA) != 0) {
+            debugger_log("STAT Interrupt");
+         } else if (irq & INT_TIMA) {
             target = 0x50;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
-         } else if ((irq & INT_INPUT) != 0) {
+            debugger_log("TIMA Interrupt");
+         } else if (irq & INT_SERIAL) {
+            target = 0x58;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_SERIAL);
+            debugger_log("Serial interrupt");
+         } else if (irq & INT_INPUT) {
             target = 0x60;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
+            debugger_log("Input Interrupt");
          }
 
          if (target != 0x00) {
             interrupted = true;
             cpu_ime     = false;
+            // Other emulators seem to take 3 cycles here
+            // instead of 4, but that causes STAT timing
+            // tests to fail. Where is this extra cycle
+            // supposed to be?
             TIME(2);
             PUSHW(cpu_PC);
             TIME(2);

@@ -286,6 +286,7 @@ void mem_wb(word addr, byte val) {
       // Hardware registers
       switch (addr) {
          case DIV_REGISTER_ADDR:
+            cpu_div = 0;
             mem_ram[DIV_REGISTER_ADDR] = 0;
             break;
          case LCD_CONTROL_ADDR:
@@ -386,8 +387,12 @@ byte mem_rb(word addr) {
 
    if (addr >= 0xE000 && addr <= 0xFE00) {
       addr -= 0x2000; // Mirrored memory
+      return mem_ram[addr];
    }
-
+   // Hardware registers
+   switch (addr) {
+      default: break;
+   }
    return mem_ram[addr];
 }
 
