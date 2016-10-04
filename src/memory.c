@@ -9,13 +9,8 @@
 
 void mem_dma(byte val);
 
-// TODO: Pokemon graphics are garbled. Fix.
-
 void mem_init(void) {
-   mem_ram              = NULL;
-   mem_rom              = NULL;
-   mem_ram_bank         = NULL;
-   mem_rom_name         = NULL;
+   mem_free();
    mem_mbc_type         = NONE;
    mem_ram_bank_count   = 0;
    mem_rom_bank_count   = 2;
@@ -26,32 +21,25 @@ void mem_init(void) {
    mem_buttons          = 0x0F;
    mem_dpad             = 0x0F;
    mem_input_last_write = 0;
-
-   mem_free();
-
    mem_ram      = (byte*)calloc(0x10000, 1);
    mem_ram_bank = (byte*)calloc(0x10000, 1);
-   memset(mem_ram, 0xFF, 0x100);
-   memset(mem_ram_bank, 0xFF, 0x100);
 }
 
 void mem_free() {
    if (mem_ram != NULL) {
       free(mem_ram);
-      mem_ram = NULL;
    }
+   mem_ram = NULL;
+
    if (mem_ram_bank != NULL) {
       free(mem_ram_bank);
-      mem_ram_bank = NULL;
    }
+   mem_ram_bank = NULL;
+
    if (mem_rom != NULL) {
       free(mem_rom);
-      mem_rom = NULL;
    }
-   if (mem_rom_name != NULL) {
-      free(mem_rom_name);
-      mem_rom_name = NULL;
-   }
+   mem_rom = NULL;
 }
 
 void mem_load_image(char* fname) {
@@ -59,6 +47,7 @@ void mem_load_image(char* fname) {
    FILE* fin = fopen(fname, "rb");
    if (fin == NULL) {
       fprintf(stderr, "Could not open file %s\n", fname);
+      mem_free();
       exit(1);
    }
 
@@ -69,24 +58,35 @@ void mem_load_image(char* fname) {
       size_t bytes_read = fread(&data, 1, 1, fin);
       if (bytes_read != 1) {
          fprintf(stderr, "Error reading %s\n", fname);
+         fclose(fin);
+         mem_free();
          exit(1);
       }
       mem_ram[i] = data;
       i++;
    }
 
-   // This is in kilobytes
-   int fsize = (int)pow((double)2, (double)(1 + mem_ram[0x0148])) * 16;
-   mem_rom   = (byte*)calloc(fsize, 1024);
+   int rom_size = mem_direct_read(0x0148);
+   if (rom_size < 8) {
+      mem_rom_bank_count = pow(2, rom_size+1);
+      rom_size = mem_rom_bank_count * 0x4000;
+      mem_rom = calloc(rom_size, 1);
+   } else {
+      fprintf(stderr, "Unsupported bank configuration: %02X\n", rom_size);
+      mem_free();
+      exit(1);
+   }
 
    // Store the entire cart in ROM so we can bank
    fseek(fin, 0, SEEK_SET);
    i = 0;
-   while (!feof(fin) && i < fsize * 1024) {
+   while (!feof(fin) && i < rom_size) {
       byte data;
       size_t bytes_read = fread(&data, 1, 1, fin);
       if (bytes_read != 1) {
          fprintf(stderr, "Error reading %s\n", fname);
+         fclose(fin);
+         mem_free();
          exit(1);
       }
       mem_rom[i] = data;
@@ -95,12 +95,8 @@ void mem_load_image(char* fname) {
 
    fclose(fin);
 
-   mem_get_rom_info();
-}
-
-void mem_get_rom_info(void) {
    // Determine cart type. Fallthrough is intentional.
-   switch (mem_rom[CART_TYPE_ADDR]) {
+   switch (mem_ram[CART_TYPE_ADDR]) {
       case 0x00:
          // ROM Only
          mem_mbc_type = NONE;
@@ -133,23 +129,21 @@ void mem_get_rom_info(void) {
          break;
       // MBC5 currently unsupported
       default:
-         fprintf(stderr, "Unknown banking mode: %X", mem_rom[CART_TYPE_ADDR]);
+         fprintf(stderr, "Unknown banking mode: %X", mem_ram[CART_TYPE_ADDR]);
          exit(1);
          break;
    }
 
-   mem_rom_bank_count =
-         (int)pow((double)2, (double)(1 + mem_rom[ROM_SIZE_ADDR]));
-
    // RAM Size
-   switch (mem_rom[RAM_SIZE_ADDR]) {
+   switch (mem_ram[RAM_SIZE_ADDR]) {
       case 0: mem_ram_bank_count = 0; break;
       case 1:
       case 2: mem_ram_bank_count = 1; break;
       case 3: mem_ram_bank_count = 4; break;
       case 4: mem_ram_bank_count = 16; break;
       default:
-         fprintf(stderr, "Unknown RAM bank count: %X", mem_rom[RAM_SIZE_ADDR]);
+         fprintf(stderr, "Unknown RAM bank count: %X", mem_ram[RAM_SIZE_ADDR]);
+         mem_free();
          exit(1);
          break;
    }
@@ -158,9 +152,9 @@ void mem_get_rom_info(void) {
    mem_current_ram_bank = 0;
 
    // 16 bytes at ROM_NAME_ADDR contain game title in upper case
-   mem_rom_name = (char*)calloc(0x10, 1);
-   memcpy(mem_rom_name, mem_rom + ROM_NAME_ADDR, 0xF);
-   mem_rom_name[0xF] = '\0';
+   memcpy(mem_rom_name, mem_ram + ROM_NAME_ADDR, 14);
+   mem_rom_name[15] = '\0';
+
 }
 
 void mem_print_rom_info() {
@@ -272,10 +266,12 @@ void mem_wb(word addr, byte val) {
       } else {
          if (mem_ram_bank_locked == false) {
             addr -= 0xA000;
+            addr &= 0x1FFF;
             if (mem_mbc_bankmode == ROM16_RAM8) {
                mem_ram_bank[addr] = val;
             } else {
-               mem_ram_bank[addr + mem_current_ram_bank * 0x2000] = val;
+               word bank_addr = (addr + mem_current_ram_bank * 0x2000) & 0xFFFF;
+               mem_ram_bank[bank_addr] = val;
             }
          }
       }
@@ -338,11 +334,22 @@ byte mem_rb(word addr) {
    if (addr < 0x4000) {
       return mem_ram[addr];
    }
+   
+   if (mem_mbc_type == NONE && addr < 0x8000) {
+      return mem_ram[addr];
+   }
 
    // 0x4000 to 0x7FFF can contain any other ROM bank
    if (mem_mbc_type != NONE && addr >= 0x4000 && addr < 0x8000) {
       addr -= 0x4000;
-      return mem_rom[mem_get_current_rom_bank() * 0x4000 + addr];
+      addr &= 0x3FFF;
+      byte bank = mem_get_current_rom_bank();
+      if (bank > mem_rom_bank_count) {
+         fprintf(stderr, "Tried to access rom bank %d out of %d\n",
+               bank, mem_rom_bank_count);
+         exit(1);
+      }
+      return mem_rom[bank * 0x4000 + addr];
    }
 
    // 0xA000 to 0xBFFF is used for external RAM, usually SRAM

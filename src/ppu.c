@@ -13,28 +13,14 @@ void ppu_init() {
    ppu_ly      = 0;
    lcd_disable = false;
    ppu_draw    = false;
-   ppu_vram    = NULL;
    ppu_win_ly  = 0;
    ppu_reset();
 }
 
 void ppu_reset() {
-   ppu_vram = (byte*)calloc(160 * 144, 3);
-   for (int i = 0, n = 0; i < 40; i++, n += 4) {
-      mem_direct_write(SPRITE_RAM_START_ADDR + n + 0, 0);
-      mem_direct_write(SPRITE_RAM_START_ADDR + n + 1, 0);
-      mem_direct_write(SPRITE_RAM_START_ADDR + n + 2, 0);
-      mem_direct_write(SPRITE_RAM_START_ADDR + n + 3, 0);
-   }
    mode   = PPU_MODE_HBLANK;
    ppu_ly = 0;
    ppu_update_stat();
-}
-
-void ppu_free() {
-   if (ppu_vram != NULL) {
-      free(ppu_vram);
-   }
 }
 
 void check_lyc() {
@@ -166,7 +152,7 @@ void ppu_advance_time(tick ticks) {
          if (timer >= 172) {
             mode = PPU_MODE_HBLANK;
             timer -= 172;
-            ppu_do_scanline();
+            ppu_do_scanline(); // TODO: Is this the right timing?
             ppu_update_stat(ppu_ly);
          }
          break;
@@ -198,7 +184,7 @@ void ppu_advance_time(tick ticks) {
                mode       = PPU_MODE_SCAN_OAM;
             }
             ppu_update_stat(ppu_ly);
-         } else if (timer > 4 && ppu_ly == 153) {
+         } else if (timer > 8 && ppu_ly == 153) {
             ppu_ly     = 0;
             ppu_win_ly = 0;
             ppu_update_stat(ppu_ly);
@@ -206,6 +192,7 @@ void ppu_advance_time(tick ticks) {
          break;
    }
 }
+
 
 void ppu_do_scanline() {
    bool bg_is_zero[160];
@@ -286,9 +273,11 @@ void ppu_do_scanline() {
       if (bg_enabled || window) {
          bg_is_zero[i]         = col == 0;
          outcol                = ppu_pick_color(col, mem_direct_read(BG_PAL_ADDR));
-         ppu_vram[vram_addr++] = outcol;
-         ppu_vram[vram_addr++] = outcol;
-         ppu_vram[vram_addr++] = outcol;
+         if (vram_addr + 2 < 160 * 144 * 3) {
+            ppu_vram[vram_addr++] = outcol;
+            ppu_vram[vram_addr++] = outcol;
+            ppu_vram[vram_addr++] = outcol;
+         }
 
          if (!window) {
             bg_xpx_off++;
@@ -377,10 +366,12 @@ void ppu_do_scanline() {
                if (pri == 1 && !bg_is_zero[draw_x + sx]) {
                   continue;
                }
-               int output_addr         = (ppu_ly * 160 + draw_x + sx) * 3;
-               ppu_vram[output_addr++] = outcol;
-               ppu_vram[output_addr++] = outcol;
-               ppu_vram[output_addr++] = outcol;
+               int output_addr = (ppu_ly * 160 + draw_x + sx) * 3;
+               if (output_addr + 2 < 160 * 144 * 3) {
+                  ppu_vram[output_addr++] = outcol;
+                  ppu_vram[output_addr++] = outcol;
+                  ppu_vram[output_addr++] = outcol;
+               }
             }
          }
       }

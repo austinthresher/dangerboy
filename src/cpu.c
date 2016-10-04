@@ -5,18 +5,185 @@
 
 bool raise_tima = false;
 
+void build_op_table();
+
 void cpu_init() {
+   build_op_table();
+   cpu_tima = 0;
+   cpu_div  = 0;
+   cpu_reset();
+}
+
+void cpu_reset() {
+   
+   // These startup values are based on
+   // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
+   cpu_PC        = 0x0100;
+   cpu_A         = 0x01;
+   cpu_B         = 0x00;
+   cpu_C         = 0x13;
+   cpu_D         = 0x00;
+   cpu_E         = 0xD8;
+   cpu_SP        = 0xFFFE;
+   cpu_H         = 0x01;
+   cpu_L         = 0x4D;
    cpu_ime       = false;
    cpu_ime_delay = false;
-   cpu_tima      = 0;
-   cpu_div       = 0;
+   cpu_ticks     = 0;
    cpu_halted    = false;
    cpu_stopped   = false;
+ 
+   FLAG_C = true;
+   FLAG_H = true;
+   FLAG_Z = true;
+   FLAG_N = false;
 
+   // Setup our in-memory registers
+   mem_wb(0xFF05, 0x00); // TIMA
+   mem_wb(0xFF06, 0x00); // TMA
+   mem_wb(0xFF07, 0x00); // TAC
+   mem_wb(0xFF10, 0x80); // NR10
+   mem_wb(0xFF11, 0xBF); // NR11
+   mem_wb(0xFF12, 0xF3); // NR12
+   mem_wb(0xFF14, 0xBF); // NR14
+   mem_wb(0xFF16, 0x3F); // NR21
+   mem_wb(0xFF17, 0x00); // NR22
+   mem_wb(0xFF19, 0xBF); // NR24
+   mem_wb(0xFF1A, 0x7F); // NR30
+   mem_wb(0xFF1B, 0xFF); // NR31
+   mem_wb(0xFF1C, 0x9F); // NR32
+   mem_wb(0xFF1E, 0xBF); // NR33
+   mem_wb(0xFF20, 0xFF); // NR41
+   mem_wb(0xFF21, 0x00); // NR42
+   mem_wb(0xFF22, 0x00); // NR43
+   mem_wb(0xFF23, 0xBF); // NR30
+   mem_wb(0xFF24, 0x77); // NR50
+   mem_wb(0xFF25, 0xF3); // NR51
+   mem_wb(0xFF26, 0xF1); // NR52
+   mem_wb(0xFF40, 0x91); // LCDC
+   mem_wb(0xFF42, 0x00); // SCY
+   mem_wb(0xFF43, 0x00); // SCX
+   mem_wb(0xFF45, 0x00); // LYC
+   mem_wb(0xFF47, 0xFC); // BG PAL
+   mem_wb(0xFF48, 0xFF); // OBJ0 PAL
+   mem_wb(0xFF49, 0xFF); // OBJ1 PAL
+   mem_wb(0xFF4A, 0x00); // WINX
+   mem_wb(0xFF4B, 0x00); // WINY
+   mem_wb(0xFFFF, 0x00); // IE
+}
+
+void cpu_advance_time(tick dt) {
+   cpu_ticks += dt;
+   if (raise_tima) {
+      mem_direct_write(
+            INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
+      raise_tima = false;
+   }
+
+   cpu_div += dt;
+   if (cpu_div >= 0xFF) {
+      cpu_div = 0;
+      mem_direct_write(
+            DIV_REGISTER_ADDR, mem_direct_read(DIV_REGISTER_ADDR) + 1);
+   }
+
+   // Bit 3 enables or disables timers
+   if (mem_direct_read(TIMER_CONTROL_ADDR) & 0x04) {
+      cpu_tima += dt;
+      int max = 0;
+      // Bits 1-2 control the timer speed
+      switch (mem_direct_read(TIMER_CONTROL_ADDR) & 0x3) {
+         case 0: max = 1024; break;
+         case 1: max = 16; break;
+         case 2: max = 64; break;
+         case 3: max = 256; break;
+         default: break;
+      }
+      while (cpu_tima >= max) {
+         cpu_tima -= max;
+         mem_direct_write(TIMA_ADDR, (mem_direct_read(TIMA_ADDR) + 1) & 0xFF);
+         if (mem_direct_read(TIMA_ADDR) == 0) {
+            // TIMA interrupt happens 4 cycles after
+            // the overflow
+            raise_tima = true;
+            mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
+         }
+      }
+   }
+   ppu_advance_time(dt);
+}
+
+void cpu_execute_step() {
+   // Check interrupts
+   bool interrupted = false;
+   byte int_IE      = mem_direct_read(INT_ENABLED_ADDR);
+   byte int_IF      = mem_direct_read(INT_FLAG_ADDR);
+   byte irq         = int_IE & int_IF;
+   bool freeze_pc   = false;
+   bool skip_int    = false;
+
+   if (irq && cpu_halted) {
+      cpu_halted = false;
+      skip_int   = true;
+      if (cpu_ime == false) {
+         freeze_pc = true;
+      }
+   }
+
+   // TODO: Should this be checking the input bit?
+   if (int_IF != 0 && cpu_stopped) {
+      cpu_stopped = false;
+   }
+
+   if (cpu_ime && !skip_int) {
+      if (!cpu_ime_delay) {
+         byte target = 0x00;
+         if ((irq & INT_VBLANK) != 0) {
+            target = 0x40;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
+         } else if ((irq & INT_STAT) != 0) {
+            target = 0x48;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_STAT);
+         } else if ((irq & INT_TIMA) != 0) {
+            target = 0x50;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
+         } else if ((irq & INT_INPUT) != 0) {
+            target = 0x60;
+            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
+         }
+
+         if (target != 0x00) {
+            interrupted = true;
+            cpu_ime     = false;
+            PUSHW(cpu_PC);
+            cpu_PC = target;
+            TIME(3);
+         }
+      } else {
+         cpu_ime_delay = false;
+      }
+   }
+
+   if (!interrupted) {
+      if (!cpu_halted && !cpu_stopped) {
+         cpu_last_pc = cpu_PC;
+         cpu_last_op = mem_rb(cpu_PC++);
+         (*cpu_opcodes[cpu_last_op])();
+         if (freeze_pc) {
+            cpu_PC = cpu_last_pc;
+         }
+         debugger_notify_mem_exec(cpu_PC);
+      } else {
+         cpu_nop();
+      }
+   }
+}
+
+void build_op_table() {
    for (size_t i = 0; i < 0x100; i++) {
       cpu_opcodes[i] = &cpu_none;
    }
-   // Timing
+
    cpu_opcodes[0x00] = &cpu_nop;         /* 1 */
    cpu_opcodes[0x01] = &cpu_ldbc_nn;     /* 3 */
    cpu_opcodes[0x02] = &cpu_ld_at_bc_a;  /* 2 */
@@ -288,169 +455,4 @@ void cpu_init() {
    cpu_opcodes[0xFD] = &cpu_none;      /* 0 */
    cpu_opcodes[0xFE] = &cpu_cp_a_n;    /* 2 */
    cpu_opcodes[0xFF] = &cpu_rst_38h;   /* 4 */
-
-   cpu_reset();
-}
-
-void cpu_reset() {
-   
-   // These startup values are based on
-   // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
-   cpu_PC    = 0x0100;
-   cpu_A     = 0x01;
-   cpu_B     = 0x00;
-   cpu_C     = 0x13;
-   cpu_D     = 0x00;
-   cpu_E     = 0xD8;
-   cpu_SP    = 0xFFFE;
-   cpu_H     = 0x01;
-   cpu_L     = 0x4D;
-   cpu_ime   = false;
-   cpu_ticks = 0;
-
-   FLAG_C = true;
-   FLAG_H = true;
-   FLAG_Z = true;
-   FLAG_N = false;
-
-   // Setup our in-memory registers
-   mem_wb(0xFF05, 0x00); // TIMA
-   mem_wb(0xFF06, 0x00); // TMA
-   mem_wb(0xFF07, 0x00); // TAC
-   mem_wb(0xFF10, 0x80); // NR10
-   mem_wb(0xFF11, 0xBF); // NR11
-   mem_wb(0xFF12, 0xF3); // NR12
-   mem_wb(0xFF14, 0xBF); // NR14
-   mem_wb(0xFF16, 0x3F); // NR21
-   mem_wb(0xFF17, 0x00); // NR22
-   mem_wb(0xFF19, 0xBF); // NR24
-   mem_wb(0xFF1A, 0x7F); // NR30
-   mem_wb(0xFF1B, 0xFF); // NR31
-   mem_wb(0xFF1C, 0x9F); // NR32
-   mem_wb(0xFF1E, 0xBF); // NR33
-   mem_wb(0xFF20, 0xFF); // NR41
-   mem_wb(0xFF21, 0x00); // NR42
-   mem_wb(0xFF22, 0x00); // NR43
-   mem_wb(0xFF23, 0xBF); // NR30
-   mem_wb(0xFF24, 0x77); // NR50
-   mem_wb(0xFF25, 0xF3); // NR51
-   mem_wb(0xFF26, 0xF1); // NR52
-   mem_wb(0xFF40, 0x91); // LCDC
-   mem_wb(0xFF42, 0x00); // SCY
-   mem_wb(0xFF43, 0x00); // SCX
-   mem_wb(0xFF45, 0x00); // LYC
-   mem_wb(0xFF47, 0xFC); // BG PAL
-   mem_wb(0xFF48, 0xFF); // OBJ0 PAL
-   mem_wb(0xFF49, 0xFF); // OBJ1 PAL
-   mem_wb(0xFF4A, 0x00); // WINX
-   mem_wb(0xFF4B, 0x00); // WINY
-   mem_wb(0xFFFF, 0x00); // IE
-}
-
-void cpu_advance_time(tick dt) {
-   cpu_ticks += dt;
-
-   if (raise_tima) {
-      mem_direct_write(
-            INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
-      raise_tima = false;
-   }
-
-   cpu_div += dt;
-   if (cpu_div >= 0xFF) {
-      cpu_div = 0;
-      mem_direct_write(
-            DIV_REGISTER_ADDR, mem_direct_read(DIV_REGISTER_ADDR) + 1);
-   }
-
-   // Bit 3 enables or disables timers
-   if (mem_direct_read(TIMER_CONTROL_ADDR) & 0x04) {
-      cpu_tima += dt;
-      int max = 0;
-      // Bits 1-2 control the timer speed
-      switch (mem_direct_read(TIMER_CONTROL_ADDR) & 0x3) {
-         case 0: max = 1024; break;
-         case 1: max = 16; break;
-         case 2: max = 64; break;
-         case 3: max = 256; break;
-         default: break;
-      }
-      while (cpu_tima >= max) {
-         cpu_tima -= max;
-         mem_direct_write(TIMA_ADDR, (mem_direct_read(TIMA_ADDR) + 1) & 0xFF);
-         if (mem_direct_read(TIMA_ADDR) == 0) {
-            // TIMA interrupt happens 4 cycles after
-            // the overflow
-            raise_tima = true;
-            mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
-         }
-      }
-   }
-   ppu_advance_time(dt);
-}
-
-void cpu_execute_step() {
-   // Check interrupts
-   bool interrupted = false;
-   byte int_IE      = mem_direct_read(INT_ENABLED_ADDR);
-   byte int_IF      = mem_direct_read(INT_FLAG_ADDR);
-   byte irq         = int_IE & int_IF;
-   bool freeze_pc   = false;
-   bool skip_int    = false;
-
-   if (irq && cpu_halted) {
-      cpu_halted = false;
-      skip_int   = true;
-      if (cpu_ime == false) {
-         freeze_pc = true;
-      }
-   }
-
-   // TODO: Should this be checking the input bit?
-   if (int_IF != 0 && cpu_stopped) {
-      cpu_stopped = false;
-   }
-
-   if (cpu_ime && !skip_int) {
-      if (!cpu_ime_delay) {
-         byte target = 0x00;
-         if ((irq & INT_VBLANK) != 0) {
-            target = 0x40;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
-         } else if ((irq & INT_STAT) != 0) {
-            target = 0x48;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_STAT);
-         } else if ((irq & INT_TIMA) != 0) {
-            target = 0x50;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
-         } else if ((irq & INT_INPUT) != 0) {
-            target = 0x60;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
-         }
-
-         if (target != 0x00) {
-            interrupted = true;
-            cpu_ime     = false;
-            PUSHW(cpu_PC);
-            cpu_PC = target;
-            TIME(3);
-         }
-      } else {
-         cpu_ime_delay = false;
-      }
-   }
-
-   if (!interrupted) {
-      if (!cpu_halted && !cpu_stopped) {
-         cpu_last_pc = cpu_PC;
-         cpu_last_op = mem_rb(cpu_PC++);
-         (*cpu_opcodes[cpu_last_op])();
-         if (freeze_pc) {
-            cpu_PC = cpu_last_pc;
-         }
-         debugger_notify_mem_exec(cpu_PC);
-      } else {
-         cpu_nop();
-      }
-   }
 }

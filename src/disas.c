@@ -320,9 +320,7 @@ word disas_at(word addr, WINDOW *win) {
          info(0xFF00 + mem_rb(addr), note);
          PRINT("LD (FF%02X), A %s", rb(&addr), note);
       case 0xE1: PRINT("POP HL");
-      case 0xE2:
-         info(0xFF00 + cpu_C, note);
-         PRINT("LD (FF00 + C), A %s", note);
+      case 0xE2: PRINT("LD (FF00 + C), A");
       case 0xE3: PRINT("ERROR");
       case 0xE4: PRINT("ERROR");
       case 0xE5: PRINT("PUSH HL");

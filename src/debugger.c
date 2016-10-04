@@ -7,6 +7,14 @@
 #include <stdio.h>
 #include <string.h>
 
+struct BreakpointEntry {
+   bool break_on_read;
+   bool break_on_write;
+   bool break_on_exec;
+   bool break_on_equal;
+   byte watch_value;
+};
+
 word memory_view_addr;
 char cmd[256];
 byte a, b, c, d, e, h, l;
@@ -18,17 +26,8 @@ int console_width;
 int console_height;
 bool show_pc;
 bool break_on_op[256];
+struct BreakpointEntry breakpoints[0x10000];
 WINDOW *memory_map, *console_pane, *status_bar;
-
-struct BreakpointEntry {
-   bool break_on_read;
-   bool break_on_write;
-   bool break_on_exec;
-   bool break_on_equal;
-   byte watch_value;
-};
-
-struct BreakpointEntry* breakpoints;
 
 bool handle_input(const char* string);
 bool sc(const char* strA, const char* strB) { return strcmp(strA, strB) == 0; }
@@ -140,7 +139,7 @@ void print_memory_map(int x, word addr) {
       wmove(memory_map, i+1, 1);
       COLOR(memory_map, COL_MEMVAL);
       for (int w = 0; w < width; w++) {
-         wprintw(memory_map, ".");
+//         wprintw(memory_map, ".");
       }
 
       // Print the address for this row
@@ -203,12 +202,8 @@ void print_status_bar() {
    COLOR(status_bar, COL_STATUS);
 
    // Clear the space for the header
-   for (int rows = 0; rows < 2; rows++) {
-      for(int c = 0; c < COLS; c++) {
-         wmove(status_bar, rows, c);
-         wprintw(status_bar, ".");
-      }
-   }
+   box(status_bar, 0, 0);
+
    wmove(status_bar, 0, 0);
    wprintw(status_bar,
          "[TIMA:%02X TMA:%02X SPD:%d]\t"
@@ -287,9 +282,15 @@ void debugger_cli() {
    
    store_regs();
 
-   if (curses_on && !debugger_should_break()) {
+/*      }*/
+}
+
+void debugger_free() {
+   if (curses_on) {
+      delwin(console_pane);
+      delwin(status_bar);
+      delwin(memory_map);
       endwin();
-      curses_on = false;
    }
 }
 
@@ -470,7 +471,6 @@ void debugger_continue() {
 void debugger_init() {
    store_regs();
    strcpy(cmd, "");
-   breakpoints = calloc(0x10000, sizeof(struct BreakpointEntry));
    for (int i = 0; i < 0x10000; ++i) {
       debugger_clear_breakpoint(i);
    }
@@ -479,14 +479,11 @@ void debugger_init() {
    }
    curses_on = false;
    memory_map = NULL;
+   status_bar = NULL;
+   console_pane = NULL;
    memory_view_addr = 0;
 }
 
-void debugger_free() {
-   if (breakpoints != NULL) {
-      free(breakpoints);
-   }
-}
 
 void debugger_clear_breakpoint(word addr) {
    breakpoints[addr].break_on_read  = false;

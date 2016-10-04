@@ -53,9 +53,9 @@ int main(int argc, char* args[]) {
    int i_prev      = SDL_GetTicks();
    char* file      = args[1];
 
-   debugger_init();
    mem_init();
    mem_load_image(file);
+   debugger_init();
    ppu_init(gb_screen);
    cpu_init();
    if (debug_flag) {
@@ -204,11 +204,8 @@ int main(int argc, char* args[]) {
       }
    }
 
-   ppu_free();
-   mem_free();
-   debugger_free();
-   SDL_FreeSurface(screen);
-   SDL_FreeSurface(gb_screen);
    SDL_Quit();
+   debugger_free();
+   mem_free();
    return 0;
 }
