@@ -1,5 +1,10 @@
 # dangerboy
-Game Boy emulator written in C. Doesn't have many features, but currently runs a few games.
+Game Boy emulator written in C. Runs many games and includes a full debugger.
+Usage:
+
+    dangerboy \[filename\] \[-i | -d\]
+
+Type 'help' or '?' inside the debugger to see a list of commands.
 
 Sound, filters, and saves are planned but not yet implemented.
 
@@ -15,3 +20,5 @@ X: B Button
 Enter: Start Button
 
 Right Shift: Select Button
+
+D: Enter debugger
