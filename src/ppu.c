@@ -6,7 +6,7 @@ byte win_y;
 tick timer;
 int scroll_tick_mod;
 
-void update_stat_mod();
+void update_scroll_mod();
 void update_stat();
 
 void ppu_init() {
@@ -77,7 +77,8 @@ void ppu_update_register(word addr, byte val) {
          val &= 0x78;
          // Writing to stat during vblank is supposed to raise an interrupt,
          // but this is causing the mooneye stat test to fail?
-         mem_direct_write(LCD_STATUS_ADDR,  val);
+         mem_direct_write(LCD_STATUS_ADDR,
+               mem_direct_read(LCD_STATUS_ADDR) & 0x7 | val);
          if (mode == PPU_MODE_VBLANK) {
             mem_direct_write(INT_FLAG_ADDR,
                   mem_direct_read(INT_FLAG_ADDR) | 0x02);
@@ -147,12 +148,15 @@ void update_stat(int ly) {
    }
 }
 
+// Based on Mooneye's implementation
 void update_scroll_mod() {
+   scroll_tick_mod = 0;
+   return;
    byte scx = mem_direct_read(LCD_SCX_ADDR);
    if (scx > 4) {
-      scroll_tick_mod = 2;
+      scroll_tick_mod = 8;
    } else if (scx > 0) {
-      scroll_tick_mod = 1;
+      scroll_tick_mod = 4;
    } else {
       scroll_tick_mod = 0;
    }
@@ -180,7 +184,9 @@ void ppu_advance_time(tick ticks) {
             mode = PPU_MODE_HBLANK;
             timer -= 172 + scroll_tick_mod;
             ppu_do_scanline(); // TODO: Is this the right timing?
-            ppu_ly++;
+            ppu_ly++; // Moving this here from the end of hblank
+                      // fixed prehistorik man sprites but breaks
+                      // mooneye STAT test.
             update_stat(ppu_ly);
          }
          break;
@@ -397,7 +403,7 @@ void ppu_do_scanline() {
                if (output_addr + 2 < 160 * 144 * 3) {
                   ppu_vram[output_addr++] = outcol;
                   ppu_vram[output_addr++] = outcol;
-                  ppu_vram[output_addr++] = outcol;
+                  ppu_vram[output_addr++] = 0;//outcol;
                }
             }
          }
