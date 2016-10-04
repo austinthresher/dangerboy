@@ -7,7 +7,12 @@ tick timer;
 int scroll_tick_mod;
 
 void update_scroll_mod();
-void update_stat();
+void set_ly(int ly);
+void check_lyc();
+
+void fire_stat() {
+   mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+}
 
 void ppu_init() {
    mode        = PPU_MODE_SCAN_OAM;
@@ -19,25 +24,27 @@ void ppu_init() {
    ppu_reset();
 }
 
-
 tick ppu_get_timer() { return timer; }
 
 void ppu_reset() {
    mode   = PPU_MODE_HBLANK;
    ppu_ly = 0;
-   update_stat();
+   ppu_win_ly = 0;
+   set_ly(0);
 }
 
+// Checks for LY == LYC, updates STAT bit, fires interrupt if needed 
 void check_lyc() {
     // If lyc == scanline and bit 6 of stat is set, interrupt
+   byte ly = mem_direct_read(LCD_LINE_Y_ADDR);
    byte lyc = mem_direct_read(LCD_LINE_Y_C_ADDR);
    byte stat = mem_direct_read(LCD_STATUS_ADDR);
 
-   if (ppu_ly == lyc) {
+   if (ly == lyc) {
       stat |= 0x04; // LYC bit
       if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
          if (stat & 0x40) {
-            mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+            fire_stat();
          }
       }
    } else {
@@ -46,12 +53,27 @@ void check_lyc() {
    mem_direct_write(LCD_STATUS_ADDR, stat);
 }
 
+void set_ly(int ly) {
+   mem_direct_write(LCD_LINE_Y_ADDR, ly);
+   debugger_notify_mem_write(LCD_LINE_Y_ADDR, ly);
+   check_lyc();
+}
+
+void update_stat_mode() {
+   // This replaces the bottom 2 bits in the STAT register
+   // with the current value of mode
+   mem_direct_write(LCD_STATUS_ADDR,
+      (mem_direct_read(LCD_STATUS_ADDR) & ~3) | (mode & 3));
+}
+
 void ppu_update_register(word addr, byte val) {
    switch (addr) {
       case LCD_LINE_Y_ADDR:
          ppu_ly     = 0;
          ppu_win_ly = 0;
-         mem_direct_write(LCD_LINE_Y_ADDR, 0);
+         // This will check LY == LYC, make sure that writing
+         // to LY is supposed to fire LY == LYC interrupt
+         set_ly(0); 
          break;
       case LCD_LINE_Y_C_ADDR:
          mem_direct_write(LCD_LINE_Y_C_ADDR, val);
@@ -62,48 +84,49 @@ void ppu_update_register(word addr, byte val) {
          if (val & 0x80) {
             if (lcd_disable) {
                mode = PPU_MODE_SCAN_OAM;
+               timer = 0; // Confirm that timer should reset here
             }
             lcd_disable = false;
+            update_stat_mode();
          } else {
             if (!lcd_disable) {
                ppu_draw = true;
             }
             lcd_disable = true;
             mode &= 2; // Bit 2 is preserved when disabling LCD
-            update_stat(0);
+            update_stat_mode();
+            set_ly(0);
          }
          break;
       case LCD_STATUS_ADDR:
-         val &= 0x78;
-         // Writing to stat during vblank is supposed to raise an interrupt,
-         // but this is causing the mooneye stat test to fail?
+         // Clear the mode bits and the unused 7th bit
+         val &= ~0x87; 
+
+         // Write to the interrupt enable flags, but not to mode or lyc
          mem_direct_write(LCD_STATUS_ADDR,
                mem_direct_read(LCD_STATUS_ADDR) & 0x7 | val);
+         
+         // Writing to stat during vblank is supposed to raise an interrupt
          if (mode == PPU_MODE_VBLANK) {
-            mem_direct_write(INT_FLAG_ADDR,
-                  mem_direct_read(INT_FLAG_ADDR) | 0x02);
+            fire_stat();
          }
          break;
       default: mem_direct_write(addr, val);
    }
 }
 
-void update_stat(int ly) {
-   mem_direct_write(LCD_LINE_Y_ADDR, ly);
-   debugger_notify_mem_write(LCD_LINE_Y_ADDR, ly);
-
+/*void update_stat() {
    // Bits 0-2 indicate the gpu mode.
    // Higher bits are interrupt enable flags.
    byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
    byte new_mode = mode & 0x03;
    byte old_mode = stat_reg & 0x03;
    mem_direct_write(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_mode & 0x07));
-   check_lyc();
 
-   if (mode != old_mode) {
+   if (new_mode != old_mode) {
       // The STAT interrupt has 4 different modes, based on bits 3-6
       bool raise_interrupt = false;
-      switch (mode) {
+      switch (new_mode) {
          case PPU_MODE_HBLANK:
             // Check if HBLANK STAT interrupt is enabled
             if (stat_reg & 0x08) {
@@ -118,7 +141,7 @@ void update_stat(int ly) {
          case PPU_MODE_VBLANK: 
             if (stat_reg & 0x10) {
                raise_interrupt = true;
-            } else if(ly == 144 && (stat_reg & 0x20)) {
+            } else if(ppu_ly == 144 && (stat_reg & 0x20)) {
                // OAM interrupt still fires on ly == 144,
                // but only if VBLANK interrupt did not
                raise_interrupt = true;
@@ -146,7 +169,7 @@ void update_stat(int ly) {
          mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
       }
    }
-}
+}*/
 
 // Based on Mooneye's implementation
 void update_scroll_mod() {
@@ -164,9 +187,12 @@ void update_scroll_mod() {
 
 void ppu_advance_time(tick ticks) {
    if (lcd_disable) {
-      update_stat(0);
+      check_lyc();
       return;
    }
+   int vram_length = 172 + scroll_tick_mod;
+   tick old_timer  = timer;
+   byte stat_reg   = mem_direct_read(LCD_STATUS_ADDR);
 
    timer += ticks;
 
@@ -175,52 +201,87 @@ void ppu_advance_time(tick ticks) {
          if (timer >= 84) {
             mode = PPU_MODE_SCAN_VRAM;
             timer -= 84;
-            update_stat(ppu_ly);
             update_scroll_mod();
+            update_stat_mode();
          }
          break;
+
       case PPU_MODE_SCAN_VRAM:
-         if (timer >= 172 + scroll_tick_mod) {
+         // According to Mooneye tests, HBLANK STAT interrupt is 4 cycles early
+         if (old_timer < vram_length - 4 && timer >= vram_length - 4) {
+            // Check if HBLANK STAT interrupt is enabled
+            if (stat_reg & 0x08) {
+               // LY == LYC interrupt masks HBLANK interrupt
+               if ((stat_reg & 0x44) != 0x44) {
+                  fire_stat();
+               }
+            }
+         }
+         if (timer >= vram_length) {
             mode = PPU_MODE_HBLANK;
-            timer -= 172 + scroll_tick_mod;
-            ppu_do_scanline(); // TODO: Is this the right timing?
-            ppu_ly++; // Moving this here from the end of hblank
-                      // fixed prehistorik man sprites but breaks
-                      // mooneye STAT test.
-            update_stat(ppu_ly);
+            timer -= vram_length;
+            ppu_do_scanline();
+            update_stat_mode();
          }
          break;
+
       case PPU_MODE_HBLANK:
          if (timer >= 200 - scroll_tick_mod) {
             timer -= 200 - scroll_tick_mod;
-            if (ppu_ly > 143) {
+            ppu_ly++;
+            set_ly(ppu_ly);
+            if (ppu_ly == 144) {
                mode     = PPU_MODE_VBLANK;
                ppu_draw = true;
                mem_wb(INT_FLAG_ADDR,
                      mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
+               update_stat_mode();
+               // Fire VBLANK STAT interrupt if enabled
+               if (stat_reg & 0x10) {
+                  fire_stat();
+               } else if (stat_reg & 0x20) {
+                  // OAM interrupt still fires on ly == 144,
+                  // but only if STAT VBLANK interrupt did not
+                  // TODO: Should normal VBLANK mask this as well?
+                  fire_stat();
+               }
             } else {
                mode = PPU_MODE_SCAN_OAM;
+               update_stat_mode();
+               // Check if OAM STAT interrupt is enabled
+               if (stat_reg & 0x20) {
+                  // HBLANK STAT interrupt masks OAM interrupt
+                  if (!(stat_reg & 0x08)) {
+                     // So does LYC == LY interrupt
+                     if((stat_reg & 0x44) != 0x44) {
+                        fire_stat();
+                     }
+                  }
+               }
             }
-            update_stat(ppu_ly);
          }
          break;
       case PPU_MODE_VBLANK:
          if (timer >= 456) {
             timer -= 456;
             ppu_ly++;
-            // LYC == LY will be true at scanline 153.
-            // Hang out here for one more scanline and
-            // then go back to SCAN_OAM
-            if (ppu_ly == 1) {
-               ppu_ly     = 0;
+            if (ppu_ly > 153) {
+               ppu_ly = 0;
                ppu_win_ly = 0;
-               mode       = PPU_MODE_SCAN_OAM;
+               mode = PPU_MODE_SCAN_OAM;
+               update_stat_mode();
+               // Check if OAM STAT interrupt is enabled
+               if (stat_reg & 0x20) {
+                  // HBLANK STAT interrupt masks OAM interrupt
+                  if (!(stat_reg & 0x08)) {
+                     // So does LYC == LY interrupt
+                     if((stat_reg & 0x44) != 0x44) {
+                        fire_stat();
+                     }
+                  }
+               }
             }
-            update_stat(ppu_ly);
-         } else if (timer > 8 && ppu_ly == 153) {
-            ppu_ly     = 0;
-            ppu_win_ly = 0;
-            update_stat(ppu_ly);
+            set_ly(ppu_ly);
          }
          break;
    }
