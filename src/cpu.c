@@ -169,9 +169,7 @@ void cpu_execute_step() {
             PUSHW(cpu_PC);
             TIME(2);
             cpu_PC = target;
-            TIME(1); // This additional step makes intr_timing test pass
-                     // but causes stat timing tests to fail. Where is
-                     // the extra step coming from?
+            TIME(1);
          }
       } else {
          cpu_ime_delay = false;

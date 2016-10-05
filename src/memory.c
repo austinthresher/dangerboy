@@ -298,7 +298,7 @@ void mem_wb(word addr, byte val) {
          case OAM_DMA_ADDR: mem_dma(val); break;
          case INPUT_REGISTER_ADDR: mem_input_last_write = val & 0x30; break;
          default:
-            if (addr >= 0xE000 && addr <= 0xFE00) {
+            if (addr >= 0xE000 && addr < 0xFE00) {
                addr -= 0x2000; // Mirrored memory
             }
             mem_ram[addr] = val;
@@ -376,7 +376,7 @@ byte mem_rb(word addr) {
       }
    }
 
-   if ((addr > 0x8000 && addr < 0xA000) || (addr > 0xFE00 && addr < 0xFE9F)) {
+   if ((addr > 0x8000 && addr < 0xA000) || (addr >= 0xFE00 && addr < 0xFE9F)) {
       // This memory is only accessible during hblank or vblank
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
       if (mode == 0 || mode == 1) { // HBlank or VBlank

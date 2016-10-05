@@ -6,6 +6,7 @@ byte win_y;
 tick timer;
 int scroll_tick_mod;
 
+void update_stat_mode(byte new_mode);
 void update_scroll_mod();
 void set_ly(int ly);
 void check_lyc();
@@ -15,7 +16,7 @@ void fire_stat() {
 }
 
 void ppu_init() {
-   mode        = PPU_MODE_SCAN_OAM;
+   update_stat_mode(PPU_MODE_SCAN_OAM);
    timer       = 0;
    ppu_ly      = 0;
    lcd_disable = false;
@@ -44,7 +45,15 @@ void check_lyc() {
       stat |= 0x04; // LYC bit
       if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
          if (stat & 0x40) {
-            fire_stat();
+            // If we're in VBLANK, this can be blocked
+            // by the VBLANK stat bit.
+            // If we're in HBLANK, this can be
+            // blocked by the OAM stat bit.
+            // Info found in Gambatte.
+            if ((mode == PPU_MODE_VBLANK && !(stat & 0x10))
+             || (mode == PPU_MODE_HBLANK && !(stat & 0x20))) {
+               fire_stat();
+            }
          }
       }
    } else {
@@ -59,11 +68,12 @@ void set_ly(int ly) {
    check_lyc();
 }
 
-void update_stat_mode() {
+void update_stat_mode(byte new_mode) {
    // This replaces the bottom 2 bits in the STAT register
    // with the current value of mode
    mem_direct_write(LCD_STATUS_ADDR,
-      (mem_direct_read(LCD_STATUS_ADDR) & ~3) | (mode & 3));
+      (mem_direct_read(LCD_STATUS_ADDR) & ~3) | (new_mode & 3));
+   mode = new_mode;
 }
 
 void ppu_update_register(word addr, byte val) {
@@ -83,18 +93,17 @@ void ppu_update_register(word addr, byte val) {
          mem_direct_write(LCD_CONTROL_ADDR, val);
          if (val & 0x80) {
             if (lcd_disable) {
-               mode = PPU_MODE_SCAN_OAM;
+               update_stat_mode(PPU_MODE_SCAN_OAM);
                timer = 0; // Confirm that timer should reset here
             }
             lcd_disable = false;
-            update_stat_mode();
          } else {
             if (!lcd_disable) {
                ppu_draw = true;
             }
             lcd_disable = true;
-            mode &= 2; // Bit 2 is preserved when disabling LCD
-            update_stat_mode();
+            // Bit 2 is preserved when disabling LCD
+            update_stat_mode(mode & 2);
             set_ly(0);
          }
          break;
@@ -142,10 +151,9 @@ void ppu_advance_time(tick ticks) {
    switch (mode) {
       case PPU_MODE_SCAN_OAM:
          if (timer >= 84) {
-            mode = PPU_MODE_SCAN_VRAM;
             timer -= 84;
             update_scroll_mod();
-            update_stat_mode();
+            update_stat_mode(PPU_MODE_SCAN_VRAM);
          }
          break;
 
@@ -161,10 +169,9 @@ void ppu_advance_time(tick ticks) {
             }
          }
          if (timer >= vram_length) {
-            mode = PPU_MODE_HBLANK;
             timer -= vram_length;
             ppu_do_scanline();
-            update_stat_mode();
+            update_stat_mode(PPU_MODE_HBLANK);
          }
          break;
 
@@ -174,11 +181,10 @@ void ppu_advance_time(tick ticks) {
             ppu_ly++;
             set_ly(ppu_ly);
             if (ppu_ly == 144) {
-               mode     = PPU_MODE_VBLANK;
                ppu_draw = true;
                mem_wb(INT_FLAG_ADDR,
                      mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
-               update_stat_mode();
+               update_stat_mode(PPU_MODE_VBLANK);
                // Fire VBLANK STAT interrupt if enabled
                if (stat_reg & 0x10) {
                   fire_stat();
@@ -189,8 +195,7 @@ void ppu_advance_time(tick ticks) {
                   fire_stat();
                }
             } else {
-               mode = PPU_MODE_SCAN_OAM;
-               update_stat_mode();
+               update_stat_mode(PPU_MODE_SCAN_OAM);
                // Check if OAM STAT interrupt is enabled
                if (stat_reg & 0x20) {
                   // HBLANK STAT interrupt masks OAM interrupt
@@ -211,8 +216,7 @@ void ppu_advance_time(tick ticks) {
             if (ppu_ly > 153) {
                ppu_ly = 0;
                ppu_win_ly = 0;
-               mode = PPU_MODE_SCAN_OAM;
-               update_stat_mode();
+               update_stat_mode(PPU_MODE_SCAN_OAM);
                // Check if OAM STAT interrupt is enabled
                if (stat_reg & 0x20) {
                   // HBLANK STAT interrupt masks OAM interrupt
