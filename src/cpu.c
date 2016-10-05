@@ -2,6 +2,7 @@
 #include "opcodes.h"
 #include "ppu.h"
 #include "debugger.h"
+#include "memory.h"
 
 tick last_tima_overflow;
 
@@ -75,6 +76,7 @@ void cpu_reset() {
 
 void cpu_advance_time(tick dt) {
    ppu_advance_time(dt);
+   mem_advance_time(dt);
    cpu_ticks += dt;
    cpu_div += dt;
 
@@ -165,7 +167,7 @@ void cpu_execute_step() {
          if (target != 0x00) {
             interrupted = true;
             cpu_ime     = false;
-            TIME(2);
+            //TIME(2);
             PUSHW(cpu_PC);
             TIME(2);
             cpu_PC = target;

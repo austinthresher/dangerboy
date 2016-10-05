@@ -7,10 +7,15 @@
 #include "memory.h"
 #include "ppu.h"
 
+word dma_src, dma_dst;
 void mem_dma(byte val);
+bool debug_access;
 
 void mem_init(void) {
    mem_free();
+   debug_access         = false;
+   dma_dst              = 0;
+   dma_src              = 0;
    mem_mbc_type         = NONE;
    mem_ram_bank_count   = 0;
    mem_rom_bank_count   = 2;
@@ -165,10 +170,32 @@ void mem_print_rom_info() {
 }
 
 void mem_dma(byte val) {
-   word dma = val << 8;
-   word ad  = SPRITE_RAM_START_ADDR;
-   while (ad <= SPRITE_RAM_END_ADDR) {
-      mem_ram[ad++] = mem_rb(dma++);
+   debugger_log("OAM DMA Transfer");
+   if (dma_src == 0) {
+      dma_src = val << 8;
+      dma_dst = 0;
+   }
+}
+
+void mem_advance_time(tick ticks) {
+   if (dma_src != 0) {
+      while (ticks > 0) {
+         ticks -= 4;
+         if (dma_dst == 0) {
+            debugger_log("OAM DMA Start");
+            dma_dst = SPRITE_RAM_START_ADDR;
+            continue;
+         }
+         mem_wb(dma_dst, mem_rb(dma_src));
+
+         dma_src++;
+         dma_dst++;
+         if (dma_dst > SPRITE_RAM_END_ADDR) {
+            dma_dst = 0;
+            dma_src = 0;
+            debugger_log("OAM DMA Finish");
+         }
+      }
    }
 }
 
@@ -177,10 +204,22 @@ void mem_direct_write(word addr, byte val) { mem_ram[addr] = val; }
 
 byte mem_direct_read(word addr) { return mem_ram[addr]; }
 
+void mem_enable_debug_access(bool enabled) {
+   debug_access = enabled;
+}
+
 // Write byte
 void mem_wb(word addr, byte val) {
 
    debugger_notify_mem_write(addr, val);
+
+   // If OAM DMA transfer is active, the only accessible
+   // memory is > 0xFF80
+   if (dma_dst != 0 && addr != dma_dst) {
+      if (addr < 0xFF80 || addr == 0xFFFF) {
+         return;
+      }
+   }
 
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
@@ -328,8 +367,17 @@ byte mem_get_current_rom_bank() {
 
 // Read byte
 byte mem_rb(word addr) {
-
    debugger_notify_mem_read(addr);
+
+   // If OAM DMA transfer is active, only hi ram is available
+   // This is sort of a hack in that it allows reading only
+   // from the specific byte dma is reading- hopefully this
+   // doesn't break anything
+   if (!debug_access && dma_src != 0 && addr != dma_src) {
+      if (addr < 0xFF80 || addr == 0xFFFF) {
+         return 0xFF;
+      }
+   }
 
    // 0x0000 to 0x3FFF always contains the first 16 kb of ROM
    if (addr < 0x4000) {
@@ -344,12 +392,7 @@ byte mem_rb(word addr) {
    if (mem_mbc_type != NONE && addr >= 0x4000 && addr < 0x8000) {
       addr -= 0x4000;
       addr &= 0x3FFF;
-      byte bank = mem_get_current_rom_bank();
-      if (bank > mem_rom_bank_count) {
-         fprintf(stderr, "Tried to access rom bank %d out of %d\n",
-               bank, mem_rom_bank_count);
-         exit(1);
-      }
+      byte bank = mem_get_current_rom_bank() % mem_rom_bank_count;
       return mem_rom[bank * 0x4000 + addr];
    }
 

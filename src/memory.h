@@ -52,11 +52,13 @@ char mem_rom_name[16];
 
 void mem_init();
 void mem_free();
+void mem_advance_time(tick ticks);
 void mem_load_image(char* fname);
 void mem_print_rom_info();
 void mem_wb(word addr, byte val);
 void mem_ww(word addr, word val);
 void mem_direct_write(word addr, byte val);
+void mem_enable_debug_access(bool enabled);
 byte mem_rb(word addr);
 byte mem_get_current_rom_bank();
 byte mem_direct_read(word addr);

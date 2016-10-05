@@ -237,10 +237,8 @@ void ppu_advance_time(tick ticks) {
 
 void ppu_do_scanline() {
    bool bg_is_zero[160];
-
    bool window   = false;
    int vram_addr = ppu_ly * 160 * 3;
-
    byte win_x = mem_direct_read(WIN_X_ADDR);
    if (ppu_ly == 0) {
       win_y = mem_direct_read(WIN_Y_ADDR);
@@ -256,36 +254,35 @@ void ppu_do_scanline() {
    word bg_map_off   = (((ppu_ly + scroll_y) & 0xFF) >> 3) * 32;
    word win_map_off  = ((ppu_win_ly & 0xFF) >> 3) * 32;
    byte bg_x_off     = (scroll_x >> 3) & 0x1F;
-   byte win_x_off    = 0;
-   byte win_x_px     = 0;
+   byte win_x_off    = 0; // What is this supposed to be set to?
    byte bg_tile      = mem_direct_read(bg_map_loc + bg_map_off + bg_x_off);
    byte win_tile     = mem_direct_read(win_map_loc + win_map_off + win_x_off);
-
-   byte bg_xpx_off  = scroll_x & 0x07;
-   byte bg_ypx_off  = (scroll_y + ppu_ly) & 0x07;
-   byte win_xpx_off = 0;
-   byte win_ypx_off = ppu_win_ly & 0x07;
-   byte start_x_off = bg_xpx_off;
-   byte outcol      = 0;
+   byte bg_xpx_off   = scroll_x & 0x07;
+   byte bg_ypx_off   = (scroll_y + ppu_ly) & 0x07;
+   byte win_ypx_off  = ppu_win_ly & 0x07;
+   byte start_x_off  = bg_xpx_off;
+   byte win_xpx_off  = 0;
+   byte win_x_px     = 0;
+   byte outcol       = 0;
 
    for (int i = 0; i < 160; i++) {
       if ((mem_direct_read(LCD_CONTROL_ADDR) & 0x20)
-            && ppu_ly >= win_y
-            && i >= win_x - 7
-            && win_x < 166) {
+       && ppu_ly >= win_y
+       && i >= win_x - 7
+       && win_x < 166) {
          window = true;
       }
 
       byte tile_index = window ? win_tile : bg_tile;
-      int tile_addr;
+      int tile_addr = 0x8000;
       if (tile_index < 128) {
          if (tile_bank) {
-            tile_addr = 0x8000 + tile_index * 16;
+            tile_addr += tile_index * 16;
          } else {
-            tile_addr = 0x9000 + tile_index * 16;
+            tile_addr += 0x1000 + tile_index * 16;
          }
       } else {
-         tile_addr = 0x8800 + (tile_index - 128) * 16;
+         tile_addr += 0x800 + (tile_index - 128) * 16;
       }
 
       if (!window) {

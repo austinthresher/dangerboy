@@ -118,6 +118,7 @@ void print_reg_diff() {
 }
 
 void print_memory_map(int x, word addr) {
+   mem_enable_debug_access(true);
    // 2 lines for status bar, 1 for prompt
    int width = COLS - x;
    int height = console_height - 1;
@@ -190,6 +191,7 @@ void print_memory_map(int x, word addr) {
    COLOR(memory_map, COL_NORMAL);
    box(memory_map, 0, 0);
    wrefresh(memory_map);
+   mem_enable_debug_access(false);
 }
 
 void debugger_log(const char* str) {
