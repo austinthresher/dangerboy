@@ -89,10 +89,10 @@ void cpu_advance_time(tick dt) {
    byte tac_speed = mem_direct_read(TIMER_CONTROL_ADDR) & 3;
    word timer_bit = 1;
    switch (tac_speed) {
-      case 0: timer_bit << 9; break;
-      case 1: timer_bit << 3; break;
-      case 2: timer_bit << 5; break;
-      case 3: timer_bit << 7; break;
+      case 0: timer_bit <<= 9; break;
+      case 1: timer_bit <<= 3; break;
+      case 2: timer_bit <<= 5; break;
+      case 3: timer_bit <<= 7; break;
    }
    for (int i = 0; i < dt; ++i) {
       internal_timer++;
