@@ -1315,8 +1315,9 @@ void cpu_add16_hl_sp() {
 }
 
 void cpu_add16_sp_n() {
-   TIME(4);
+   TIME(1);
    byte val  = mem_rb(cpu_PC++);
+   TIME(3);
    sbyte off = (sbyte)val;
    CLEAR_FLAGS();
    FLAG_H = ((cpu_SP & 0xF) + (val & 0xF) > 0xF);
