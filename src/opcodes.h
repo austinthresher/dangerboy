@@ -33,10 +33,10 @@
    TIME(1); 
 
 #define POP(hi, lo) \
+   TIME(1); \
    lo = mem_rb(cpu_SP++); \
    TIME(1); \
-   hi = mem_rb(cpu_SP++); \
-   TIME(1); 
+   hi = mem_rb(cpu_SP++);
 
 #define PUSHW(val) \
    TIME(1); \

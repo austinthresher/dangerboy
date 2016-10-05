@@ -336,7 +336,10 @@ void ppu_do_scanline() {
          }
       } else {
          bg_is_zero[i] = true;
-      }
+         ppu_vram[vram_addr++] = LCD_WHITE;
+         ppu_vram[vram_addr++] = LCD_WHITE;
+         ppu_vram[vram_addr++] = LCD_WHITE;
+       }
    }
 
    if (window) {
@@ -408,7 +411,7 @@ void ppu_do_scanline() {
                if (output_addr + 2 < 160 * 144 * 3) {
                   ppu_vram[output_addr++] = outcol;
                   ppu_vram[output_addr++] = outcol;
-                  ppu_vram[output_addr++] = 0;//outcol;
+                  ppu_vram[output_addr++] = outcol;
                }
             }
          }
