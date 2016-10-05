@@ -194,6 +194,7 @@ void mem_advance_time(tick ticks) {
             dma_dst = 0;
             dma_src = 0;
             debugger_log("OAM DMA Finish");
+            break;
          }
       }
    }

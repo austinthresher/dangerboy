@@ -786,8 +786,9 @@ void cpu_ldsp_hl() {
 }
 
 void cpu_ldhl_sp_n() {
-   TIME(3);
+   TIME(1);
    byte next = mem_rb(cpu_PC++);
+   TIME(2);
    sbyte off = (sbyte)next;
    int res   = off + cpu_SP;
    CLEAR_FLAGS();

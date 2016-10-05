@@ -181,7 +181,16 @@ void cpu_execute_step() {
    if (!interrupted) {
       if (!cpu_halted && !cpu_stopped) {
          cpu_last_pc = cpu_PC;
+         // TODO: I think a TIME(1); needs to go here and
+         // be removed from the beginning of other ops.
+         // OAM DMA is blocking the PC from being read
+         // before it finishes, which causes RST38 loop
+         // when trying to read the next instruction
+         // exactly at the end of the transfer.
+         // This is a temporary hack around that.
+         mem_enable_debug_access(true);
          cpu_last_op = mem_rb(cpu_PC++);
+         mem_enable_debug_access(false);
          (*cpu_opcodes[cpu_last_op])();
          if (freeze_pc) {
             cpu_PC = cpu_last_pc;
