@@ -1283,7 +1283,7 @@ void cpu_ret_c() {
 
 void cpu_reti() {
    cpu_ime       = true;
-   cpu_ime_delay = true;
+   cpu_ime_delay = false;
    ret();
 }
 
