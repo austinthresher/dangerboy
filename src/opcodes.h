@@ -157,11 +157,14 @@ void dec16(byte* hi, byte* low) {
 }
 
 void call() {
-   word retaddr = cpu_PC + 2;
+   byte hi, lo;
    TIME(1);
-   cpu_PC = mem_rw(cpu_PC);
-   TIME(2);
-   PUSHW(retaddr);
+   lo = mem_rb(cpu_PC);
+   TIME(1);
+   hi = mem_rb(cpu_PC+1);
+   TIME(1);
+   PUSHW(cpu_PC + 2);
+   cpu_PC = (hi << 8) | lo;
 }
 
 void ret() {
@@ -1122,7 +1125,6 @@ void cpu_jr_c_n() {
 }
 
 void cpu_call_nn() {
-   TIME(1);
    call();
 }
 

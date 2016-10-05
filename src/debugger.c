@@ -28,7 +28,7 @@ int console_height;
 bool show_pc;
 bool break_on_op[256];
 struct BreakpointEntry breakpoints[0x10000];
-WINDOW *memory_map, *console_pane, *status_bar;
+WINDOW *memory_map = NULL, *console_pane = NULL, *status_bar = NULL;
 
 bool handle_input(const char* string);
 bool sc(const char* strA, const char* strB) { return strcmp(strA, strB) == 0; }
@@ -193,7 +193,7 @@ void print_memory_map(int x, word addr) {
 }
 
 void debugger_log(const char* str) {
-   if (console_pane != NULL) {
+   if (curses_on && console_pane != NULL) {
       wprintw(console_pane, "%s\n", str);
    }
 }

@@ -180,7 +180,7 @@ void ppu_advance_time(tick ticks) {
             timer -= 200 - scroll_tick_mod;
             ppu_ly++;
             set_ly(ppu_ly);
-            if (ppu_ly == 144) {
+            if (ppu_ly >= 144) {
                ppu_draw = true;
                mem_wb(INT_FLAG_ADDR,
                      mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
@@ -236,6 +236,9 @@ void ppu_advance_time(tick ticks) {
 
 
 void ppu_do_scanline() {
+   if (ppu_ly > 143) {
+      return;
+   }
    bool bg_is_zero[160];
    bool window   = false;
    int vram_addr = ppu_ly * 160 * 3;
