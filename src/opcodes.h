@@ -1168,64 +1168,72 @@ void cpu_call_c_nn() {
 // Restarts
 
 void cpu_rst_00h() {
-   TIME(2);
+   TIME(1);
    PUSHW(cpu_PC);
+   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x00;
 }
 
 void cpu_rst_08h() {
-   TIME(2);
+   TIME(1);
    PUSHW(cpu_PC);
+   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x08;
 }
 
 void cpu_rst_10h() {
-   TIME(2);
+   TIME(1);
    PUSHW(cpu_PC);
+   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x10;
 }
 
 void cpu_rst_18h() {
-   TIME(2);
+   TIME(1);
    PUSHW(cpu_PC);
+   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x18;
 }
 
 void cpu_rst_20h() {
-   TIME(2);
+   TIME(1);
    PUSHW(cpu_PC);
+   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x20;
 }
 
 void cpu_rst_28h() {
-   TIME(2);
+   TIME(1);
    PUSHW(cpu_PC);
+   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x28;
 }
 
 void cpu_rst_30h() {
-   TIME(2);
+   TIME(1);
    PUSHW(cpu_PC);
+   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x30;
 }
 
 void cpu_rst_38h() {
-   TIME(2);
+   TIME(1);
    PUSHW(cpu_PC);
+   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x38;
