@@ -131,6 +131,8 @@ void cpu_execute_step() {
       cpu_halted = false;
       if (cpu_ime == false) {
          freeze_pc = true;
+      } else {
+         cpu_ime_delay = false;
       }
    }
 

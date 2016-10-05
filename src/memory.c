@@ -326,6 +326,9 @@ void mem_wb(word addr, byte val) {
       // Hardware registers
       switch (addr) {
          case DIV_REGISTER_ADDR:
+            // TIMA and DIV use the same internal counter,
+            // so resetting DIV also resets TIMA
+            cpu_tima = 0;
             cpu_div = 0;
             mem_ram[DIV_REGISTER_ADDR] = 0;
             break;
