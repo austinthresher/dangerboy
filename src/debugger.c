@@ -219,7 +219,7 @@ void print_status_bar() {
          "[TICK:%d]",
          mem_rb(TIMA_ADDR),
          mem_rb(TMA_ADDR),
-         mem_rb(TIMER_CONTROL_ADDR) & 0x3,
+         mem_rb(TIMER_CONTROL_ADDR) & 4,
          mem_rb(DIV_REGISTER_ADDR),
          mem_rb(INT_ENABLED_ADDR),
          mem_rb(INT_FLAG_ADDR),

@@ -5,14 +5,16 @@
 #include "memory.h"
 
 tick last_tima_overflow;
+word internal_timer;
+word previous_timer;
 
 void build_op_table();
 
 void cpu_init() {
    build_op_table();
-   cpu_tima = 0;
-   cpu_div  = 0;
    last_tima_overflow = -1;
+   internal_timer = 0;
+   previous_timer = 0;
    cpu_reset();
 }
 
@@ -20,21 +22,23 @@ void cpu_reset() {
    
    // These startup values are based on
    // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
-   cpu_PC        = 0x0100;
-   cpu_A         = 0x01;
-   cpu_B         = 0x00;
-   cpu_C         = 0x13;
-   cpu_D         = 0x00;
-   cpu_E         = 0xD8;
-   cpu_SP        = 0xFFFE;
-   cpu_H         = 0x01;
-   cpu_L         = 0x4D;
-   cpu_ime       = false;
-   cpu_ime_delay = false;
-   cpu_ticks     = 0;
-   cpu_halted    = false;
-   cpu_stopped   = false;
- 
+   cpu_PC         = 0x0100;
+   cpu_A          = 0x01;
+   cpu_B          = 0x00;
+   cpu_C          = 0x13;
+   cpu_D          = 0x00;
+   cpu_E          = 0xD8;
+   cpu_SP         = 0xFFFE;
+   cpu_H          = 0x01;
+   cpu_L          = 0x4D;
+   cpu_ime        = false;
+   cpu_ime_delay  = false;
+   cpu_ticks      = 0;
+   cpu_halted     = false;
+   cpu_stopped    = false;
+   internal_timer = 0; 
+   previous_timer = 0;
+
    FLAG_C = true;
    FLAG_H = true;
    FLAG_Z = true;
@@ -74,48 +78,54 @@ void cpu_reset() {
    mem_wb(0xFFFF, 0x00); // IE
 }
 
+void cpu_reset_timer() {
+   internal_timer = 0;
+}
+
 void cpu_advance_time(tick dt) {
    ppu_advance_time(dt);
    mem_advance_time(dt);
-   cpu_ticks += dt;
-   cpu_div += dt;
-
-   if (cpu_div >= 0xFF) {
-      cpu_div -= 0xFF;
-      mem_direct_write(
-            DIV_REGISTER_ADDR, mem_direct_read(DIV_REGISTER_ADDR) + 1);
+   
+   
+   bool timer_on  = mem_direct_read(TIMER_CONTROL_ADDR) & 4;
+   byte tac_speed = mem_direct_read(TIMER_CONTROL_ADDR) & 3;
+   word timer_bit = 1;
+   switch (tac_speed) {
+      case 0: timer_bit << 9; break;
+      case 1: timer_bit << 3; break;
+      case 2: timer_bit << 5; break;
+      case 3: timer_bit << 7; break;
    }
 
-   if (last_tima_overflow != -1 && cpu_ticks > last_tima_overflow + 4) {
-      mem_direct_write(
-            INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
-      mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
-      last_tima_overflow = -1;
-   }
-
-   // Bit 3 enables or disables timers
-   if (mem_direct_read(TIMER_CONTROL_ADDR) & 0x04) {
-      cpu_tima += dt;
-      int max = 0;
-      // Bits 1-2 control the timer speed
-      switch (mem_direct_read(TIMER_CONTROL_ADDR) & 0x3) {
-         case 0: max = 1024; break;
-         case 1: max = 16; break;
-         case 2: max = 64; break;
-         case 3: max = 256; break;
-         default: break;
+   for (int i = 0; i < dt; ++i) {
+      internal_timer++;
+      cpu_ticks++;
+      if (last_tima_overflow != -1 && cpu_ticks >= last_tima_overflow + 4) {
+         mem_direct_write(
+               INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
+         mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
+         debugger_log("TMA Write");
+         last_tima_overflow = -1;
       }
-      while (cpu_tima >= max) {
-         cpu_tima -= max;
-         mem_direct_write(TIMA_ADDR, (mem_direct_read(TIMA_ADDR) + 1) & 0xFF);
-         if (mem_direct_read(TIMA_ADDR) == 0) {
-            // TIMA interrupt happens 4 cycles after
-            // the overflow. It holds 0 until then.
-            mem_direct_write(TIMA_ADDR, 0);
-            last_tima_overflow = cpu_ticks;
+
+      // The internal timer is based on a falling edge detector.
+      // Which bit affects TIMA depends on the speed in TAC.
+      if (timer_on) {
+         if ((previous_timer & timer_bit) && !(internal_timer & timer_bit)) {
+            mem_direct_write(TIMA_ADDR, (mem_direct_read(TIMA_ADDR) + 1) & 0xFF);
+            if (mem_direct_read(TIMA_ADDR) == 0) {
+               // TIMA interrupt happens 4 cycles after
+               // the overflow. It holds 0 until then.
+               last_tima_overflow = cpu_ticks;
+               debugger_log("TIMA Overflow");
+            }
          }
+         previous_timer = internal_timer;
+      } else {
+         previous_timer = 0;
       }
    }
+   mem_direct_write(DIV_REGISTER_ADDR, internal_timer >> 8);
 }
 
 void cpu_execute_step() {

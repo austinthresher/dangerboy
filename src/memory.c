@@ -328,8 +328,7 @@ void mem_wb(word addr, byte val) {
          case DIV_REGISTER_ADDR:
             // TIMA and DIV use the same internal counter,
             // so resetting DIV also resets TIMA
-            cpu_tima = 0;
-            cpu_div = 0;
+            cpu_reset_timer();
             mem_ram[DIV_REGISTER_ADDR] = 0;
             break;
          case LCD_CONTROL_ADDR:
