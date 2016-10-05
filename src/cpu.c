@@ -6,15 +6,14 @@
 
 tick last_tima_overflow;
 word internal_timer;
-word previous_timer;
-
+bool prev_timer_bit;
 void build_op_table();
 
 void cpu_init() {
    build_op_table();
    last_tima_overflow = -1;
    internal_timer = 0;
-   previous_timer = 0;
+   prev_timer_bit = false;
    cpu_reset();
 }
 
@@ -37,7 +36,7 @@ void cpu_reset() {
    cpu_halted     = false;
    cpu_stopped    = false;
    internal_timer = 0; 
-   previous_timer = 0;
+   prev_timer_bit = false;
 
    FLAG_C = true;
    FLAG_H = true;
@@ -86,7 +85,6 @@ void cpu_advance_time(tick dt) {
    ppu_advance_time(dt);
    mem_advance_time(dt);
    
-   
    bool timer_on  = mem_direct_read(TIMER_CONTROL_ADDR) & 4;
    byte tac_speed = mem_direct_read(TIMER_CONTROL_ADDR) & 3;
    word timer_bit = 1;
@@ -96,7 +94,6 @@ void cpu_advance_time(tick dt) {
       case 2: timer_bit << 5; break;
       case 3: timer_bit << 7; break;
    }
-
    for (int i = 0; i < dt; ++i) {
       internal_timer++;
       cpu_ticks++;
@@ -104,26 +101,25 @@ void cpu_advance_time(tick dt) {
          mem_direct_write(
                INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
          mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
-         debugger_log("TMA Write");
          last_tima_overflow = -1;
       }
 
       // The internal timer is based on a falling edge detector.
       // Which bit affects TIMA depends on the speed in TAC.
-      if (timer_on) {
-         if ((previous_timer & timer_bit) && !(internal_timer & timer_bit)) {
-            mem_direct_write(TIMA_ADDR, (mem_direct_read(TIMA_ADDR) + 1) & 0xFF);
-            if (mem_direct_read(TIMA_ADDR) == 0) {
-               // TIMA interrupt happens 4 cycles after
-               // the overflow. It holds 0 until then.
-               last_tima_overflow = cpu_ticks;
-               debugger_log("TIMA Overflow");
-            }
-         }
-         previous_timer = internal_timer;
-      } else {
-         previous_timer = 0;
+      word test_val = internal_timer & timer_bit;
+      if (!timer_on) {
+         test_val = 0;
       }
+         
+      if (prev_timer_bit && !test_val) {
+         mem_direct_write(TIMA_ADDR, (mem_direct_read(TIMA_ADDR) + 1) & 0xFF);
+         if (mem_direct_read(TIMA_ADDR) == 0) {
+            // TIMA interrupt happens 4 cycles after
+            // the overflow. It holds 0 until then.
+            last_tima_overflow = cpu_ticks;
+         }
+      }
+      prev_timer_bit = test_val != 0;
    }
    mem_direct_write(DIV_REGISTER_ADDR, internal_timer >> 8);
 }
