@@ -46,8 +46,10 @@
 
 #define POPW(val) \
    TIME(1); \
-   val = mem_rb(cpu_SP++); \
+   val &= 0xFF00; \
+   val |= mem_rb(cpu_SP++); \
    TIME(1); \
+   val &= 0x00FF; \
    val |= mem_rb(cpu_SP++) << 8;
 
 #define JP() cpu_PC = mem_rw(cpu_PC);
@@ -168,9 +170,8 @@ void call() {
 }
 
 void ret() {
-   TIME(1);
    POPW(cpu_PC);
-   TIME(1);
+   TIME(2);
 }
 
 void cpu_nop() {
@@ -1126,12 +1127,13 @@ void cpu_jr_c_n() {
 
 void cpu_call_nn() {
    call();
+   TIME(1);
 }
 
 void cpu_call_nz_nn() {
    if (!FLAG_Z) {
-      TIME(1);
       call();
+      TIME(1);
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1140,8 +1142,8 @@ void cpu_call_nz_nn() {
 
 void cpu_call_z_nn() {
    if (FLAG_Z) {
-      TIME(1);
       call();
+      TIME(1);
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1150,8 +1152,8 @@ void cpu_call_z_nn() {
 
 void cpu_call_nc_nn() {
    if (!FLAG_C) {
-      TIME(1);
       call();
+      TIME(1);
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1160,8 +1162,8 @@ void cpu_call_nc_nn() {
 
 void cpu_call_c_nn() {
    if (FLAG_C) {
-      TIME(1);
       call();
+      TIME(1);
    } else {
       TIME(3);
       cpu_PC += 2;
