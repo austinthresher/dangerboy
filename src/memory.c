@@ -434,6 +434,10 @@ byte mem_rb(word addr) {
    }
    // Hardware registers
    switch (addr) {
+      case INT_ENABLED_ADDR:
+         return 0xE0 | (mem_ram[INT_ENABLED_ADDR] & 0x1F);
+      case INT_FLAG_ADDR:
+         return 0xE0 | (mem_ram[INT_FLAG_ADDR] & 0x1F);
       default: break;
    }
    return mem_ram[addr];
