@@ -27,10 +27,10 @@
    FLAG_Z                   = !cpu_A;
 
 #define PUSH(hi, lo) \
+   TIME(1);  \
    mem_wb(--cpu_SP, (hi)); \
    TIME(1); \
-   mem_wb(--cpu_SP, (lo)); \
-   TIME(1); 
+   mem_wb(--cpu_SP, (lo)); 
 
 #define POP(hi, lo) \
    TIME(1); \
@@ -160,7 +160,7 @@ void dec16(byte* hi, byte* low) {
 
 void call() {
    byte hi, lo;
-   TIME(1);
+   TIME(2);
    lo = mem_rb(cpu_PC);
    TIME(1);
    hi = mem_rb(cpu_PC+1);
@@ -790,9 +790,9 @@ void cpu_ldsp_hl() {
 }
 
 void cpu_ldhl_sp_n() {
-   TIME(1);
-   byte next = mem_rb(cpu_PC++);
    TIME(2);
+   byte next = mem_rb(cpu_PC++);
+   TIME(1);
    sbyte off = (sbyte)next;
    int res   = off + cpu_SP;
    CLEAR_FLAGS();
@@ -1127,13 +1127,11 @@ void cpu_jr_c_n() {
 
 void cpu_call_nn() {
    call();
-   TIME(1);
 }
 
 void cpu_call_nz_nn() {
    if (!FLAG_Z) {
       call();
-      TIME(1);
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1143,7 +1141,6 @@ void cpu_call_nz_nn() {
 void cpu_call_z_nn() {
    if (FLAG_Z) {
       call();
-      TIME(1);
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1153,7 +1150,6 @@ void cpu_call_z_nn() {
 void cpu_call_nc_nn() {
    if (!FLAG_C) {
       call();
-      TIME(1);
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1163,7 +1159,6 @@ void cpu_call_nc_nn() {
 void cpu_call_c_nn() {
    if (FLAG_C) {
       call();
-      TIME(1);
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1173,72 +1168,64 @@ void cpu_call_c_nn() {
 // Restarts
 
 void cpu_rst_00h() {
-   TIME(1);
+   TIME(2);
    PUSHW(cpu_PC);
-   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x00;
 }
 
 void cpu_rst_08h() {
-   TIME(1);
+   TIME(2);
    PUSHW(cpu_PC);
-   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x08;
 }
 
 void cpu_rst_10h() {
-   TIME(1);
+   TIME(2);
    PUSHW(cpu_PC);
-   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x10;
 }
 
 void cpu_rst_18h() {
-   TIME(1);
+   TIME(2);
    PUSHW(cpu_PC);
-   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x18;
 }
 
 void cpu_rst_20h() {
-   TIME(1);
+   TIME(2);
    PUSHW(cpu_PC);
-   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x20;
 }
 
 void cpu_rst_28h() {
-   TIME(1);
+   TIME(2);
    PUSHW(cpu_PC);
-   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x28;
 }
 
 void cpu_rst_30h() {
-   TIME(1);
+   TIME(2);
    PUSHW(cpu_PC);
-   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x30;
 }
 
 void cpu_rst_38h() {
-   TIME(1);
+   TIME(2);
    PUSHW(cpu_PC);
-   TIME(1);
    cpu_halted  = false;
    cpu_stopped = false;
    cpu_PC      = 0x38;
@@ -1315,9 +1302,9 @@ void cpu_add16_hl_sp() {
 }
 
 void cpu_add16_sp_n() {
-   TIME(1);
+   TIME(2);
    byte val  = mem_rb(cpu_PC++);
-   TIME(3);
+   TIME(2);
    sbyte off = (sbyte)val;
    CLEAR_FLAGS();
    FLAG_H = ((cpu_SP & 0xF) + (val & 0xF) > 0xF);

@@ -189,11 +189,7 @@ void cpu_execute_step() {
    if (!interrupted) {
       if (!cpu_halted && !cpu_stopped) {
          cpu_last_pc = cpu_PC;
-         // TODO: The PC needs a cleaner way to read
-         // opcodes even during OAM transfer. 
-         mem_enable_debug_access(true);
          cpu_last_op = mem_rb(cpu_PC++);
-         mem_enable_debug_access(false);
          (*cpu_opcodes[cpu_last_op])();
          if (freeze_pc) {
             cpu_PC = cpu_last_pc;

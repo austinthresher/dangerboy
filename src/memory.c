@@ -7,15 +7,16 @@
 #include "memory.h"
 #include "ppu.h"
 
-word dma_src, dma_dst;
+
+
+word dma_src, dma_dst, dma_rst;
 void mem_dma(byte val);
-bool debug_access;
 
 void mem_init(void) {
    mem_free();
-   debug_access         = false;
    dma_dst              = 0;
    dma_src              = 0;
+   dma_rst              = 0;
    mem_mbc_type         = NONE;
    mem_ram_bank_count   = 0;
    mem_rom_bank_count   = 2;
@@ -26,6 +27,7 @@ void mem_init(void) {
    mem_buttons          = 0x0F;
    mem_dpad             = 0x0F;
    mem_input_last_write = 0;
+   mem_oam_state            = INACTIVE;
    mem_ram      = (byte*)calloc(0x10000, 1);
    mem_ram_bank = (byte*)calloc(0x10000, 1);
 }
@@ -170,58 +172,78 @@ void mem_print_rom_info() {
 }
 
 void mem_dma(byte val) {
-   debugger_log("OAM DMA Transfer");
-   if (dma_src == 0) {
+   if (mem_oam_state == INACTIVE) {
+      debugger_log("OAM DMA Starting");
+      mem_oam_state = STARTING;
       dma_src = val << 8;
-      dma_dst = 0;
+      dma_dst = SPRITE_RAM_START_ADDR;;
+   } else {
+      debugger_log("OAM DMA Restarting");
+      mem_oam_state = RESTARTING;
+      dma_rst = val << 8;
    }
 }
 
 void mem_advance_time(tick ticks) {
-   if (dma_src != 0) {
+   if (mem_oam_state != INACTIVE) {
       while (ticks > 0) {
          ticks -= 4;
-         if (dma_dst == 0) {
-            debugger_log("OAM DMA Start");
-            dma_dst = SPRITE_RAM_START_ADDR;
+         if (mem_oam_state == STARTING) {
+            debugger_log("OAM DMA Started");
+            mem_oam_state = ACTIVE;
             continue;
          }
-         mem_wb(dma_dst, mem_rb(dma_src));
+
+         mem_direct_write(dma_dst, mem_rb(dma_src));
 
          dma_src++;
          dma_dst++;
-         if (dma_dst > SPRITE_RAM_END_ADDR) {
+
+         if (dma_dst >= SPRITE_RAM_END_ADDR+1
+          && mem_oam_state != RESTARTING) {
             dma_dst = 0;
             dma_src = 0;
             debugger_log("OAM DMA Finish");
+            mem_oam_state = INACTIVE;
             break;
+         }
+
+         if (mem_oam_state == RESTARTING) {
+            debugger_log("OAM DMA Restarted");
+            mem_oam_state = ACTIVE;
+            dma_src = dma_rst;
+            dma_dst = SPRITE_RAM_START_ADDR;
+            continue;
          }
       }
    }
 }
 
-// Use these to implement system read writes, like OAM transfer
 void mem_direct_write(word addr, byte val) { mem_ram[addr] = val; }
-
 byte mem_direct_read(word addr) { return mem_ram[addr]; }
-
-void mem_enable_debug_access(bool enabled) {
-   debug_access = enabled;
-}
 
 // Write byte
 void mem_wb(word addr, byte val) {
 
    debugger_notify_mem_write(addr, val);
-
-   // If OAM DMA transfer is active, the only accessible
-   // memory is > 0xFF80
-   if (dma_dst != 0 && addr != dma_dst) {
-      if (addr < 0xFF80 || addr == 0xFFFF) {
-         return;
-      }
+   switch (addr) {
+      case DIV_REGISTER_ADDR:
+         // TIMA and DIV use the same internal counter,
+         // so resetting DIV also resets TIMA
+         cpu_reset_timer();
+         mem_ram[DIV_REGISTER_ADDR] = 0;
+         break;
+      case LCD_CONTROL_ADDR:
+      case LCD_STATUS_ADDR:
+      case LCD_SCY_ADDR:
+      case LCD_SCX_ADDR:
+      case LCD_LINE_Y_ADDR:
+      case LCD_LINE_Y_C_ADDR: ppu_update_register(addr, val); break;
+      case OAM_DMA_ADDR: mem_dma(val); break;
+      case INPUT_REGISTER_ADDR: mem_input_last_write = val & 0x30; break;
+      default: break;
    }
-
+ 
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
          // Nothing under 0x8000 is writable without banking
@@ -315,7 +337,12 @@ void mem_wb(word addr, byte val) {
             }
          }
       }
-   } else if (addr >= SPRITE_RAM_START_ADDR && addr <= SPRITE_RAM_END_ADDR) {
+   } else if (addr >= SPRITE_RAM_START_ADDR
+           && addr <= SPRITE_RAM_END_ADDR) {
+            if (mem_oam_state != INACTIVE
+             && mem_oam_state != STARTING) {
+               return;
+            }
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
       // If we're in hblank / vblank or lcd is disabled
@@ -323,28 +350,10 @@ void mem_wb(word addr, byte val) {
          mem_ram[addr] = val;
       }
    } else {
-      // Hardware registers
-      switch (addr) {
-         case DIV_REGISTER_ADDR:
-            // TIMA and DIV use the same internal counter,
-            // so resetting DIV also resets TIMA
-            cpu_reset_timer();
-            mem_ram[DIV_REGISTER_ADDR] = 0;
-            break;
-         case LCD_CONTROL_ADDR:
-         case LCD_STATUS_ADDR:
-         case LCD_SCY_ADDR:
-         case LCD_SCX_ADDR:
-         case LCD_LINE_Y_ADDR:
-         case LCD_LINE_Y_C_ADDR: ppu_update_register(addr, val); break;
-         case OAM_DMA_ADDR: mem_dma(val); break;
-         case INPUT_REGISTER_ADDR: mem_input_last_write = val & 0x30; break;
-         default:
-            if (addr >= 0xE000 && addr < 0xFE00) {
-               addr -= 0x2000; // Mirrored memory
-            }
-            mem_ram[addr] = val;
+      if (addr >= 0xE000 && addr < 0xFE00) {
+         addr -= 0x2000; // Mirrored memory
       }
+      mem_ram[addr] = val;
    }
 }
 
@@ -371,16 +380,6 @@ byte mem_get_current_rom_bank() {
 // Read byte
 byte mem_rb(word addr) {
    debugger_notify_mem_read(addr);
-
-   // If OAM DMA transfer is active, only hi ram is available
-   // This is sort of a hack in that it allows reading only
-   // from the specific byte dma is reading- hopefully this
-   // doesn't break anything
-   if (!debug_access && dma_src != 0 && addr != dma_src) {
-      if (addr < 0xFF80 || addr == 0xFFFF) {
-         return 0xFF;
-      }
-   }
 
    // 0x0000 to 0x3FFF always contains the first 16 kb of ROM
    if (addr < 0x4000) {
@@ -422,7 +421,9 @@ byte mem_rb(word addr) {
       }
    }
 
-   if ((addr > 0x8000 && addr < 0xA000) || (addr >= 0xFE00 && addr < 0xFE9F)) {
+
+
+   if (addr > 0x8000 && addr < 0xA000) {
       // This memory is only accessible during hblank or vblank
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
       if (mode == 0 || mode == 1) { // HBlank or VBlank
@@ -431,11 +432,22 @@ byte mem_rb(word addr) {
       return 0xFF;
    }
 
-   if (addr >= 0xE000 && addr <= 0xFE00) {
+   if (addr >= 0xE000 && addr < 0xFE00) {
       addr -= 0x2000; // Mirrored memory
       return mem_ram[addr];
    }
-   // Hardware registers
+   if (addr >= SPRITE_RAM_START_ADDR
+    && addr <=  SPRITE_RAM_END_ADDR) {
+      byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
+      if (mode != 0 && mode != 1) { // HBlank or VBlank
+         return 0xFF;
+      }
+      if (mem_oam_state != INACTIVE
+        && mem_oam_state != STARTING) {
+         return 0xFF;
+      }
+   }
+    // Hardware registers
    switch (addr) {
       case INT_ENABLED_ADDR:
          return 0xE0 | (mem_ram[INT_ENABLED_ADDR] & 0x1F);

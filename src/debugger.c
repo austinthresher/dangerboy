@@ -255,7 +255,6 @@ void print_status_bar() {
 
 void debugger_cli() {
    char buff[256];
-   mem_enable_debug_access(true);
    if (!curses_on) {
       init_curses();
       curses_on = true;
@@ -289,8 +288,6 @@ void debugger_cli() {
    } while (!handle_input(cmd));
    
    store_regs();
-
-   mem_enable_debug_access(false);
 }
 
 void debugger_free() {
