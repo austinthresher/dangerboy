@@ -52,8 +52,6 @@
    val &= 0x00FF; \
    val |= mem_rb(cpu_SP++) << 8;
 
-#define JP() cpu_PC = mem_rw(cpu_PC);
-
 #define JR() cpu_PC += (sbyte)mem_rb(cpu_PC) + 1;
 
 #define ADD(val)                                    \
@@ -170,8 +168,19 @@ void call() {
 }
 
 void ret() {
+   TIME(1);
    POPW(cpu_PC);
+   TIME(1);
+}
+
+void jp() {
+   byte hi, lo;
    TIME(2);
+   lo = mem_rb(cpu_PC);
+   TIME(1);
+   hi = mem_rb(cpu_PC+1);
+   TIME(1);
+   cpu_PC = (hi << 8) | lo;
 }
 
 void cpu_nop() {
@@ -403,6 +412,7 @@ void set(byte* inp, byte bit) {
       *inp = t;
    }
 }
+
 // LOAD / STORES
 
 void cpu_lda_n() {
@@ -1031,14 +1041,12 @@ void cpu_cb() {
 // JUMP / RETURN
 
 void cpu_jp_nn() {
-   TIME(4);
-   JP();
+   jp();
 }
 
 void cpu_jp_nz_nn() {
    if (!FLAG_Z) {
-      TIME(4);
-      JP();
+      jp();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1047,8 +1055,7 @@ void cpu_jp_nz_nn() {
 
 void cpu_jp_z_nn() {
    if (FLAG_Z) {
-      TIME(4);
-      JP();
+      jp();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1058,7 +1065,7 @@ void cpu_jp_z_nn() {
 void cpu_jp_nc_nn() {
    if (!FLAG_C) {
       TIME(4);
-      JP();
+      jp();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1067,8 +1074,7 @@ void cpu_jp_nc_nn() {
 
 void cpu_jp_c_nn() {
    if (FLAG_C) {
-      TIME(4);
-      JP();
+      jp();
    } else {
       TIME(3);
       cpu_PC += 2;
