@@ -756,6 +756,7 @@ void cpu_ld_at_hld_a() {
 
 void cpu_ld_at_hli_a() {
    TIME(2);
+   debugger_log("store");
    STORE(cpu_H, cpu_L, cpu_A);
    inc16(&cpu_H, &cpu_L);
 }

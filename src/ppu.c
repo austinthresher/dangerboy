@@ -146,6 +146,9 @@ void update_stat_mode(byte new_mode) {
    // with the current value of mode
    mem_direct_write(LCD_STATUS_ADDR,
       (mem_direct_read(LCD_STATUS_ADDR) & ~3) | (new_mode & 3));
+   if (mode != new_mode) {
+      debugger_log("STAT mode switch");
+   }
    mode = new_mode;
 }
 
@@ -175,8 +178,7 @@ void ppu_update_register(word addr, byte val) {
             if (!lcd_disable) {
                ppu_draw = true;
                lcd_disable = true;
-               // Bit 2 is preserved when disabling LCD
-               update_stat_mode(mode & 2);
+               update_stat_mode(mode & ~2);
                set_ly(0);
                if (mode == PPU_MODE_VBLANK) {
                   try_fire_vblank();
