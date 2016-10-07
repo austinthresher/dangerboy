@@ -1064,7 +1064,6 @@ void cpu_jp_z_nn() {
 
 void cpu_jp_nc_nn() {
    if (!FLAG_C) {
-      TIME(4);
       jp();
    } else {
       TIME(3);

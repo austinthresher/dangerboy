@@ -94,9 +94,9 @@ void cpu_advance_time(tick dt) {
       case 2: timer_bit <<= 5; break;
       case 3: timer_bit <<= 7; break;
    }
-   for (int i = 0; i < dt; ++i) {
-      internal_timer++;
-      cpu_ticks++;
+   for (int i = 0; i < dt/4; ++i) {
+      internal_timer+=4;
+      cpu_ticks+=4;
       if (last_tima_overflow != -1 && cpu_ticks >= last_tima_overflow + 4) {
          mem_direct_write(
                INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
