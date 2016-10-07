@@ -44,9 +44,10 @@ void cpu_reset() {
    FLAG_N = false;
 
    // Setup our in-memory registers
+   mem_wb(0xFF02, 0x7E); // Serial Transfer Control
    mem_wb(0xFF05, 0x00); // TIMA
    mem_wb(0xFF06, 0x00); // TMA
-   mem_wb(0xFF07, 0x00); // TAC
+   mem_wb(0xFF07, 0xF8); // TAC
    mem_wb(0xFF10, 0x80); // NR10
    mem_wb(0xFF11, 0xBF); // NR11
    mem_wb(0xFF12, 0xF3); // NR12
@@ -130,20 +131,15 @@ void cpu_execute_step() {
    byte int_IE      = mem_direct_read(INT_ENABLED_ADDR);
    byte int_IF      = mem_direct_read(INT_FLAG_ADDR);
    byte irq         = int_IE & int_IF;
-   bool freeze_pc   = false;
-   bool skip_int    = false;
 
    if (irq && cpu_halted) {
       cpu_halted = false;
-      if (cpu_ime == false) {
-         freeze_pc = true;
-      } else {
+      if (cpu_ime) {
          cpu_ime_delay = false;
       }
    }
 
-   // TODO: Should this be checking the input bit?
-   if (int_IF != 0 && cpu_stopped) {
+   if ((int_IF & INT_INPUT) && cpu_stopped) {
       cpu_stopped = false;
    }
 
@@ -175,7 +171,6 @@ void cpu_execute_step() {
          if (target != 0x00) {
             interrupted = true;
             cpu_ime     = false;
-            //TIME(2);
             PUSHW(cpu_PC);
             TIME(2);
             cpu_PC = target;
@@ -191,9 +186,6 @@ void cpu_execute_step() {
          cpu_last_pc = cpu_PC;
          cpu_last_op = mem_rb(cpu_PC++);
          (*cpu_opcodes[cpu_last_op])();
-         if (freeze_pc) {
-            cpu_PC = cpu_last_pc;
-         }
          debugger_notify_mem_exec(cpu_PC);
       } else {
          cpu_nop();

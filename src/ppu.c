@@ -1,6 +1,8 @@
 #include "ppu.h"
 #include "debugger.h"
 
+//#define PER_PIXEL
+
 byte mode;
 byte win_y;
 tick timer;
@@ -161,11 +163,12 @@ void ppu_advance_time(tick ticks) {
 
       case PPU_MODE_SCAN_VRAM:
          
+#ifdef PER_PIXEL
          // Draw our current scanline one pixel at a time
          while (x_pixel < timer - 12 && x_pixel < 160) {
             ppu_do_pixel(x_pixel++, ppu_ly);
          }
-         
+#endif
          // According to Mooneye tests, HBLANK STAT interrupt is 4 cycles early
          if (old_timer < vram_length - 4 && timer >= vram_length - 4) {
             // Check if HBLANK STAT interrupt is enabled
@@ -178,8 +181,10 @@ void ppu_advance_time(tick ticks) {
          }
          if (timer >= vram_length) {
             timer -= vram_length;
-//            ppu_do_scanline();
             update_stat_mode(PPU_MODE_HBLANK);
+#ifndef PER_PIXEL
+            ppu_do_scanline();
+#endif
          }
          
          break;
@@ -261,12 +266,20 @@ void ppu_do_pixel(int x, int y) {
 
    int  scroll_x = mem_direct_read(LCD_SCX_ADDR); 
    int  scroll_y = mem_direct_read(LCD_SCY_ADDR);
+   // TODO: Draw the window here too
    int  wn_x_pos = mem_direct_read(WIN_X_ADDR) - 7;
    int  wn_y_pos = mem_direct_read(WIN_Y_ADDR);
 
    bool bg_in_front = true;
 
-   if (bg_enabled) {
+   bool skip_bg = !bg_enabled;
+   if (wn_enabled
+    && wn_x_pos < 166
+    && y >= wn_y_pos
+    && x >= wn_x_pos) {
+      skip_bg = true;
+   }
+   if (!skip_bg) {
       // The background tilemap is 256x256. Here we calculate
       // which pixel we are in this map, wrapped.
       int tilemap_x = (x + scroll_x) % 256;
@@ -311,7 +324,7 @@ void ppu_do_pixel(int x, int y) {
       ppu_vram[vram_addr++] = color;
       ppu_vram[vram_addr++] = color;
       ppu_vram[vram_addr++] = color;
-   } else {
+   } else if (!bg_enabled && !wn_enabled) {
       int vram_addr = (y * 160 + x) * 3;
       ppu_vram[vram_addr++] = LCD_WHITE;
       ppu_vram[vram_addr++] = LCD_WHITE;
@@ -371,10 +384,6 @@ void ppu_do_pixel(int x, int y) {
       }
    }
 }
-
-
-
-
 
 void ppu_do_scanline() {
    if (ppu_ly > 143) {

@@ -413,12 +413,14 @@ byte mem_rb(word addr) {
    }
 
    if (addr == 0xFF00) {
+      byte result = 0xC0;
       switch (mem_input_last_write) {
-         case 0x00: return mem_dpad & mem_buttons;
-         case 0x10: return mem_buttons;
-         case 0x20: return mem_dpad;
-         default: return 0x00;
+         case 0x00: result |= mem_dpad & mem_buttons; break;
+         case 0x10: result |= mem_buttons; break;
+         case 0x20: result |= mem_dpad; break;
+         default: break;
       }
+      return result;
    }
 
 
