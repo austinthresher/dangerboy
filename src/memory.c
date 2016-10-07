@@ -329,11 +329,6 @@ void mem_wb(word addr, byte val) {
          if ((mem_ram[LCD_STATUS_ADDR] & 3) != PPU_MODE_SCAN_VRAM
           || lcd_disable) {
             mem_ram[addr] = val;
-         } else {
-            debugger_log("Attempted write to VRAM while inaccessible");
-            if (break_on_invalid) {
-               debugger_break();
-            }
          }
          return;
       case 0xA000: // External RAM
@@ -350,11 +345,6 @@ void mem_wb(word addr, byte val) {
                return;
             } 
             mem_ram_bank[addr] = val;
-         } else {
-            debugger_log("Attempted write to locked RAM");
-            if (break_on_invalid) {
-               debugger_break();
-            }
          }
          return;
       case 0xC000: // Work RAM
@@ -378,17 +368,6 @@ void mem_wb(word addr, byte val) {
                if (mem_oam_state == INACTIVE
                 || mem_oam_state == STARTING) {
                   mem_ram[addr] = val;
-                  return;
-               } else {
-                  debugger_log("Attempted write to OAM during DMA");
-                  if (break_on_invalid) {
-                     debugger_break();
-                  }
-               }
-            } else {
-               debugger_log("Attempted write to OAM while inaccessible");
-               if (break_on_invalid) {
-                  debugger_break();
                }
             }
             return;

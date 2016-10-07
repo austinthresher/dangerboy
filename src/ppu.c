@@ -98,7 +98,33 @@ void try_fire_vblank() {
    }
 }
 
-// Checks for LY == LYC, updates STAT bit, fires interrupt if needed 
+void try_fire_lyc() {
+   byte stat = mem_direct_read(LCD_STATUS_ADDR);
+   if ((stat & 0x44) == 0x44) {
+      if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
+         // If we're in VBLANK, this can be blocked
+         // by the VBLANK stat bit.
+         // If we're in HBLANK, this can be
+         // blocked by the OAM stat bit.
+         // Info found in Gambatte.
+         // if ((mode == PPU_MODE_VBLANK && !(stat & 0x10))
+         //  || (mode == PPU_MODE_HBLANK && !(stat & 0x20))) {
+         //    if (!stat_vblank_fired) {
+             fire_stat();
+               ignore_oams = 1;
+//               if (lyc < 0x90) {
+//                  ignore_hblank = true;
+//               }
+//               if (ly == 0x8F) {
+//                  ignore_vblank = true;
+//               }
+         //    }
+         // }
+      }
+   } 
+}
+
+// Updates the LY == LYC bit in stat
 void check_lyc() {
     // If lyc == scanline and bit 6 of stat is set, interrupt
    byte ly   = mem_direct_read(LCD_LINE_Y_ADDR);
@@ -107,29 +133,7 @@ void check_lyc() {
 
    if (ly == lyc) {
       stat |= 0x04; // LYC bit
-//      if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
-         if (stat & 0x40) {
-            // If we're in VBLANK, this can be blocked
-            // by the VBLANK stat bit.
-            // If we're in HBLANK, this can be
-            // blocked by the OAM stat bit.
-            // Info found in Gambatte.
-//            if ((mode == PPU_MODE_VBLANK && !(stat & 0x10))
-//             || (mode == PPU_MODE_HBLANK && !(stat & 0x20))) {
-//               if (!stat_vblank_fired) {
-                  fire_stat();
-//                  ignore_oams = 1;
-//                  if (lyc < 0x90) {
-//                     ignore_hblank = true;
-//                  }
-//                  if (ly == 0x8F) {
-//                     ignore_vblank = true;
-//                  }
-//               }
-//            }
-//         }
-      }
-   } else {
+  } else {
       stat &= ~0x04; // Clear LYC bit
    }
    mem_direct_write(LCD_STATUS_ADDR, stat);
@@ -180,6 +184,7 @@ void ppu_update_register(word addr, byte val) {
                lcd_disable = true;
                update_stat_mode(mode & ~2);
                set_ly(0);
+               try_fire_lyc();
                if (mode == PPU_MODE_VBLANK) {
                   try_fire_vblank();
                }
@@ -218,7 +223,6 @@ void update_scroll_mod() {
 
 void ppu_advance_time(tick ticks) {
    if (lcd_disable) {
-      check_lyc();
       return;
    }
 
@@ -281,6 +285,7 @@ void ppu_advance_time(tick ticks) {
                update_stat_mode(PPU_MODE_SCAN_OAM);
                try_fire_oam();
             }
+            try_fire_lyc();
          }
          break;
       case PPU_MODE_VBLANK:
@@ -290,6 +295,7 @@ void ppu_advance_time(tick ticks) {
             ppu_ly = 0;
             ppu_win_ly = 0;
             set_ly(ppu_ly);
+            try_fire_lyc();
             // After LYC == 0 at 99, the next 2 OAMs are ignored
             if (ignore_oams == 1) {
                ignore_oams = 2;
@@ -306,6 +312,9 @@ void ppu_advance_time(tick ticks) {
                stat_vblank_fired = false;
             }
             set_ly(ppu_ly);
+            if (ppu_ly != 0) {
+               try_fire_lyc();
+            }
          }
          break;
    }
