@@ -5,6 +5,7 @@ byte mode;
 byte win_y;
 tick timer;
 int scroll_tick_mod;
+int x_pixel;
 
 void update_stat_mode(byte new_mode);
 void update_scroll_mod();
@@ -22,6 +23,7 @@ void ppu_init() {
    lcd_disable = false;
    ppu_draw    = false;
    ppu_win_ly  = 0;
+   x_pixel = 0;
    ppu_reset();
 }
 
@@ -158,6 +160,12 @@ void ppu_advance_time(tick ticks) {
          break;
 
       case PPU_MODE_SCAN_VRAM:
+         
+         // Draw our current scanline one pixel at a time
+         while (x_pixel < timer - 12 && x_pixel < 160) {
+            ppu_do_pixel(x_pixel++, ppu_ly);
+         }
+         
          // According to Mooneye tests, HBLANK STAT interrupt is 4 cycles early
          if (old_timer < vram_length - 4 && timer >= vram_length - 4) {
             // Check if HBLANK STAT interrupt is enabled
@@ -170,15 +178,17 @@ void ppu_advance_time(tick ticks) {
          }
          if (timer >= vram_length) {
             timer -= vram_length;
-            ppu_do_scanline();
+//            ppu_do_scanline();
             update_stat_mode(PPU_MODE_HBLANK);
          }
+         
          break;
 
       case PPU_MODE_HBLANK:
          if (timer >= 200 - scroll_tick_mod) {
             timer -= 200 - scroll_tick_mod;
             ppu_ly++;
+            x_pixel = 0;
             set_ly(ppu_ly);
             if (ppu_ly >= 144) {
                ppu_draw = true;
@@ -233,6 +243,137 @@ void ppu_advance_time(tick ticks) {
          break;
    }
 }
+
+void ppu_do_pixel(int x, int y) {
+   if (x < 0 || x >= 160 || y < 0 || y >= 144) {
+      return;
+   }
+
+   // TODO: These should be changed on write to LCDC and stored.
+   byte lcdc = mem_rb(LCD_CONTROL_ADDR);
+   bool wn_tilemap = lcdc & (1 << 6);
+   bool wn_enabled = lcdc & (1 << 5);
+   bool tile_bank  = lcdc & (1 << 4);
+   bool bg_tilemap = lcdc & (1 << 3);
+   bool sp_size    = lcdc & (1 << 2);
+   bool sp_enabled = lcdc & (1 << 1);
+   bool bg_enabled = lcdc & (1 << 0);
+
+   int  scroll_x = mem_direct_read(LCD_SCX_ADDR); 
+   int  scroll_y = mem_direct_read(LCD_SCY_ADDR);
+   int  wn_x_pos = mem_direct_read(WIN_X_ADDR) - 7;
+   int  wn_y_pos = mem_direct_read(WIN_Y_ADDR);
+
+   bool bg_in_front = true;
+
+   if (bg_enabled) {
+      // The background tilemap is 256x256. Here we calculate
+      // which pixel we are in this map, wrapped.
+      int tilemap_x = (x + scroll_x) % 256;
+      int tilemap_y = (y + scroll_y) % 256;
+
+      // Divide by 8 to find tile coordinates
+      int tilemap_tile_x = tilemap_x / 8; // >> 3;
+      int tilemap_tile_y = tilemap_y / 8; // >> 3;
+
+      // The tilemap is a 32 x 32 grid. Get the index
+      // of the tile we're drawing.
+      int tile_index = tilemap_tile_y * 32 + tilemap_tile_x;
+      
+      tile_index = mem_direct_read(0x9800 + (bg_tilemap ? 0x400 : 0) + tile_index);
+
+      int tile_addr = 0x8000;
+      if (tile_index < 128) {
+         if (tile_bank) {
+            tile_addr += tile_index * 16;
+         } else {
+            tile_addr += 0x1000 + tile_index * 16;
+         }
+      } else {
+         tile_addr += 0x800 + (tile_index - 128) * 16;
+      }
+      
+      // We now have the address of the tile we're drawing.
+      // Tiles are stored in 16 bytes each, like so:
+      //    [Row 1 Lo Bits] [Row 1 Hi Bits] [Row 2 Lo Bits]...
+      int tile_px_x = tilemap_x & 7;
+      int tile_px_y = tilemap_y & 7;
+      int row_byte  = tile_addr + tile_px_y * 2;
+      int pal_index = (!!(mem_direct_read(row_byte)     & (0x80 >> tile_px_x)))
+                    | (!!(mem_direct_read(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
+
+      if (pal_index == 0) {
+         bg_in_front = false;
+      }
+      byte color = ppu_pick_color(pal_index, mem_direct_read(BG_PAL_ADDR));
+
+      int vram_addr = (y * 160 + x) * 3;
+      ppu_vram[vram_addr++] = color;
+      ppu_vram[vram_addr++] = color;
+      ppu_vram[vram_addr++] = color;
+   } else {
+      int vram_addr = (y * 160 + x) * 3;
+      ppu_vram[vram_addr++] = LCD_WHITE;
+      ppu_vram[vram_addr++] = LCD_WHITE;
+      ppu_vram[vram_addr++] = LCD_WHITE;
+   }
+
+   if (sp_enabled) {
+      int sp_height = sp_size ? 16 : 8;
+      for (int s = 0; s < 40; ++s) {
+         int sp_y = mem_direct_read(SPRITE_RAM_START_ADDR + s * 4) - 16;
+         int sp_x = mem_direct_read(SPRITE_RAM_START_ADDR + s * 4 + 1) - 8;
+         if (sp_x == 0 || sp_y == 0) {
+            continue;
+         }
+         if (sp_x + 8 <= x || sp_x > x || sp_y > y || sp_y + sp_height <= y) {
+            continue;
+         }
+
+         byte tile = mem_direct_read(SPRITE_RAM_START_ADDR + s * 4 + 2);
+         byte attr = mem_direct_read(SPRITE_RAM_START_ADDR + s * 4 + 3);
+
+         if ((attr & 0x80) && bg_in_front) {
+            continue;
+         }
+
+         // Y Flip
+         int sp_row = y - sp_y;
+         if (attr & 0x40) {
+            sp_row = sp_height - 1 - sp_row;
+         }
+         if (sp_size) {
+            tile &= 0xFE;
+         }
+
+         // X Flip
+         int tile_px_x = (x - sp_x) & 7;
+         if (attr & 0x20) {
+            tile_px_x = 7 - tile_px_x;
+         }
+
+         byte tile_index_mask = sp_height - 1;
+
+         int row_byte = 0x8000 + tile * 16 + (sp_row & tile_index_mask) * 2;
+         int pal_index = (!!(mem_direct_read(row_byte)     & (0x80 >> tile_px_x)))
+                       | (!!(mem_direct_read(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
+
+         if (pal_index == 0) {
+            continue;
+         }
+
+         byte color = ppu_pick_color(pal_index, mem_direct_read(OBJ_PAL_ADDR + !!(attr & 0x10)));
+
+         int vram_addr = (y * 160 + x) * 3;
+         ppu_vram[vram_addr++] = color;
+         ppu_vram[vram_addr++] = color;
+         ppu_vram[vram_addr++] = color;
+      }
+   }
+}
+
+
+
 
 
 void ppu_do_scanline() {
