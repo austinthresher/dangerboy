@@ -3,12 +3,22 @@
 
 //#define PER_PIXEL
 
+// Extra STAT checks here are based off of STAT document
+// on drhelius' github. Needs testing.
+
+// As far as I can tell, none of the conditional STAT statements
+// made any tangible difference in tests or compatibility. Still
+// need to find what's causing the weird striping.
+
 byte mode;
 byte win_y;
 tick timer;
 int scroll_tick_mod;
 int x_pixel;
-
+bool stat_vblank_fired;
+bool ignore_hblank;
+bool ignore_vblank;
+int ignore_oams;
 void update_stat_mode(byte new_mode);
 void update_scroll_mod();
 void set_ly(int ly);
@@ -26,6 +36,9 @@ void ppu_init() {
    ppu_draw    = false;
    ppu_win_ly  = 0;
    x_pixel = 0;
+   stat_vblank_fired = false;
+   ignore_oams = 0;
+   ignore_hblank = false;
    ppu_reset();
 }
 
@@ -38,27 +51,83 @@ void ppu_reset() {
    set_ly(0);
 }
 
+void try_fire_oam() {
+   byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
+   // Check if OAM STAT interrupt is enabled
+   if (stat_reg & 0x20) {
+      // HBLANK STAT interrupt masks OAM interrupt
+//      if (!(stat_reg & 0x08)) {
+         // So does LYC == LY interrupt
+//         if((stat_reg & 0x44) != 0x44) {
+//            if (ignore_oams == 0) {
+               fire_stat();
+//            }
+//         }
+//      }
+   }
+}
+
+void try_fire_hblank() {
+   byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
+   // Check if HBLANK STAT interrupt is enabled
+   if (stat_reg & 0x08) {
+      // LY == LYC interrupt masks HBLANK interrupt
+//      if ((stat_reg & 0x44) != 0x44) {
+//         if (!ignore_hblank) {
+            fire_stat();
+//            ignore_oams = 1;
+//            if (ppu_ly == 0x8F - 1) {
+//               ignore_vblank = true;
+//            }
+//         }
+//      }
+   }
+}
+
+void try_fire_vblank() {
+   byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
+   // Fire VBLANK STAT interrupt if enabled
+   if (stat_reg & 0x10 /*&& !ignore_vblank*/) {
+      stat_vblank_fired = true;
+      fire_stat();
+   } else if (ppu_ly == 144) {
+      // OAM interrupt still fires on ly == 144,
+      // but only if STAT VBLANK interrupt did not
+      // TODO: Should normal VBLANK mask this as well?
+      try_fire_oam();
+   }
+}
+
 // Checks for LY == LYC, updates STAT bit, fires interrupt if needed 
 void check_lyc() {
     // If lyc == scanline and bit 6 of stat is set, interrupt
-   byte ly = mem_direct_read(LCD_LINE_Y_ADDR);
-   byte lyc = mem_direct_read(LCD_LINE_Y_C_ADDR);
+   byte ly   = mem_direct_read(LCD_LINE_Y_ADDR);
+   byte lyc  = mem_direct_read(LCD_LINE_Y_C_ADDR);
    byte stat = mem_direct_read(LCD_STATUS_ADDR);
 
    if (ly == lyc) {
       stat |= 0x04; // LYC bit
-      if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
+//      if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
          if (stat & 0x40) {
             // If we're in VBLANK, this can be blocked
             // by the VBLANK stat bit.
             // If we're in HBLANK, this can be
             // blocked by the OAM stat bit.
             // Info found in Gambatte.
-            if ((mode == PPU_MODE_VBLANK && !(stat & 0x10))
-             || (mode == PPU_MODE_HBLANK && !(stat & 0x20))) {
-               fire_stat();
-            }
-         }
+//            if ((mode == PPU_MODE_VBLANK && !(stat & 0x10))
+//             || (mode == PPU_MODE_HBLANK && !(stat & 0x20))) {
+//               if (!stat_vblank_fired) {
+                  fire_stat();
+//                  ignore_oams = 1;
+//                  if (lyc < 0x90) {
+//                     ignore_hblank = true;
+//                  }
+//                  if (ly == 0x8F) {
+//                     ignore_vblank = true;
+//                  }
+//               }
+//            }
+//         }
       }
    } else {
       stat &= ~0x04; // Clear LYC bit
@@ -87,7 +156,7 @@ void ppu_update_register(word addr, byte val) {
          ppu_win_ly = 0;
          // This will check LY == LYC, make sure that writing
          // to LY is supposed to fire LY == LYC interrupt
-         set_ly(0); 
+         set_ly(0);
          break;
       case LCD_LINE_Y_C_ADDR:
          mem_direct_write(LCD_LINE_Y_C_ADDR, val);
@@ -99,35 +168,40 @@ void ppu_update_register(word addr, byte val) {
             if (lcd_disable) {
                update_stat_mode(PPU_MODE_SCAN_OAM);
                timer = 0; // Confirm that timer should reset here
+               try_fire_oam();
             }
             lcd_disable = false;
          } else {
             if (!lcd_disable) {
                ppu_draw = true;
+               lcd_disable = true;
+               // Bit 2 is preserved when disabling LCD
+               update_stat_mode(mode & 2);
+               set_ly(0);
+               if (mode == PPU_MODE_VBLANK) {
+                  try_fire_vblank();
+               }
+               if (mode == PPU_MODE_HBLANK) {
+                  try_fire_hblank();
+               }
             }
-            lcd_disable = true;
-            // Bit 2 is preserved when disabling LCD
-            update_stat_mode(mode & 2);
-            set_ly(0);
          }
          break;
       case LCD_STATUS_ADDR:
          // Clear the mode bits and the unused 7th bit
          val &= ~0x87; 
-
          // Write to the interrupt enable flags, but not to mode or lyc
          mem_direct_write(LCD_STATUS_ADDR,
                mem_direct_read(LCD_STATUS_ADDR) & 0x7 | val);
          
          // Writing to stat during vblank is supposed to raise an interrupt
          if (mode == PPU_MODE_VBLANK) {
-            fire_stat();
+            try_fire_vblank();
          }
          break;
       default: mem_direct_write(addr, val);
    }
 }
-
 // Based on Mooneye's implementation
 void update_scroll_mod() {
    byte scx = mem_direct_read(LCD_SCX_ADDR) % 8;
@@ -158,6 +232,9 @@ void ppu_advance_time(tick ticks) {
             timer -= 84;
             update_scroll_mod();
             update_stat_mode(PPU_MODE_SCAN_VRAM);
+            if (ignore_oams) {
+               ignore_oams--;
+            }
          }
          break;
 
@@ -168,23 +245,20 @@ void ppu_advance_time(tick ticks) {
          while (x_pixel < timer - 12 && x_pixel < 160) {
             ppu_do_pixel(x_pixel++, ppu_ly);
          }
+#else
+         if (timer >= vram_length && x_pixel < 160) {
+            ppu_do_scanline();
+            x_pixel = 160;
+         }
 #endif
          // According to Mooneye tests, HBLANK STAT interrupt is 4 cycles early
          if (old_timer < vram_length - 4 && timer >= vram_length - 4) {
-            // Check if HBLANK STAT interrupt is enabled
-            if (stat_reg & 0x08) {
-               // LY == LYC interrupt masks HBLANK interrupt
-               if ((stat_reg & 0x44) != 0x44) {
-                  fire_stat();
-               }
-            }
+            try_fire_hblank();
          }
          if (timer >= vram_length) {
             timer -= vram_length;
+            ignore_hblank = false;
             update_stat_mode(PPU_MODE_HBLANK);
-#ifndef PER_PIXEL
-            ppu_do_scanline();
-#endif
          }
          
          break;
@@ -200,48 +274,34 @@ void ppu_advance_time(tick ticks) {
                mem_wb(INT_FLAG_ADDR,
                      mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
                update_stat_mode(PPU_MODE_VBLANK);
-               // Fire VBLANK STAT interrupt if enabled
-               if (stat_reg & 0x10) {
-                  fire_stat();
-               } else if (stat_reg & 0x20) {
-                  // OAM interrupt still fires on ly == 144,
-                  // but only if STAT VBLANK interrupt did not
-                  // TODO: Should normal VBLANK mask this as well?
-                  fire_stat();
-               }
+               try_fire_vblank();
             } else {
                update_stat_mode(PPU_MODE_SCAN_OAM);
-               // Check if OAM STAT interrupt is enabled
-               if (stat_reg & 0x20) {
-                  // HBLANK STAT interrupt masks OAM interrupt
-                  if (!(stat_reg & 0x08)) {
-                     // So does LYC == LY interrupt
-                     if((stat_reg & 0x44) != 0x44) {
-                        fire_stat();
-                     }
-                  }
-               }
+               try_fire_oam();
             }
          }
          break;
       case PPU_MODE_VBLANK:
-         if (timer >= 456) {
+         // LY = 99 only lasts for 56 cycles,
+         // which makes LY == 0 last for 856
+         if (ppu_ly >= 153 && timer >= 56) {
+            ppu_ly = 0;
+            ppu_win_ly = 0;
+            set_ly(ppu_ly);
+            // After LYC == 0 at 99, the next 2 OAMs are ignored
+            if (ignore_oams == 1) {
+               ignore_oams = 2;
+            }
+         } else if (timer >= 456) {
             timer -= 456;
             ppu_ly++;
-            if (ppu_ly > 153) {
+            if (ppu_ly == 1) {
                ppu_ly = 0;
                ppu_win_ly = 0;
+               ignore_vblank = false;
                update_stat_mode(PPU_MODE_SCAN_OAM);
-               // Check if OAM STAT interrupt is enabled
-               if (stat_reg & 0x20) {
-                  // HBLANK STAT interrupt masks OAM interrupt
-                  if (!(stat_reg & 0x08)) {
-                     // So does LYC == LY interrupt
-                     if((stat_reg & 0x44) != 0x44) {
-                        fire_stat();
-                     }
-                  }
-               }
+               try_fire_oam(); 
+               stat_vblank_fired = false;
             }
             set_ly(ppu_ly);
          }
