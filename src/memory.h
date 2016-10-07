@@ -8,7 +8,7 @@
 #define ROM_SIZE_ADDR 0x0148
 #define RAM_SIZE_ADDR 0x0149
 #define SPRITE_RAM_START_ADDR 0xFE00
-#define SPRITE_RAM_END_ADDR 0xFE9F
+#define SPRITE_RAM_END_ADDR 0xFEA0
 #define INPUT_REGISTER_ADDR 0xFF00
 #define DIV_REGISTER_ADDR 0xFF04
 #define TIMA_ADDR 0xFF05
@@ -29,9 +29,16 @@
 #define INT_ENABLED_ADDR 0xFFFF
 
 typedef enum mbc_type_ { NONE = 0, MBC1 = 1, MBC2 = 2, MBC3 = 3 } mbc_type;
-
 typedef enum mbc_bankmode_ { ROM16_RAM8 = 0, ROM4_RAM32 = 1 } mbc_bankmode;
+typedef enum oam_state_ {
+   INACTIVE,
+   STARTING,
+   ACTIVE,
+   RESTARTING,
+} oam_state;
 
+
+oam_state mem_oam_state;
 mbc_type mem_mbc_type;
 mbc_bankmode mem_mbc_bankmode;
 
@@ -52,6 +59,7 @@ char mem_rom_name[16];
 
 void mem_init();
 void mem_free();
+void mem_advance_time(tick ticks);
 void mem_load_image(char* fname);
 void mem_print_rom_info();
 void mem_wb(word addr, byte val);

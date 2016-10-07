@@ -28,7 +28,7 @@ int console_height;
 bool show_pc;
 bool break_on_op[256];
 struct BreakpointEntry breakpoints[0x10000];
-WINDOW *memory_map, *console_pane, *status_bar;
+WINDOW *memory_map = NULL, *console_pane = NULL, *status_bar = NULL;
 
 bool handle_input(const char* string);
 bool sc(const char* strA, const char* strB) { return strcmp(strA, strB) == 0; }
@@ -192,6 +192,12 @@ void print_memory_map(int x, word addr) {
    wrefresh(memory_map);
 }
 
+void debugger_log(const char* str) {
+   if (curses_on && console_pane != NULL) {
+      wprintw(console_pane, "%s\n", str);
+   }
+}
+
 // TODO: Make status bar only over memory map,
 // different lines for different categories
 void print_status_bar() {
@@ -213,7 +219,7 @@ void print_status_bar() {
          "[TICK:%d]",
          mem_rb(TIMA_ADDR),
          mem_rb(TMA_ADDR),
-         mem_rb(TIMER_CONTROL_ADDR) & 0x3,
+         mem_rb(TIMER_CONTROL_ADDR) & 4,
          mem_rb(DIV_REGISTER_ADDR),
          mem_rb(INT_ENABLED_ADDR),
          mem_rb(INT_FLAG_ADDR),
@@ -249,7 +255,6 @@ void print_status_bar() {
 
 void debugger_cli() {
    char buff[256];
-
    if (!curses_on) {
       init_curses();
       curses_on = true;
@@ -283,8 +288,6 @@ void debugger_cli() {
    } while (!handle_input(cmd));
    
    store_regs();
-
-/*      }*/
 }
 
 void debugger_free() {

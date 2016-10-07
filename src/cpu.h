@@ -11,6 +11,7 @@
 #define INT_VBLANK 0x01
 #define INT_STAT 0x02
 #define INT_TIMA 0x04
+#define INT_SERIAL 0x08
 #define INT_INPUT 0x10
 
 // For debugging
@@ -32,13 +33,12 @@ bool cpu_ime;
 bool cpu_halted;
 bool cpu_stopped;
 tick cpu_ticks;
-tick cpu_div;
-tick cpu_tima;
 void (*cpu_opcodes[0x100])();
 
 void cpu_execute_step();
 void cpu_init();
 void cpu_reset();
 void cpu_advance_time(tick dt);
+void cpu_reset_timer();
 
 #endif

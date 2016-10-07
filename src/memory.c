@@ -7,10 +7,16 @@
 #include "memory.h"
 #include "ppu.h"
 
+
+
+word dma_src, dma_dst, dma_rst;
 void mem_dma(byte val);
 
 void mem_init(void) {
    mem_free();
+   dma_dst              = 0;
+   dma_src              = 0;
+   dma_rst              = 0;
    mem_mbc_type         = NONE;
    mem_ram_bank_count   = 0;
    mem_rom_bank_count   = 2;
@@ -21,6 +27,7 @@ void mem_init(void) {
    mem_buttons          = 0x0F;
    mem_dpad             = 0x0F;
    mem_input_last_write = 0;
+   mem_oam_state            = INACTIVE;
    mem_ram      = (byte*)calloc(0x10000, 1);
    mem_ram_bank = (byte*)calloc(0x10000, 1);
 }
@@ -165,23 +172,78 @@ void mem_print_rom_info() {
 }
 
 void mem_dma(byte val) {
-   word dma = val << 8;
-   word ad  = SPRITE_RAM_START_ADDR;
-   while (ad <= SPRITE_RAM_END_ADDR) {
-      mem_ram[ad++] = mem_rb(dma++);
+   if (mem_oam_state == INACTIVE) {
+      debugger_log("OAM DMA Starting");
+      mem_oam_state = STARTING;
+      dma_src = val << 8;
+      dma_dst = SPRITE_RAM_START_ADDR;;
+   } else {
+      debugger_log("OAM DMA Restarting");
+      mem_oam_state = RESTARTING;
+      dma_rst = val << 8;
    }
 }
 
-// Use these to implement system read writes, like OAM transfer
-void mem_direct_write(word addr, byte val) { mem_ram[addr] = val; }
+void mem_advance_time(tick ticks) {
+   if (mem_oam_state != INACTIVE) {
+      while (ticks > 0) {
+         ticks -= 4;
+         if (mem_oam_state == STARTING) {
+            debugger_log("OAM DMA Started");
+            mem_oam_state = ACTIVE;
+            continue;
+         }
 
+         mem_direct_write(dma_dst, mem_rb(dma_src));
+
+         dma_src++;
+         dma_dst++;
+
+         if (dma_dst >= SPRITE_RAM_END_ADDR+1
+          && mem_oam_state != RESTARTING) {
+            dma_dst = 0;
+            dma_src = 0;
+            debugger_log("OAM DMA Finish");
+            mem_oam_state = INACTIVE;
+            break;
+         }
+
+         if (mem_oam_state == RESTARTING) {
+            debugger_log("OAM DMA Restarted");
+            mem_oam_state = ACTIVE;
+            dma_src = dma_rst;
+            dma_dst = SPRITE_RAM_START_ADDR;
+            continue;
+         }
+      }
+   }
+}
+
+void mem_direct_write(word addr, byte val) { mem_ram[addr] = val; }
 byte mem_direct_read(word addr) { return mem_ram[addr]; }
 
 // Write byte
 void mem_wb(word addr, byte val) {
 
    debugger_notify_mem_write(addr, val);
-
+   switch (addr) {
+      case DIV_REGISTER_ADDR:
+         // TIMA and DIV use the same internal counter,
+         // so resetting DIV also resets TIMA
+         cpu_reset_timer();
+         mem_ram[DIV_REGISTER_ADDR] = 0;
+         break;
+      case LCD_CONTROL_ADDR:
+      case LCD_STATUS_ADDR:
+      case LCD_SCY_ADDR:
+      case LCD_SCX_ADDR:
+      case LCD_LINE_Y_ADDR:
+      case LCD_LINE_Y_C_ADDR: ppu_update_register(addr, val); break;
+      case OAM_DMA_ADDR: mem_dma(val); break;
+      case INPUT_REGISTER_ADDR: mem_input_last_write = val & 0x30; break;
+      default: break;
+   }
+ 
    if (addr < 0x8000) {
       if (mem_mbc_type == NONE) {
          // Nothing under 0x8000 is writable without banking
@@ -275,7 +337,12 @@ void mem_wb(word addr, byte val) {
             }
          }
       }
-   } else if (addr >= SPRITE_RAM_START_ADDR && addr <= SPRITE_RAM_END_ADDR) {
+   } else if (addr >= SPRITE_RAM_START_ADDR
+           && addr <= SPRITE_RAM_END_ADDR) {
+            if (mem_oam_state != INACTIVE
+             && mem_oam_state != STARTING) {
+               return;
+            }
       // This memory is only accessible during hblank or vblank.
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
       // If we're in hblank / vblank or lcd is disabled
@@ -283,25 +350,10 @@ void mem_wb(word addr, byte val) {
          mem_ram[addr] = val;
       }
    } else {
-      // Hardware registers
-      switch (addr) {
-         case DIV_REGISTER_ADDR:
-            mem_ram[DIV_REGISTER_ADDR] = 0;
-            break;
-         case LCD_CONTROL_ADDR:
-         case LCD_STATUS_ADDR:
-         case LCD_SCY_ADDR:
-         case LCD_SCX_ADDR:
-         case LCD_LINE_Y_ADDR:
-         case LCD_LINE_Y_C_ADDR: ppu_update_register(addr, val); break;
-         case OAM_DMA_ADDR: mem_dma(val); break;
-         case INPUT_REGISTER_ADDR: mem_input_last_write = val & 0x30; break;
-         default:
-            if (addr >= 0xE000 && addr <= 0xFE00) {
-               addr -= 0x2000; // Mirrored memory
-            }
-            mem_ram[addr] = val;
+      if (addr >= 0xE000 && addr < 0xFE00) {
+         addr -= 0x2000; // Mirrored memory
       }
+      mem_ram[addr] = val;
    }
 }
 
@@ -327,7 +379,6 @@ byte mem_get_current_rom_bank() {
 
 // Read byte
 byte mem_rb(word addr) {
-
    debugger_notify_mem_read(addr);
 
    // 0x0000 to 0x3FFF always contains the first 16 kb of ROM
@@ -343,12 +394,7 @@ byte mem_rb(word addr) {
    if (mem_mbc_type != NONE && addr >= 0x4000 && addr < 0x8000) {
       addr -= 0x4000;
       addr &= 0x3FFF;
-      byte bank = mem_get_current_rom_bank();
-      if (bank > mem_rom_bank_count) {
-         fprintf(stderr, "Tried to access rom bank %d out of %d\n",
-               bank, mem_rom_bank_count);
-         exit(1);
-      }
+      byte bank = mem_get_current_rom_bank() % mem_rom_bank_count;
       return mem_rom[bank * 0x4000 + addr];
    }
 
@@ -367,15 +413,19 @@ byte mem_rb(word addr) {
    }
 
    if (addr == 0xFF00) {
+      byte result = 0xC0;
       switch (mem_input_last_write) {
-         case 0x00: return mem_dpad & mem_buttons;
-         case 0x10: return mem_buttons;
-         case 0x20: return mem_dpad;
-         default: return 0x00;
+         case 0x00: result |= mem_dpad & mem_buttons; break;
+         case 0x10: result |= mem_buttons; break;
+         case 0x20: result |= mem_dpad; break;
+         default: break;
       }
+      return result;
    }
 
-   if ((addr > 0x8000 && addr < 0xA000) || (addr > 0xFE00 && addr < 0xFE9F)) {
+
+
+   if (addr > 0x8000 && addr < 0xA000) {
       // This memory is only accessible during hblank or vblank
       byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
       if (mode == 0 || mode == 1) { // HBlank or VBlank
@@ -384,10 +434,29 @@ byte mem_rb(word addr) {
       return 0xFF;
    }
 
-   if (addr >= 0xE000 && addr <= 0xFE00) {
+   if (addr >= 0xE000 && addr < 0xFE00) {
       addr -= 0x2000; // Mirrored memory
+      return mem_ram[addr];
    }
-
+   if (addr >= SPRITE_RAM_START_ADDR
+    && addr <=  SPRITE_RAM_END_ADDR) {
+      byte mode = mem_ram[LCD_STATUS_ADDR] & 0x03;
+      if (mode != 0 && mode != 1) { // HBlank or VBlank
+         return 0xFF;
+      }
+      if (mem_oam_state != INACTIVE
+        && mem_oam_state != STARTING) {
+         return 0xFF;
+      }
+   }
+    // Hardware registers
+   switch (addr) {
+      case INT_ENABLED_ADDR:
+         return 0xE0 | (mem_ram[INT_ENABLED_ADDR] & 0x1F);
+      case INT_FLAG_ADDR:
+         return 0xE0 | (mem_ram[INT_FLAG_ADDR] & 0x1F);
+      default: break;
+   }
    return mem_ram[addr];
 }
 

@@ -1,41 +1,63 @@
 #include "ppu.h"
 #include "debugger.h"
 
+//#define PER_PIXEL
+
 byte mode;
 byte win_y;
 tick timer;
+int scroll_tick_mod;
+int x_pixel;
 
-void update_stat();
+void update_stat_mode(byte new_mode);
+void update_scroll_mod();
+void set_ly(int ly);
+void check_lyc();
+
+void fire_stat() {
+   mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+}
 
 void ppu_init() {
-   mode        = PPU_MODE_SCAN_OAM;
+   update_stat_mode(PPU_MODE_SCAN_OAM);
    timer       = 0;
    ppu_ly      = 0;
    lcd_disable = false;
    ppu_draw    = false;
    ppu_win_ly  = 0;
+   x_pixel = 0;
    ppu_reset();
 }
-
 
 tick ppu_get_timer() { return timer; }
 
 void ppu_reset() {
    mode   = PPU_MODE_HBLANK;
    ppu_ly = 0;
-   update_stat();
+   ppu_win_ly = 0;
+   set_ly(0);
 }
 
+// Checks for LY == LYC, updates STAT bit, fires interrupt if needed 
 void check_lyc() {
     // If lyc == scanline and bit 6 of stat is set, interrupt
+   byte ly = mem_direct_read(LCD_LINE_Y_ADDR);
    byte lyc = mem_direct_read(LCD_LINE_Y_C_ADDR);
    byte stat = mem_direct_read(LCD_STATUS_ADDR);
 
-   if (ppu_ly == lyc) {
+   if (ly == lyc) {
       stat |= 0x04; // LYC bit
       if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
          if (stat & 0x40) {
-            mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+            // If we're in VBLANK, this can be blocked
+            // by the VBLANK stat bit.
+            // If we're in HBLANK, this can be
+            // blocked by the OAM stat bit.
+            // Info found in Gambatte.
+            if ((mode == PPU_MODE_VBLANK && !(stat & 0x10))
+             || (mode == PPU_MODE_HBLANK && !(stat & 0x20))) {
+               fire_stat();
+            }
          }
       }
    } else {
@@ -44,12 +66,28 @@ void check_lyc() {
    mem_direct_write(LCD_STATUS_ADDR, stat);
 }
 
+void set_ly(int ly) {
+   mem_direct_write(LCD_LINE_Y_ADDR, ly);
+   debugger_notify_mem_write(LCD_LINE_Y_ADDR, ly);
+   check_lyc();
+}
+
+void update_stat_mode(byte new_mode) {
+   // This replaces the bottom 2 bits in the STAT register
+   // with the current value of mode
+   mem_direct_write(LCD_STATUS_ADDR,
+      (mem_direct_read(LCD_STATUS_ADDR) & ~3) | (new_mode & 3));
+   mode = new_mode;
+}
+
 void ppu_update_register(word addr, byte val) {
    switch (addr) {
       case LCD_LINE_Y_ADDR:
          ppu_ly     = 0;
          ppu_win_ly = 0;
-         mem_direct_write(LCD_LINE_Y_ADDR, 0);
+         // This will check LY == LYC, make sure that writing
+         // to LY is supposed to fire LY == LYC interrupt
+         set_ly(0); 
          break;
       case LCD_LINE_Y_C_ADDR:
          mem_direct_write(LCD_LINE_Y_C_ADDR, val);
@@ -59,7 +97,8 @@ void ppu_update_register(word addr, byte val) {
          mem_direct_write(LCD_CONTROL_ADDR, val);
          if (val & 0x80) {
             if (lcd_disable) {
-               mode = PPU_MODE_SCAN_OAM;
+               update_stat_mode(PPU_MODE_SCAN_OAM);
+               timer = 0; // Confirm that timer should reset here
             }
             lcd_disable = false;
          } else {
@@ -67,152 +106,292 @@ void ppu_update_register(word addr, byte val) {
                ppu_draw = true;
             }
             lcd_disable = true;
-            mode &= 2; // Bit 2 is preserved when disabling LCD
-            update_stat(0);
+            // Bit 2 is preserved when disabling LCD
+            update_stat_mode(mode & 2);
+            set_ly(0);
          }
          break;
       case LCD_STATUS_ADDR:
-         val &= 0x78;
-         // Writing to stat during vblank is supposed to raise an interrupt,
-         // but this is causing the mooneye stat test to fail?
-         mem_direct_write(LCD_STATUS_ADDR,  val);
+         // Clear the mode bits and the unused 7th bit
+         val &= ~0x87; 
+
+         // Write to the interrupt enable flags, but not to mode or lyc
+         mem_direct_write(LCD_STATUS_ADDR,
+               mem_direct_read(LCD_STATUS_ADDR) & 0x7 | val);
+         
+         // Writing to stat during vblank is supposed to raise an interrupt
          if (mode == PPU_MODE_VBLANK) {
-            mem_direct_write(INT_FLAG_ADDR,
-                  mem_direct_read(INT_FLAG_ADDR) | 0x02);
+            fire_stat();
          }
          break;
       default: mem_direct_write(addr, val);
    }
 }
 
-void update_stat(int ly) {
-   mem_direct_write(LCD_LINE_Y_ADDR, ly);
-   debugger_notify_mem_write(LCD_LINE_Y_ADDR, ly);
-
-   // Bits 0-2 indicate the gpu mode.
-   // Higher bits are interrupt enable flags.
-   byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
-   byte new_mode = mode & 0x03;
-   byte old_mode = stat_reg & 0x03;
-   mem_direct_write(LCD_STATUS_ADDR, (stat_reg & 0xF8) | (new_mode & 0x07));
-   check_lyc();
-
-   if (mode != old_mode) {
-      // The STAT interrupt has 4 different modes, based on bits 3-6
-      bool raise_interrupt = false;
-      switch (mode) {
-         case PPU_MODE_HBLANK:
-            // Check if HBLANK STAT interrupt is enabled
-            if (stat_reg & 0x08) {
-               // LY == LYC interrupt masks HBLANK interrupt
-               if ((stat_reg & 0x44) == 0x44) {
-                  break;
-               }
-               raise_interrupt = true;
-            }
-            break;
-
-         case PPU_MODE_VBLANK: 
-            if (stat_reg & 0x10) {
-               raise_interrupt = true;
-            } else if(ly == 144 && (stat_reg & 0x20)) {
-               // OAM interrupt still fires on ly == 144,
-               // but only if VBLANK interrupt did not
-               raise_interrupt = true;
-            }
-
-            break;
-
-         case PPU_MODE_SCAN_OAM:
-            if (stat_reg & 0x20) {
-               // HBLANK masks OAM interrupt
-               if (stat_reg & 0x08) {
-                  break;
-               }
-               // LY == LYC interrupt masks OAM interrupt
-               if ((stat_reg & 0x44) == 0x44) {
-                  break;
-               }
-               raise_interrupt = true;
-            }
-            break;
-         default: break;
-      }
-
-      if (raise_interrupt) {
-         mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
-      }
+// Based on Mooneye's implementation
+void update_scroll_mod() {
+   byte scx = mem_direct_read(LCD_SCX_ADDR) % 8;
+   if (scx > 4) {
+      scroll_tick_mod = 8;
+   } else if (scx > 0) {
+      scroll_tick_mod = 4;
+   } else {
+      scroll_tick_mod = 0;
    }
 }
 
 void ppu_advance_time(tick ticks) {
    if (lcd_disable) {
-      update_stat(0);
+      check_lyc();
       return;
    }
+
+   int vram_length = 172 + scroll_tick_mod;
+   tick old_timer  = timer;
+   byte stat_reg   = mem_direct_read(LCD_STATUS_ADDR);
 
    timer += ticks;
 
    switch (mode) {
       case PPU_MODE_SCAN_OAM:
          if (timer >= 84) {
-            mode = PPU_MODE_SCAN_VRAM;
             timer -= 84;
-            update_stat(ppu_ly);
+            update_scroll_mod();
+            update_stat_mode(PPU_MODE_SCAN_VRAM);
          }
          break;
+
       case PPU_MODE_SCAN_VRAM:
-         if (timer >= 172) {
-            mode = PPU_MODE_HBLANK;
-            timer -= 172;
-            ppu_do_scanline(); // TODO: Is this the right timing?
-            ppu_ly++;
-            update_stat(ppu_ly);
+        
+#ifdef PER_PIXEL
+         // Draw our current scanline one pixel at a time
+         while (x_pixel < timer - 12 && x_pixel < 160) {
+            ppu_do_pixel(x_pixel++, ppu_ly);
          }
+#endif
+         // According to Mooneye tests, HBLANK STAT interrupt is 4 cycles early
+         if (old_timer < vram_length - 4 && timer >= vram_length - 4) {
+            // Check if HBLANK STAT interrupt is enabled
+            if (stat_reg & 0x08) {
+               // LY == LYC interrupt masks HBLANK interrupt
+               if ((stat_reg & 0x44) != 0x44) {
+                  fire_stat();
+               }
+            }
+         }
+         if (timer >= vram_length) {
+            timer -= vram_length;
+            update_stat_mode(PPU_MODE_HBLANK);
+#ifndef PER_PIXEL
+            ppu_do_scanline();
+#endif
+         }
+         
          break;
+
       case PPU_MODE_HBLANK:
-         if (timer >= 200) {
-            timer -= 200;
-            if (ppu_ly > 143) {
-               mode     = PPU_MODE_VBLANK;
+         if (timer >= 200 - scroll_tick_mod) {
+            timer -= 200 - scroll_tick_mod;
+            ppu_ly++;
+            x_pixel = 0;
+            set_ly(ppu_ly);
+            if (ppu_ly >= 144) {
                ppu_draw = true;
                mem_wb(INT_FLAG_ADDR,
                      mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
+               update_stat_mode(PPU_MODE_VBLANK);
+               // Fire VBLANK STAT interrupt if enabled
+               if (stat_reg & 0x10) {
+                  fire_stat();
+               } else if (stat_reg & 0x20) {
+                  // OAM interrupt still fires on ly == 144,
+                  // but only if STAT VBLANK interrupt did not
+                  // TODO: Should normal VBLANK mask this as well?
+                  fire_stat();
+               }
             } else {
-               mode = PPU_MODE_SCAN_OAM;
+               update_stat_mode(PPU_MODE_SCAN_OAM);
+               // Check if OAM STAT interrupt is enabled
+               if (stat_reg & 0x20) {
+                  // HBLANK STAT interrupt masks OAM interrupt
+                  if (!(stat_reg & 0x08)) {
+                     // So does LYC == LY interrupt
+                     if((stat_reg & 0x44) != 0x44) {
+                        fire_stat();
+                     }
+                  }
+               }
             }
-            update_stat(ppu_ly);
          }
          break;
       case PPU_MODE_VBLANK:
          if (timer >= 456) {
             timer -= 456;
             ppu_ly++;
-            // LYC == LY will be true at scanline 153.
-            // Hang out here for one more scanline and
-            // then go back to SCAN_OAM
-            if (ppu_ly == 1) {
-               ppu_ly     = 0;
+            if (ppu_ly > 153) {
+               ppu_ly = 0;
                ppu_win_ly = 0;
-               mode       = PPU_MODE_SCAN_OAM;
+               update_stat_mode(PPU_MODE_SCAN_OAM);
+               // Check if OAM STAT interrupt is enabled
+               if (stat_reg & 0x20) {
+                  // HBLANK STAT interrupt masks OAM interrupt
+                  if (!(stat_reg & 0x08)) {
+                     // So does LYC == LY interrupt
+                     if((stat_reg & 0x44) != 0x44) {
+                        fire_stat();
+                     }
+                  }
+               }
             }
-            update_stat(ppu_ly);
-         } else if (timer > 8 && ppu_ly == 153) {
-            ppu_ly     = 0;
-            ppu_win_ly = 0;
-            update_stat(ppu_ly);
+            set_ly(ppu_ly);
          }
          break;
    }
 }
 
+void ppu_do_pixel(int x, int y) {
+   if (x < 0 || x >= 160 || y < 0 || y >= 144) {
+      return;
+   }
+
+   // TODO: These should be changed on write to LCDC and stored.
+   byte lcdc = mem_rb(LCD_CONTROL_ADDR);
+   bool wn_tilemap = lcdc & (1 << 6);
+   bool wn_enabled = lcdc & (1 << 5);
+   bool tile_bank  = lcdc & (1 << 4);
+   bool bg_tilemap = lcdc & (1 << 3);
+   bool sp_size    = lcdc & (1 << 2);
+   bool sp_enabled = lcdc & (1 << 1);
+   bool bg_enabled = lcdc & (1 << 0);
+
+   int  scroll_x = mem_direct_read(LCD_SCX_ADDR); 
+   int  scroll_y = mem_direct_read(LCD_SCY_ADDR);
+   // TODO: Draw the window here too
+   int  wn_x_pos = mem_direct_read(WIN_X_ADDR) - 7;
+   int  wn_y_pos = mem_direct_read(WIN_Y_ADDR);
+
+   bool bg_in_front = true;
+
+   bool skip_bg = !bg_enabled;
+   if (wn_enabled
+    && wn_x_pos < 166
+    && y >= wn_y_pos
+    && x >= wn_x_pos) {
+      skip_bg = true;
+   }
+   if (!skip_bg) {
+      // The background tilemap is 256x256. Here we calculate
+      // which pixel we are in this map, wrapped.
+      int tilemap_x = (x + scroll_x) % 256;
+      int tilemap_y = (y + scroll_y) % 256;
+
+      // Divide by 8 to find tile coordinates
+      int tilemap_tile_x = tilemap_x / 8; // >> 3;
+      int tilemap_tile_y = tilemap_y / 8; // >> 3;
+
+      // The tilemap is a 32 x 32 grid. Get the index
+      // of the tile we're drawing.
+      int tile_index = tilemap_tile_y * 32 + tilemap_tile_x;
+      
+      tile_index = mem_direct_read(0x9800 + (bg_tilemap ? 0x400 : 0) + tile_index);
+
+      int tile_addr = 0x8000;
+      if (tile_index < 128) {
+         if (tile_bank) {
+            tile_addr += tile_index * 16;
+         } else {
+            tile_addr += 0x1000 + tile_index * 16;
+         }
+      } else {
+         tile_addr += 0x800 + (tile_index - 128) * 16;
+      }
+      
+      // We now have the address of the tile we're drawing.
+      // Tiles are stored in 16 bytes each, like so:
+      //    [Row 1 Lo Bits] [Row 1 Hi Bits] [Row 2 Lo Bits]...
+      int tile_px_x = tilemap_x & 7;
+      int tile_px_y = tilemap_y & 7;
+      int row_byte  = tile_addr + tile_px_y * 2;
+      int pal_index = (!!(mem_direct_read(row_byte)     & (0x80 >> tile_px_x)))
+                    | (!!(mem_direct_read(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
+
+      if (pal_index == 0) {
+         bg_in_front = false;
+      }
+      byte color = ppu_pick_color(pal_index, mem_direct_read(BG_PAL_ADDR));
+
+      int vram_addr = (y * 160 + x) * 3;
+      ppu_vram[vram_addr++] = color;
+      ppu_vram[vram_addr++] = color;
+      ppu_vram[vram_addr++] = color;
+   } else if (!bg_enabled && !wn_enabled) {
+      int vram_addr = (y * 160 + x) * 3;
+      ppu_vram[vram_addr++] = LCD_WHITE;
+      ppu_vram[vram_addr++] = LCD_WHITE;
+      ppu_vram[vram_addr++] = LCD_WHITE;
+   }
+
+   if (sp_enabled) {
+      int sp_height = sp_size ? 16 : 8;
+      for (int s = 0; s < 40; ++s) {
+         int sp_y = mem_direct_read(SPRITE_RAM_START_ADDR + s * 4) - 16;
+         int sp_x = mem_direct_read(SPRITE_RAM_START_ADDR + s * 4 + 1) - 8;
+         if (sp_x == 0 || sp_y == 0) {
+            continue;
+         }
+         if (sp_x + 8 <= x || sp_x > x || sp_y > y || sp_y + sp_height <= y) {
+            continue;
+         }
+
+         byte tile = mem_direct_read(SPRITE_RAM_START_ADDR + s * 4 + 2);
+         byte attr = mem_direct_read(SPRITE_RAM_START_ADDR + s * 4 + 3);
+
+         if ((attr & 0x80) && bg_in_front) {
+            continue;
+         }
+
+         // Y Flip
+         int sp_row = y - sp_y;
+         if (attr & 0x40) {
+            sp_row = sp_height - 1 - sp_row;
+         }
+         if (sp_size) {
+            tile &= 0xFE;
+         }
+
+         // X Flip
+         int tile_px_x = (x - sp_x) & 7;
+         if (attr & 0x20) {
+            tile_px_x = 7 - tile_px_x;
+         }
+
+         byte tile_index_mask = sp_height - 1;
+
+         int row_byte = 0x8000 + tile * 16 + (sp_row & tile_index_mask) * 2;
+         int pal_index = (!!(mem_direct_read(row_byte)     & (0x80 >> tile_px_x)))
+                       | (!!(mem_direct_read(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
+
+         if (pal_index == 0) {
+            continue;
+         }
+
+         byte color = ppu_pick_color(pal_index, mem_direct_read(OBJ_PAL_ADDR + !!(attr & 0x10)));
+
+         int vram_addr = (y * 160 + x) * 3;
+         ppu_vram[vram_addr++] = color;
+         ppu_vram[vram_addr++] = color;
+         ppu_vram[vram_addr++] = color;
+      }
+   }
+}
 
 void ppu_do_scanline() {
+   if (ppu_ly > 143) {
+      return;
+   }
    bool bg_is_zero[160];
-
    bool window   = false;
    int vram_addr = ppu_ly * 160 * 3;
-
    byte win_x = mem_direct_read(WIN_X_ADDR);
    if (ppu_ly == 0) {
       win_y = mem_direct_read(WIN_Y_ADDR);
@@ -228,36 +407,35 @@ void ppu_do_scanline() {
    word bg_map_off   = (((ppu_ly + scroll_y) & 0xFF) >> 3) * 32;
    word win_map_off  = ((ppu_win_ly & 0xFF) >> 3) * 32;
    byte bg_x_off     = (scroll_x >> 3) & 0x1F;
-   byte win_x_off    = 0;
-   byte win_x_px     = 0;
+   byte win_x_off    = 0; // What is this supposed to be set to?
    byte bg_tile      = mem_direct_read(bg_map_loc + bg_map_off + bg_x_off);
    byte win_tile     = mem_direct_read(win_map_loc + win_map_off + win_x_off);
-
-   byte bg_xpx_off  = scroll_x & 0x07;
-   byte bg_ypx_off  = (scroll_y + ppu_ly) & 0x07;
-   byte win_xpx_off = 0;
-   byte win_ypx_off = ppu_win_ly & 0x07;
-   byte start_x_off = bg_xpx_off;
-   byte outcol      = 0;
+   byte bg_xpx_off   = scroll_x & 0x07;
+   byte bg_ypx_off   = (scroll_y + ppu_ly) & 0x07;
+   byte win_ypx_off  = ppu_win_ly & 0x07;
+   byte start_x_off  = bg_xpx_off;
+   byte win_xpx_off  = 0;
+   byte win_x_px     = 0;
+   byte outcol       = 0;
 
    for (int i = 0; i < 160; i++) {
       if ((mem_direct_read(LCD_CONTROL_ADDR) & 0x20)
-            && ppu_ly >= win_y
-            && i >= win_x - 7
-            && win_x < 166) {
+       && ppu_ly >= win_y
+       && i >= win_x - 7
+       && win_x < 166) {
          window = true;
       }
 
       byte tile_index = window ? win_tile : bg_tile;
-      int tile_addr;
+      int tile_addr = 0x8000;
       if (tile_index < 128) {
          if (tile_bank) {
-            tile_addr = 0x8000 + tile_index * 16;
+            tile_addr += tile_index * 16;
          } else {
-            tile_addr = 0x9000 + tile_index * 16;
+            tile_addr += 0x1000 + tile_index * 16;
          }
       } else {
-         tile_addr = 0x8800 + (tile_index - 128) * 16;
+         tile_addr += 0x800 + (tile_index - 128) * 16;
       }
 
       if (!window) {
@@ -311,7 +489,10 @@ void ppu_do_scanline() {
          }
       } else {
          bg_is_zero[i] = true;
-      }
+         ppu_vram[vram_addr++] = LCD_WHITE;
+         ppu_vram[vram_addr++] = LCD_WHITE;
+         ppu_vram[vram_addr++] = LCD_WHITE;
+       }
    }
 
    if (window) {
@@ -391,7 +572,6 @@ void ppu_do_scanline() {
    }
 }
 
-// TODO:
 byte ppu_pick_color(byte col, byte pal) {
    byte temp = (pal >> (col * 2)) & 0x03;
    switch (temp) {

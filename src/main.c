@@ -28,6 +28,9 @@ int main(int argc, char* args[]) {
          if (strcmp(args[a + 2], "-d") == 0) {
             debug_flag = true;
          }
+         if (strcmp(args[a + 2], "-v") == 0) {
+            printf("%s\n", args[1]);
+         }
       }
    }
 

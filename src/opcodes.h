@@ -26,23 +26,31 @@
    FLAG_C = FLAG_H = FLAG_N = false; \
    FLAG_Z                   = !cpu_A;
 
-#define PUSH(hi, lo)                 \
+#define PUSH(hi, lo) \
+   TIME(1);  \
    mem_wb(--cpu_SP, (hi)); \
-   mem_wb(--cpu_SP, (lo));
+   TIME(1); \
+   mem_wb(--cpu_SP, (lo)); 
 
-#define POP(hi, lo)                \
+#define POP(hi, lo) \
+   TIME(1); \
    lo = mem_rb(cpu_SP++); \
+   TIME(1); \
    hi = mem_rb(cpu_SP++);
 
 #define PUSHW(val) \
-   cpu_SP -= 2;    \
-   mem_ww(cpu_SP, (val));
+   TIME(1); \
+   mem_wb(--cpu_SP, ((val) >> 8) & 0xFF); \
+   TIME(1); \
+   mem_wb(--cpu_SP, (val) & 0xFF);
 
-#define POPW(val)        \
-   val = mem_rw(cpu_SP); \
-   cpu_SP += 2;
-
-#define JP() cpu_PC = mem_rw(cpu_PC);
+#define POPW(val) \
+   TIME(1); \
+   val &= 0xFF00; \
+   val |= mem_rb(cpu_SP++); \
+   TIME(1); \
+   val &= 0x00FF; \
+   val |= mem_rb(cpu_SP++) << 8;
 
 #define JR() cpu_PC += (sbyte)mem_rb(cpu_PC) + 1;
 
@@ -149,12 +157,30 @@ void dec16(byte* hi, byte* low) {
 }
 
 void call() {
+   byte hi, lo;
+   TIME(2);
+   lo = mem_rb(cpu_PC);
+   TIME(1);
+   hi = mem_rb(cpu_PC+1);
+   TIME(1);
    PUSHW(cpu_PC + 2);
-   cpu_PC = mem_rw(cpu_PC);
+   cpu_PC = (hi << 8) | lo;
 }
 
 void ret() {
+   TIME(1);
    POPW(cpu_PC);
+   TIME(1);
+}
+
+void jp() {
+   byte hi, lo;
+   TIME(2);
+   lo = mem_rb(cpu_PC);
+   TIME(1);
+   hi = mem_rb(cpu_PC+1);
+   TIME(1);
+   cpu_PC = (hi << 8) | lo;
 }
 
 void cpu_nop() {
@@ -386,6 +412,7 @@ void set(byte* inp, byte bit) {
       *inp = t;
    }
 }
+
 // LOAD / STORES
 
 void cpu_lda_n() {
@@ -773,8 +800,9 @@ void cpu_ldsp_hl() {
 }
 
 void cpu_ldhl_sp_n() {
-   TIME(3);
+   TIME(2);
    byte next = mem_rb(cpu_PC++);
+   TIME(1);
    sbyte off = (sbyte)next;
    int res   = off + cpu_SP;
    CLEAR_FLAGS();
@@ -794,27 +822,27 @@ void cpu_ld_nn_sp() {
 // PUSH / POP
 
 void cpu_pushbc() {
-   TIME(4);
+   TIME(2);
    PUSH(cpu_B, cpu_C);
 }
 void cpu_pushde() {
-   TIME(4);
+   TIME(2);
    PUSH(cpu_D, cpu_E);
 }
 void cpu_pushhl() {
-   TIME(4);
+   TIME(2);
    PUSH(cpu_H, cpu_L);
 }
 void cpu_popbc() {
-   TIME(3);
+   TIME(1);
    POP(cpu_B, cpu_C);
 }
 void cpu_popde() {
-   TIME(3);
+   TIME(1);
    POP(cpu_D, cpu_E);
 }
 void cpu_pophl() {
-   TIME(3);
+   TIME(1);
    POP(cpu_H, cpu_L);
 }
 
@@ -832,13 +860,13 @@ void cpu_pushaf() {
    if (FLAG_N) {
       flags |= BITMASK_N;
    }
-   TIME(4);
+   TIME(2);
    PUSH(cpu_A, flags);
 }
 
 void cpu_popaf() {
    byte flags = 0;
-   TIME(3);
+   TIME(1);
    POP(cpu_A, flags);
    FLAG_Z = (flags & BITMASK_Z);
    FLAG_C = (flags & BITMASK_C);
@@ -1013,14 +1041,12 @@ void cpu_cb() {
 // JUMP / RETURN
 
 void cpu_jp_nn() {
-   TIME(4);
-   JP();
+   jp();
 }
 
 void cpu_jp_nz_nn() {
    if (!FLAG_Z) {
-      TIME(4);
-      JP();
+      jp();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1029,8 +1055,7 @@ void cpu_jp_nz_nn() {
 
 void cpu_jp_z_nn() {
    if (FLAG_Z) {
-      TIME(4);
-      JP();
+      jp();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1039,8 +1064,7 @@ void cpu_jp_z_nn() {
 
 void cpu_jp_nc_nn() {
    if (!FLAG_C) {
-      TIME(4);
-      JP();
+      jp();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1049,8 +1073,7 @@ void cpu_jp_nc_nn() {
 
 void cpu_jp_c_nn() {
    if (FLAG_C) {
-      TIME(4);
-      JP();
+      jp();
    } else {
       TIME(3);
       cpu_PC += 2;
@@ -1108,13 +1131,11 @@ void cpu_jr_c_n() {
 }
 
 void cpu_call_nn() {
-   TIME(6);
    call();
 }
 
 void cpu_call_nz_nn() {
    if (!FLAG_Z) {
-      TIME(6);
       call();
    } else {
       TIME(3);
@@ -1124,7 +1145,6 @@ void cpu_call_nz_nn() {
 
 void cpu_call_z_nn() {
    if (FLAG_Z) {
-      TIME(6);
       call();
    } else {
       TIME(3);
@@ -1134,7 +1154,6 @@ void cpu_call_z_nn() {
 
 void cpu_call_nc_nn() {
    if (!FLAG_C) {
-      TIME(6);
       call();
    } else {
       TIME(3);
@@ -1144,7 +1163,6 @@ void cpu_call_nc_nn() {
 
 void cpu_call_c_nn() {
    if (FLAG_C) {
-      TIME(6);
       call();
    } else {
       TIME(3);
@@ -1155,7 +1173,7 @@ void cpu_call_c_nn() {
 // Restarts
 
 void cpu_rst_00h() {
-   TIME(4);
+   TIME(2);
    PUSHW(cpu_PC);
    cpu_halted  = false;
    cpu_stopped = false;
@@ -1163,7 +1181,7 @@ void cpu_rst_00h() {
 }
 
 void cpu_rst_08h() {
-   TIME(4);
+   TIME(2);
    PUSHW(cpu_PC);
    cpu_halted  = false;
    cpu_stopped = false;
@@ -1171,7 +1189,7 @@ void cpu_rst_08h() {
 }
 
 void cpu_rst_10h() {
-   TIME(4);
+   TIME(2);
    PUSHW(cpu_PC);
    cpu_halted  = false;
    cpu_stopped = false;
@@ -1179,7 +1197,7 @@ void cpu_rst_10h() {
 }
 
 void cpu_rst_18h() {
-   TIME(4);
+   TIME(2);
    PUSHW(cpu_PC);
    cpu_halted  = false;
    cpu_stopped = false;
@@ -1187,7 +1205,7 @@ void cpu_rst_18h() {
 }
 
 void cpu_rst_20h() {
-   TIME(4);
+   TIME(2);
    PUSHW(cpu_PC);
    cpu_halted  = false;
    cpu_stopped = false;
@@ -1195,7 +1213,7 @@ void cpu_rst_20h() {
 }
 
 void cpu_rst_28h() {
-   TIME(4);
+   TIME(2);
    PUSHW(cpu_PC);
    cpu_halted  = false;
    cpu_stopped = false;
@@ -1203,7 +1221,7 @@ void cpu_rst_28h() {
 }
 
 void cpu_rst_30h() {
-   TIME(4);
+   TIME(2);
    PUSHW(cpu_PC);
    cpu_halted  = false;
    cpu_stopped = false;
@@ -1211,7 +1229,7 @@ void cpu_rst_30h() {
 }
 
 void cpu_rst_38h() {
-   TIME(4);
+   TIME(2);
    PUSHW(cpu_PC);
    cpu_halted  = false;
    cpu_stopped = false;
@@ -1221,13 +1239,12 @@ void cpu_rst_38h() {
 // Returns
 
 void cpu_ret() {
-   TIME(4);
    ret();
 }
 
 void cpu_ret_nz() {
    if (!FLAG_Z) {
-      TIME(5);
+      TIME(1);
       ret();
    } else {
       TIME(2);
@@ -1236,7 +1253,7 @@ void cpu_ret_nz() {
 
 void cpu_ret_z() {
    if (FLAG_Z) {
-      TIME(5);
+      TIME(1);
       ret();
    } else {
       TIME(2);
@@ -1245,7 +1262,7 @@ void cpu_ret_z() {
 
 void cpu_ret_nc() {
    if (!FLAG_C) {
-      TIME(5);
+      TIME(1);
       ret();
    } else {
       TIME(2);
@@ -1254,7 +1271,7 @@ void cpu_ret_nc() {
 
 void cpu_ret_c() {
    if (FLAG_C) {
-      TIME(5);
+      TIME(1);
       ret();
    } else {
       TIME(2);
@@ -1262,9 +1279,8 @@ void cpu_ret_c() {
 }
 
 void cpu_reti() {
-   TIME(4);
    cpu_ime       = true;
-   cpu_ime_delay = true;
+   cpu_ime_delay = false;
    ret();
 }
 
@@ -1291,8 +1307,9 @@ void cpu_add16_hl_sp() {
 }
 
 void cpu_add16_sp_n() {
-   TIME(4);
+   TIME(2);
    byte val  = mem_rb(cpu_PC++);
+   TIME(2);
    sbyte off = (sbyte)val;
    CLEAR_FLAGS();
    FLAG_H = ((cpu_SP & 0xF) + (val & 0xF) > 0xF);
