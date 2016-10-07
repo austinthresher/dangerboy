@@ -161,9 +161,8 @@ void ppu_update_register(word addr, byte val) {
       case LCD_LINE_Y_ADDR:
          ppu_ly     = 0;
          ppu_win_ly = 0;
-         // This will check LY == LYC, make sure that writing
-         // to LY is supposed to fire LY == LYC interrupt
          set_ly(0);
+         check_lyc();
          break;
       case LCD_LINE_Y_C_ADDR:
          mem_direct_write(LCD_LINE_Y_C_ADDR, val);
@@ -175,16 +174,15 @@ void ppu_update_register(word addr, byte val) {
             if (lcd_disable) {
                update_stat_mode(PPU_MODE_SCAN_OAM);
                timer = 0; // Confirm that timer should reset here
-               try_fire_oam();
-            }
+               set_ly(0);
+               try_fire_lyc();
+             }
             lcd_disable = false;
          } else {
             if (!lcd_disable) {
                ppu_draw = true;
                lcd_disable = true;
                update_stat_mode(mode & ~2);
-               set_ly(0);
-               try_fire_lyc();
                if (mode == PPU_MODE_VBLANK) {
                   try_fire_vblank();
                }
