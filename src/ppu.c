@@ -55,15 +55,12 @@ void try_fire_oam() {
    byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
    // Check if OAM STAT interrupt is enabled
    if (stat_reg & 0x20) {
-      // HBLANK STAT interrupt masks OAM interrupt
-//      if (!(stat_reg & 0x08)) {
-         // So does LYC == LY interrupt
-//         if((stat_reg & 0x44) != 0x44) {
-//            if (ignore_oams == 0) {
-               fire_stat();
-//            }
-//         }
-//      }
+      if (ignore_oams == 0) {
+         fire_stat();
+      }
+   }
+   if (ignore_oams) {
+      ignore_oams--;
    }
 }
 
@@ -75,7 +72,7 @@ void try_fire_hblank() {
 //      if ((stat_reg & 0x44) != 0x44) {
 //         if (!ignore_hblank) {
             fire_stat();
-//            ignore_oams = 1;
+            ignore_oams = 1;
 //            if (ppu_ly == 0x8F - 1) {
 //               ignore_vblank = true;
 //            }
@@ -88,6 +85,7 @@ void try_fire_vblank() {
    byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
    // Fire VBLANK STAT interrupt if enabled
    if (stat_reg & 0x10 /*&& !ignore_vblank*/) {
+      ignore_oams = 1;
       stat_vblank_fired = true;
       fire_stat();
    } else if (ppu_ly == 144) {
@@ -110,7 +108,7 @@ void try_fire_lyc() {
          // if ((mode == PPU_MODE_VBLANK && !(stat & 0x10))
          //  || (mode == PPU_MODE_HBLANK && !(stat & 0x20))) {
          //    if (!stat_vblank_fired) {
-             fire_stat();
+               fire_stat();
                ignore_oams = 1;
 //               if (lyc < 0x90) {
 //                  ignore_hblank = true;
@@ -236,9 +234,6 @@ void ppu_advance_time(tick ticks) {
             timer -= 84;
             update_scroll_mod();
             update_stat_mode(PPU_MODE_SCAN_VRAM);
-            if (ignore_oams) {
-               ignore_oams--;
-            }
          }
          break;
 
