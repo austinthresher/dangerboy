@@ -3,25 +3,26 @@
 
 //#define PER_PIXEL
 
-// Extra STAT checks here are based off of STAT document
-// on drhelius' github. Needs testing.
-
 byte mode;
 byte win_y;
 tick timer;
 int scroll_tick_mod;
 int x_pixel;
+bool stat_requested;
 bool stat_vblank_fired;
-bool ignore_hblank;
-bool ignore_vblank;
 int ignore_oams;
 void update_stat_mode(byte new_mode);
 void update_scroll_mod();
 void set_ly(int ly);
 void check_lyc();
 
-void fire_stat() {
-   mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+bool fire_stat() {
+   if (!stat_requested) {
+      mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_STAT);
+      stat_requested = true;
+      return true;
+   }
+   return false;
 }
 
 void ppu_init() {
@@ -34,8 +35,7 @@ void ppu_init() {
    x_pixel = 0;
    stat_vblank_fired = false;
    ignore_oams = 0;
-   ignore_hblank = false;
-   ignore_vblank = false;
+   stat_requested = false;
    ppu_reset();
 }
 
@@ -69,32 +69,25 @@ void try_fire_hblank() {
    byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
    // Check if HBLANK STAT interrupt is enabled
    if (stat_reg & 0x08) {
-      if (!ignore_hblank) {
-         fire_stat();
+      if (fire_stat()) {
          ignore_oams = 1;
-         if (ppu_ly == 0x8F) {
-            ignore_vblank = true;
-         }
       }
    }
-   ignore_hblank = false;
 }
 
 void try_fire_vblank() {
    byte stat_reg = mem_direct_read(LCD_STATUS_ADDR);
    // Fire VBLANK STAT interrupt if enabled
    if (stat_reg & 0x10) {
-      if (!ignore_vblank) {
-         ignore_oams = 1;
+      if (fire_stat()) {
          stat_vblank_fired = true;
-         fire_stat();
+         ignore_oams = 1;
       }
    } else if (ppu_ly == 144) {
       // OAM interrupt still fires on ly == 144,
       // but only if STAT VBLANK interrupt did not
       try_fire_oam();
    }
-   ignore_vblank = false;
 }
 
 void try_fire_lyc() {
@@ -102,13 +95,8 @@ void try_fire_lyc() {
    if ((stat & 0x44) == 0x44) {
       if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
          if (!stat_vblank_fired) {
-            fire_stat();
-            ignore_oams = 1;
-            if (ppu_ly < 0x90) {
-               ignore_hblank = true;
-            }
-            if (ppu_ly == 0x8F) {
-               ignore_vblank = true;
+            if (fire_stat()) {
+               ignore_oams = 1;
             }
          }
       }
@@ -152,7 +140,6 @@ void ppu_update_register(word addr, byte val) {
          ppu_ly     = 0;
          ppu_win_ly = 0;
          set_ly(0);
-         check_lyc();
          break;
       case LCD_LINE_Y_C_ADDR:
          mem_direct_write(LCD_LINE_Y_C_ADDR, val);
@@ -163,37 +150,29 @@ void ppu_update_register(word addr, byte val) {
          if (val & 0x80) {
             if (lcd_disable) {
                update_stat_mode(PPU_MODE_HBLANK);
-               timer = 0; // Confirm that timer should reset here
+               timer = 0;
                set_ly(0);
-               check_lyc();
                try_fire_lyc();
-             }
+            }
             lcd_disable = false;
          } else {
             if (!lcd_disable) {
                ppu_draw = true;
                lcd_disable = true;
-               update_stat_mode(0);
-//              update_stat_mode(mode & ~2);
-//               if (mode == PPU_MODE_VBLANK) {
-//                  try_fire_vblank();
-//               }
-//               if (mode == PPU_MODE_HBLANK) {
-//                  try_fire_hblank();
-//               }
+               update_stat_mode(PPU_MODE_HBLANK);
             }
          }
          break;
       case LCD_STATUS_ADDR:
          // Clear the mode bits and the unused 7th bit
-         val &= ~0x87; 
+         val &= ~7; 
          // Write to the interrupt enable flags, but not to mode or lyc
          mem_direct_write(LCD_STATUS_ADDR,
                mem_direct_read(LCD_STATUS_ADDR) & 0x7 | val | 0x80);
          
          // Writing to stat during vblank is supposed to raise an interrupt
          if (mode == PPU_MODE_VBLANK) {
-            try_fire_vblank();
+//            try_fire_vblank();
          }
          break;
       default: mem_direct_write(addr, val);
@@ -212,6 +191,8 @@ void update_scroll_mod() {
 }
 
 void ppu_advance_time(tick ticks) {
+   stat_requested = false;
+
    if (lcd_disable) {
       return;
    }
@@ -250,7 +231,6 @@ void ppu_advance_time(tick ticks) {
          }
          if (timer >= vram_length) {
             timer -= vram_length;
-            ignore_hblank = false;
             update_stat_mode(PPU_MODE_HBLANK);
          }
          
@@ -293,10 +273,8 @@ void ppu_advance_time(tick ticks) {
             if (ppu_ly == 1) {
                ppu_ly = 0;
                ppu_win_ly = 0;
-               ignore_vblank = false;
                update_stat_mode(PPU_MODE_SCAN_OAM);
                try_fire_oam(); 
-               stat_vblank_fired = false;
             }
             set_ly(ppu_ly);
             if (ppu_ly != 0) {

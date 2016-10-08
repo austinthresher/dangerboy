@@ -55,6 +55,7 @@ int main(int argc, char* args[]) {
    int t_prev      = SDL_GetTicks();
    int i_prev      = SDL_GetTicks();
    char* file      = args[1];
+   bool break_next = false;
 
    mem_init();
    mem_load_image(file);
@@ -81,33 +82,60 @@ int main(int argc, char* args[]) {
                   }
                   if (event.key.keysym.sym == SDLK_LEFT) {
                      mem_dpad |= 0x02;
+                     if (break_next) {
+                        debugger_break();
+                     }
                   }
                   if (event.key.keysym.sym == SDLK_UP) {
                      mem_dpad |= 0x04;
+                     if (break_next) {
+                        debugger_break();
+                     }
                   }
                   if (event.key.keysym.sym == SDLK_RIGHT) {
                      mem_dpad |= 0x01;
+                     if (break_next) {
+                        debugger_break();
+                     }
                   }
                   if (event.key.keysym.sym == SDLK_DOWN) {
                      mem_dpad |= 0x08;
+                     if (break_next) {
+                        debugger_break();
+                     }
                   }
                   if (event.key.keysym.sym == SDLK_z) { // A
                      mem_buttons |= 0x01;
+                     if (break_next) {
+                        debugger_break();
+                     }
                   }
                   if (event.key.keysym.sym == SDLK_x) { // B
                      mem_buttons |= 0x2;
+                     if (break_next) {
+                        debugger_break();
+                     }
                   }
                   if (event.key.keysym.sym == SDLK_RETURN) { // Start
                      mem_buttons |= 0x08;
+                     if (break_next) {
+                        debugger_break();
+                     }
                   }
                   if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
                      mem_buttons |= 0x04;
+                     if (break_next) {
+                        debugger_break();
+                     }
                   }
                   break;
 
                case SDL_KEYDOWN:
                   if (event.key.keysym.sym == SDLK_d) {
                      debugger_break();
+                  }
+                  if (event.key.keysym.sym == SDLK_n) {
+                     break_next = true; // Break after the next input is given
                   }
                   if (event.key.keysym.sym == SDLK_SPACE) {
                      turbo = true;
