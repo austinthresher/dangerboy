@@ -150,23 +150,29 @@ void cpu_execute_step() {
             target = 0x40;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
             debugger_log("VBLANK Interrupt");
+            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
          } else if (irq & INT_STAT) {
             target = 0x48;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_STAT);
             debugger_log("STAT Interrupt");
+            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
          } else if (irq & INT_TIMA) {
             target = 0x50;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
             debugger_log("TIMA Interrupt");
+            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
          } else if (irq & INT_SERIAL) {
             target = 0x58;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_SERIAL);
             debugger_log("Serial interrupt");
+            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
          } else if (irq & INT_INPUT) {
             target = 0x60;
             mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
             debugger_log("Input Interrupt");
+            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
          }
+
 
          if (target != 0x00) {
             interrupted = true;

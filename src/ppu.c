@@ -92,12 +92,11 @@ void try_fire_vblank() {
 
 void try_fire_lyc() {
    byte stat = mem_direct_read(LCD_STATUS_ADDR);
+   check_lyc();
    if ((stat & 0x44) == 0x44) {
-      if ((stat & 0x02) == 0) { // Only if in HBLANK or VBLANK
-         if (!stat_vblank_fired) {
-            if (fire_stat()) {
-               ignore_oams = 1;
-            }
+      if (!stat_vblank_fired) {
+         if (fire_stat()) {
+            ignore_oams = 1;
          }
       }
    } 
@@ -150,8 +149,7 @@ void ppu_update_register(word addr, byte val) {
          if (val & 0x80) {
             if (lcd_disable) {
                update_stat_mode(PPU_MODE_HBLANK);
-               timer = 0;
-               set_ly(0);
+               timer = 200 - 84; // This is supposed to last the same length as OAM mode
                try_fire_lyc();
             }
             lcd_disable = false;
@@ -159,6 +157,7 @@ void ppu_update_register(word addr, byte val) {
             if (!lcd_disable) {
                ppu_draw = true;
                lcd_disable = true;
+               set_ly(0);
                update_stat_mode(PPU_MODE_HBLANK);
             }
          }
@@ -277,9 +276,9 @@ void ppu_advance_time(tick ticks) {
                try_fire_oam(); 
             }
             set_ly(ppu_ly);
-            if (ppu_ly != 0) {
+//            if (ppu_ly != 0) {
                try_fire_lyc();
-            }
+//            }
          }
          break;
    }
