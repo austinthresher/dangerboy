@@ -130,7 +130,7 @@ void cpu_execute_step() {
    bool interrupted = false;
    byte int_IE      = mem_direct_read(INT_ENABLED_ADDR);
    byte int_IF      = mem_direct_read(INT_FLAG_ADDR);
-   byte irq         = int_IE & int_IF;
+   byte irq         = int_IE & int_IF & INT_MASK;
 
    if (irq && cpu_halted) {
       cpu_halted = false;

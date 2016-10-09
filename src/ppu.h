@@ -34,6 +34,7 @@ void ppu_do_pixel(int x, int y);
 void ppu_do_scanline();
 void ppu_buildobj(word addr, byte val);
 byte ppu_pick_color(byte col, byte pal);
+byte ppu_read_register(word addr);
 void ppu_update_register(word addr, byte val);
 tick ppu_get_timer();
 

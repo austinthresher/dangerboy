@@ -1385,12 +1385,14 @@ void cpu_rra() {
 }
 
 void cpu_di() {
+//   //printf("[%04X] DI, %02X, %d, %lld\n", cpu_PC - 1, mem_rb(LCD_STATUS_ADDR), ppu_ly, ppu_get_timer());
    TIME(1);
    cpu_ime       = false;
    cpu_ime_delay = false;
 }
 
 void cpu_ei() {
+//   //printf("[%04X] EI, %02X, %d, %lld\n", cpu_PC - 1, mem_rb(LCD_STATUS_ADDR), ppu_ly, ppu_get_timer());
    TIME(1);
    cpu_ime       = true;
    cpu_ime_delay = true;

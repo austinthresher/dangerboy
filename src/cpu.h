@@ -13,7 +13,11 @@
 #define INT_TIMA 0x04
 #define INT_SERIAL 0x08
 #define INT_INPUT 0x10
-
+#define INT_MASK (INT_VBLANK \
+                | INT_STAT \
+                | INT_TIMA \
+                | INT_SERIAL \
+                | INT_INPUT)
 // For debugging
 byte cpu_last_op;
 word cpu_last_pc;

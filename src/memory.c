@@ -193,7 +193,7 @@ void mem_advance_time(tick ticks) {
             continue;
          }
 
-         if (mem_direct_read(LCD_STATUS_ADDR) & 2) {
+         if (mem_rb(LCD_STATUS_ADDR) & 2) {
             debugger_log("Writing to OAM while LCD is using it.");
             if (break_on_invalid) {
                debugger_break();
@@ -332,7 +332,7 @@ void mem_wb(word addr, byte val) {
          return;
       case 0x8000: // VRAM
       case 0x9000:
-         if ((mem_ram[LCD_STATUS_ADDR] & 3) != PPU_MODE_SCAN_VRAM
+         if ((mem_rb(LCD_STATUS_ADDR) & 3) != PPU_MODE_SCAN_VRAM
           || lcd_disable) {
             mem_ram[addr] = val;
          } else {
@@ -378,8 +378,8 @@ void mem_wb(word addr, byte val) {
          if (addr < 0xFEA0) { // FE00 to FE9F is OAM
             // OAM can only be written to during HBLANK or VBLANK,
             // and not during an OAM DMA transfer
-            if ((mem_ram[LCD_STATUS_ADDR] & 3) == PPU_MODE_HBLANK
-             || (mem_ram[LCD_STATUS_ADDR] & 3) == PPU_MODE_VBLANK
+            if ((mem_rb(LCD_STATUS_ADDR) & 3) == PPU_MODE_HBLANK
+             || (mem_rb(LCD_STATUS_ADDR) & 3) == PPU_MODE_VBLANK
              || lcd_disable) {
                if (mem_oam_state == INACTIVE
                 || mem_oam_state == STARTING) {
@@ -455,7 +455,7 @@ byte mem_rb(word addr) {
             + addr];
       case 0x8000: // VRAM
       case 0x9000: 
-         if ((mem_ram[LCD_STATUS_ADDR] & 3) != PPU_MODE_SCAN_VRAM
+         if ((mem_rb(LCD_STATUS_ADDR) & 3) != PPU_MODE_SCAN_VRAM
           || lcd_disable) {
             return mem_ram[addr];
          }
@@ -484,8 +484,8 @@ byte mem_rb(word addr) {
          if (addr < 0xFEA0) { // FE00 to FE9F is OAM
             // OAM can only be read during HBLANK or VBLANK,
             // and not during an OAM DMA transfer
-            if ((mem_ram[LCD_STATUS_ADDR] & 3) == PPU_MODE_HBLANK
-             || (mem_ram[LCD_STATUS_ADDR] & 3) == PPU_MODE_VBLANK
+            if ((mem_rb(LCD_STATUS_ADDR) & 3) == PPU_MODE_HBLANK
+             || (mem_rb(LCD_STATUS_ADDR) & 3) == PPU_MODE_VBLANK
              || lcd_disable) {
                if (mem_oam_state == INACTIVE
                 || mem_oam_state == STARTING) {
@@ -523,6 +523,13 @@ byte mem_rb(word addr) {
          return 0xE0 | (mem_ram[INT_ENABLED_ADDR] & 0x1F);
       case INT_FLAG_ADDR:
          return 0xE0 | (mem_ram[INT_FLAG_ADDR] & 0x1F);
+      case LCD_CONTROL_ADDR:
+      case LCD_STATUS_ADDR:
+      case LCD_SCY_ADDR:
+      case LCD_SCX_ADDR:
+      case LCD_LINE_Y_ADDR:
+      case LCD_LINE_Y_C_ADDR:
+         return ppu_read_register(addr);
       default: break;
    }
 
