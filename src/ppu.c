@@ -25,14 +25,20 @@ bool fire_stat() {
    return false;
 }
 
+// This fires the hardware VBLANK interrupt, not STAT
+void fire_vblank() {
+   ppu_draw = true;
+   mem_wb(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
+}
+
 void ppu_init() {
-   update_stat_mode(PPU_MODE_SCAN_OAM);
+   update_stat_mode(PPU_MODE_VBLANK);
    timer       = 0;
    ppu_ly      = 0;
    lcd_disable = false;
    ppu_draw    = false;
    ppu_win_ly  = 0;
-   x_pixel = 0;
+   x_pixel     = 0;
    stat_vblank_fired = false;
    ignore_oams = 0;
    stat_requested = false;
@@ -128,7 +134,20 @@ void update_stat_mode(byte new_mode) {
    mem_direct_write(LCD_STATUS_ADDR,
       (mem_direct_read(LCD_STATUS_ADDR) & ~3) | (new_mode & 3) | 0x80);
    if (mode != new_mode) {
-      debugger_log("STAT mode switch");
+      switch (new_mode) {
+         case PPU_MODE_VBLANK:
+            debugger_log("STAT mode switch: VBLANK");
+            break;
+         case PPU_MODE_HBLANK:
+            debugger_log("STAT mode switch: HBLANK");
+            break;
+         case PPU_MODE_SCAN_OAM:
+            debugger_log("STAT mode switch: OAM");
+            break;
+         case PPU_MODE_SCAN_VRAM:
+            debugger_log("STAT mode switch: VRAM");
+            break;
+      }
    }
    mode = new_mode;
 }
@@ -180,13 +199,12 @@ void ppu_update_register(word addr, byte val) {
 // Based on Mooneye's implementation
 void update_scroll_mod() {
    byte scx = mem_direct_read(LCD_SCX_ADDR) % 8;
+   scroll_tick_mod = 0;
    if (scx > 4) {
       scroll_tick_mod = 8;
    } else if (scx > 0) {
       scroll_tick_mod = 4;
-   } else {
-      scroll_tick_mod = 0;
-   }
+   } 
 }
 
 void ppu_advance_time(tick ticks) {
@@ -242,9 +260,7 @@ void ppu_advance_time(tick ticks) {
             x_pixel = 0;
             set_ly(ppu_ly);
             if (ppu_ly >= 144) {
-               ppu_draw = true;
-               mem_wb(INT_FLAG_ADDR,
-                     mem_direct_read(INT_FLAG_ADDR) | INT_VBLANK);
+               fire_vblank();
                update_stat_mode(PPU_MODE_VBLANK);
                try_fire_vblank();
             } else {

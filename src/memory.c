@@ -7,7 +7,7 @@
 #include "memory.h"
 #include "ppu.h"
 
-bool break_on_invalid = false;
+bool break_on_invalid = false;//true;
 word dma_src, dma_dst, dma_rst;
 void mem_dma(byte val);
 
@@ -193,6 +193,12 @@ void mem_advance_time(tick ticks) {
             continue;
          }
 
+         if (mem_direct_read(LCD_STATUS_ADDR) & 2) {
+            debugger_log("Writing to OAM while LCD is using it.");
+            if (break_on_invalid) {
+               debugger_break();
+            }
+         }
          mem_direct_write(dma_dst, mem_rb(dma_src));
 
          dma_src++;
@@ -329,6 +335,11 @@ void mem_wb(word addr, byte val) {
          if ((mem_ram[LCD_STATUS_ADDR] & 3) != PPU_MODE_SCAN_VRAM
           || lcd_disable) {
             mem_ram[addr] = val;
+         } else {
+            if (break_on_invalid) {
+               debugger_break();
+            }
+            debugger_log("Invalid VRAM write");
          }
          return;
       case 0xA000: // External RAM
@@ -345,6 +356,11 @@ void mem_wb(word addr, byte val) {
                return;
             } 
             mem_ram_bank[addr] = val;
+         } else {
+            if (break_on_invalid) {
+               debugger_break();
+            }
+            debugger_log("Invalid locked RAM write");
          }
          return;
       case 0xC000: // Work RAM
@@ -379,8 +395,12 @@ void mem_wb(word addr, byte val) {
    // in the 0xF000 case. We can assume we're dealing with
    // HRAM or hardware registers.
    if (addr >= 0xFEA0 && addr < 0xFEFF) {
+      if (break_on_invalid) {
+         debugger_break();
+      }
+      debugger_log("Invalid unusable RAM write");
       return; // This memory is not usable
-   }
+   } 
 
    // HW Registers
    switch (addr) {

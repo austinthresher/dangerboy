@@ -194,6 +194,7 @@ void print_memory_map(int x, word addr) {
 
 void debugger_log(const char* str) {
    if (curses_on && console_pane != NULL) {
+      wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%s\n", str);
    }
 }
@@ -522,10 +523,13 @@ void debugger_notify_mem_exec(word addr) {
    if (breakpoints[addr].break_on_exec) {
       need_break = true;
       memory_view_addr = addr;
+
+      wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%04X is about to execute. Breaking.\n", addr);
    } else if (break_on_op[mem_rb(addr)]) {
       need_break = true;
       memory_view_addr = addr;
+      wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%02X is about to execute. Breaking.\n", mem_rb(addr));
    }
 }
@@ -538,11 +542,13 @@ void debugger_notify_mem_write(word addr, byte val) {
          && breakpoints[addr].watch_value == val) {
       need_break = true;
       memory_view_addr = addr;
+      wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%02X was written to %04X. Breaking.\n", val, addr);
    }
    else if (breakpoints[addr].break_on_write) {
       need_break = true;
       memory_view_addr = addr;
+      wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%04X was written to. Breaking.\n", addr);
    }
 }
@@ -554,6 +560,7 @@ void debugger_notify_mem_read(word addr) {
    if (breakpoints[addr].break_on_read) {
       need_break = true;
       memory_view_addr = addr;
+      wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%04X was read. Breaking.\n", addr);
    }
 }

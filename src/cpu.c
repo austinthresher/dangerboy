@@ -1,8 +1,8 @@
 #include "cpu.h"
-#include "opcodes.h"
-#include "ppu.h"
 #include "debugger.h"
+#include "ppu.h"
 #include "memory.h"
+#include "opcodes.h"
 
 tick last_tima_overflow;
 word internal_timer;
@@ -12,8 +12,8 @@ void build_op_table();
 void cpu_init() {
    build_op_table();
    last_tima_overflow = -1;
-   internal_timer = 0;
-   prev_timer_bit = false;
+   internal_timer     = 0;
+   prev_timer_bit     = false;
    cpu_reset();
 }
 
@@ -97,8 +97,8 @@ void cpu_advance_time(tick dt) {
    }
    for (int i = 0; i < dt/4; ++i) {
       internal_timer+=4;
-      cpu_ticks+=4;
-      if (last_tima_overflow != -1 && cpu_ticks >= last_tima_overflow + 4) {
+      cpu_ticks++;
+      if (last_tima_overflow != -1 && cpu_ticks >= last_tima_overflow + 1) {
          mem_direct_write(
                INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
          mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
@@ -172,8 +172,6 @@ void cpu_execute_step() {
             debugger_log("Input Interrupt");
             debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
          }
-
-
          if (target != 0x00) {
             interrupted = true;
             cpu_ime     = false;
