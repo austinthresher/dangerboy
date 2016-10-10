@@ -7,51 +7,97 @@
 #include "lcd.h"
 #include "memory.h"
 
+typedef enum mbc_type_ {
+   NONE = 0,
+   MBC1 = 1,
+   MBC2 = 2,
+   MBC3 = 3
+} mbc_type;
 
+typedef enum mbc_bankmode_ {
+   ROM16_RAM8 = 0,
+   ROM4_RAM32 = 1
+} mbc_bankmode;
 
-bool break_on_invalid = false; // true;
+typedef enum dma_state_ {
+   INACTIVE,
+   STARTING,
+   ACTIVE,
+   RESTARTING,
+} dma_state;
+
+// ------------------
+// Internal variables
+// ------------------
+
+dma_state dma;
+mbc_type mbc;
+mbc_bankmode banking;
 word dma_src, dma_dst, dma_rst;
-void mem_dma(byte val);
+bool ram_locked;
+byte rom_banks;
+byte ram_banks;
+byte rom_bank;
+byte ram_bank;
+byte mem_input_last_write;
+byte* ram;
+byte* rom;
+byte* banked_ram;
+char rom_name[16];
+
+// ------------------
+// Internal functions
+// ------------------
+
+void start_dma(byte val);
+
+// --------------------
+// Function definitions
+// --------------------
+
+inline void dwrite(word addr, byte val) { ram[addr] = val; }
+inline byte dread(word addr) { return ram[addr]; }
+
 
 void mem_init(void) {
    mem_free();
    dma_dst              = 0;
    dma_src              = 0;
    dma_rst              = 0;
-   mem_mbc_type         = NONE;
-   mem_ram_bank_count   = 0;
-   mem_rom_bank_count   = 2;
-   mem_current_ram_bank = 1;
-   mem_current_rom_bank = 0;
-   mem_mbc_bankmode     = ROM16_RAM8;
-   mem_ram_bank_locked  = true;
+   mbc         = NONE;
+   ram_banks   = 0;
+   rom_banks   = 2;
+   ram_bank = 1;
+   rom_bank = 0;
+   banking     = ROM16_RAM8;
+   ram_locked  = true;
    mem_buttons          = 0x0F;
    mem_dpad             = 0x0F;
    mem_input_last_write = 0;
-   mem_oam_state        = INACTIVE;
-   mem_ram              = (byte*)calloc(0x10000, 1);
-   mem_ram_bank         = (byte*)calloc(0x10000, 1);
+   dma        = INACTIVE;
+   ram              = (byte*)calloc(0x10000, 1);
+   banked_ram         = (byte*)calloc(0x10000, 1);
 }
 
 void mem_free() {
-   if (mem_ram != NULL) {
-      free(mem_ram);
+   if (ram != NULL) {
+      free(ram);
    }
-   mem_ram = NULL;
+   ram = NULL;
 
-   if (mem_ram_bank != NULL) {
-      free(mem_ram_bank);
+   if (banked_ram != NULL) {
+      free(banked_ram);
    }
-   mem_ram_bank = NULL;
+   banked_ram = NULL;
 
-   if (mem_rom != NULL) {
-      free(mem_rom);
+   if (rom != NULL) {
+      free(rom);
    }
-   mem_rom = NULL;
+   rom = NULL;
 }
 
 void mem_load_image(char* fname) {
-   assert(mem_ram != NULL);
+   assert(ram != NULL);
    FILE* fin = fopen(fname, "rb");
    if (fin == NULL) {
       fprintf(stderr, "Could not open file %s\n", fname);
@@ -70,15 +116,15 @@ void mem_load_image(char* fname) {
          mem_free();
          exit(1);
       }
-      mem_ram[i] = data;
+      ram[i] = data;
       i++;
    }
 
    int rom_size = dread(ROMSIZE);
    if (rom_size < 8) {
-      mem_rom_bank_count = pow(2, rom_size + 1);
-      rom_size           = mem_rom_bank_count * 0x4000;
-      mem_rom            = calloc(rom_size, 1);
+      rom_banks = pow(2, rom_size + 1);
+      rom_size           = rom_banks * 0x4000;
+      rom            = calloc(rom_size, 1);
    } else {
       fprintf(stderr, "Unsupported bank configuration: %02X\n", rom_size);
       mem_free();
@@ -97,17 +143,17 @@ void mem_load_image(char* fname) {
          mem_free();
          exit(1);
       }
-      mem_rom[i] = data;
+      rom[i] = data;
       i++;
    }
 
    fclose(fin);
 
    // Determine cart type. Fallthrough is intentional.
-   switch (mem_ram[CARTTYPE]) {
+   switch (ram[CARTTYPE]) {
       case 0x00:
          // ROM Only
-         mem_mbc_type = NONE;
+         mbc = NONE;
          break;
       case 0x03:
       // ROM + MBC1 + RAM + BATT
@@ -115,13 +161,13 @@ void mem_load_image(char* fname) {
       // ROM + MBC1 + RAM
       case 0x01:
          // ROM + MBC1
-         mem_mbc_type = MBC1;
+         mbc = MBC1;
          break;
       case 0x06:
       // ROM + MBC2 + BATTERY
       case 0x05:
          // ROM + MBC2
-         mem_mbc_type = MBC2;
+         mbc = MBC2;
          break;
       case 0x0F:
       // ROM + MBC3 + TIMER + BATT
@@ -133,94 +179,87 @@ void mem_load_image(char* fname) {
       // ROM + MBC3 + RAM
       case 0x13:
          // ROM + MBC3 + RAM + BATT
-         mem_mbc_type = MBC3;
+         mbc = MBC3;
          break;
       // MBC5 currently unsupported
       default:
          fprintf(stderr,
                "Unknown banking mode: %X. Attempting to use MBC1.",
-               mem_ram[CARTTYPE]);
-         mem_mbc_type = MBC1;
+               ram[CARTTYPE]);
+         mbc = MBC1;
          // exit(1);
          break;
    }
 
    // RAM Size
-   switch (mem_ram[RAMSIZE]) {
-      case 0: mem_ram_bank_count = 0; break;
+   switch (ram[RAMSIZE]) {
+      case 0: ram_banks = 0; break;
       case 1:
-      case 2: mem_ram_bank_count = 1; break;
-      case 3: mem_ram_bank_count = 4; break;
-      case 4: mem_ram_bank_count = 16; break;
+      case 2: ram_banks = 1; break;
+      case 3: ram_banks = 4; break;
+      case 4: ram_banks = 16; break;
       default:
          fprintf(stderr,
                "Unknown RAM bank count: %X. Attempting to use 16.",
-               mem_ram[RAMSIZE]);
-         mem_ram_bank_count = 16;
+               ram[RAMSIZE]);
+         ram_banks = 16;
          //         mem_free();
          //         exit(1);
          break;
    }
 
-   mem_current_rom_bank = 1;
-   mem_current_ram_bank = 0;
+   rom_bank = 1;
+   ram_bank = 0;
 
    // 16 bytes at ROMNAME contain game title in upper case
-   memcpy(mem_rom_name, mem_ram + ROMNAME, 14);
-   mem_rom_name[15] = '\0';
+   memcpy(rom_name, ram + ROMNAME, 14);
+   rom_name[15] = '\0';
 }
 
 void mem_print_rom_info() {
-   printf("Name:\t\t%s\n", mem_rom_name);
-   printf("MBC:\t\t%d\n", mem_mbc_type);
-   printf("ROM Banks:\t%d\n", mem_rom_bank_count);
-   printf("RAM Banks:\t%d\n", mem_ram_bank_count);
+   printf("Name:\t\t%s\n", rom_name);
+   printf("MBC:\t\t%d\n", mbc);
+   printf("ROM Banks:\t%d\n", rom_banks);
+   printf("RAM Banks:\t%d\n", ram_banks);
 }
 
-void mem_dma(byte val) {
-   if (mem_oam_state == INACTIVE) {
+void start_dma(byte val) {
+   if (dma == INACTIVE) {
       debugger_log("OAM DMA Starting");
-      mem_oam_state = STARTING;
+      dma = STARTING;
       dma_src       = val << 8;
       dma_dst       = OAMSTART;
       ;
    } else {
       debugger_log("OAM DMA Restarting");
-      mem_oam_state = RESTARTING;
+      dma = RESTARTING;
       dma_rst       = val << 8;
    }
 }
 
 void mem_advance_time(cycle ticks) {
-   if (mem_oam_state != INACTIVE) {
+   if (dma != INACTIVE) {
       while (ticks > 0) {
          ticks -= 4;
-         if (mem_oam_state == STARTING) {
+         if (dma == STARTING) {
             debugger_log("OAM DMA Started");
-            mem_oam_state = ACTIVE;
+            dma = ACTIVE;
             continue;
-         }
-
-         if (rbyte(STAT) & 2) {
-            debugger_log("Writing to OAM while LCD is using it.");
-            if (break_on_invalid) {
-               debugger_break();
-            }
          }
 
          dwrite(dma_dst++, rbyte(dma_src++));
 
-         if (dma_dst >= OAMEND + 1 && mem_oam_state != RESTARTING) {
+         if (dma_dst >= OAMEND + 1 && dma != RESTARTING) {
             dma_dst = 0;
             dma_src = 0;
             debugger_log("OAM DMA Finish");
-            mem_oam_state = INACTIVE;
+            dma = INACTIVE;
             break;
          }
 
-         if (mem_oam_state == RESTARTING) {
+         if (dma == RESTARTING) {
             debugger_log("OAM DMA Restarted");
-            mem_oam_state = ACTIVE;
+            dma = ACTIVE;
             dma_src       = dma_rst;
             dma_dst       = OAMSTART;
             continue;
@@ -230,24 +269,24 @@ void mem_advance_time(cycle ticks) {
 }
 
 byte mem_get_current_rom_bank() {
-   if (mem_mbc_type == MBC1) {
-      // In ROM16_RAM8 mode, mem_current_ram_bank
+   if (mbc == MBC1) {
+      // In ROM16_RAM8 mode, ram_bank
       // holds bits 5-6 of our ROM bank index.
-      if (mem_mbc_bankmode == ROM16_RAM8) {
-         byte bank = (mem_current_rom_bank & 0x1F)
-                     | ((mem_current_ram_bank & 0x3) << 5);
+      if (banking == ROM16_RAM8) {
+         byte bank = (rom_bank & 0x1F)
+                     | ((ram_bank & 0x3) << 5);
          return bank;
       } else {
-         byte bank = mem_current_rom_bank & 0x1F;
+         byte bank = rom_bank & 0x1F;
          return bank;
       }
    }
    // TODO: Make sure MBC2 doesn't need special behavior here
    // Other MBCs
-   if ((mem_current_rom_bank & 0x7F) == 0) {
+   if ((rom_bank & 0x7F) == 0) {
       return 1;
    }
-   return mem_current_rom_bank & 0x7F;
+   return rom_bank & 0x7F;
 }
 
 // Write byte
@@ -257,37 +296,37 @@ void wbyte(word addr, byte val) {
    switch (addr & 0xF000) {
       case 0x0000: // External ram enable / disable
       case 0x1000:
-         if (mem_mbc_type != NONE) {
+         if (mbc != NONE) {
             // MBC2 has the restriction that the least significant
             // bit of the upper address byte must be zero
-            if (mem_mbc_type != MBC2 || (addr & 0x100) == 0) {
+            if (mbc != MBC2 || (addr & 0x100) == 0) {
 
                // Writing to this region of memory enables or
                // disables external RAM, based on the value
                if ((val & 0x0F) == 0x0A) {
-                  mem_ram_bank_locked = false;
+                  ram_locked = false;
                } else {
-                  mem_ram_bank_locked = true;
+                  ram_locked = true;
                }
             }
          }
          return;
       case 0x2000: // ROM bank select
       case 0x3000:
-         if (mem_mbc_type == NONE) {
+         if (mbc == NONE) {
             return;
          }
-         if (mem_mbc_type == MBC1) {
+         if (mbc == MBC1) {
             // Writing to this region selects the lower 5 bits
             // of the ROM bank index
             val &= 0x1F;
             if (val == 0) {
                val = 1;
             }
-            mem_current_rom_bank = val;
+            rom_bank = val;
             return;
          }
-         if (mem_mbc_type == MBC2) {
+         if (mbc == MBC2) {
             // For MBC2, the least significant bit of the upper
             // address byte must be one
             if (addr & 0x0100) {
@@ -295,25 +334,25 @@ void wbyte(word addr, byte val) {
                if (val == 0) {
                   val = 1;
                }
-               mem_current_rom_bank = val;
+               rom_bank = val;
             }
             return;
          }
-         if (mem_mbc_type == MBC3) {
+         if (mbc == MBC3) {
             // MBC3 uses all 7 bits here instead of splitting
             // into hi / lo writes
             val &= 0x7F;
-            mem_current_rom_bank = val;
+            rom_bank = val;
             return;
          }
          return;
       case 0x4000: // RAM bank select
       case 0x5000:
-         if (mem_mbc_type != NONE) {
+         if (mbc != NONE) {
             // This either selects our RAM bank for ROM4_RAM32
             // bank mode, or bits 5-6 of our ROM for ROM16_RAM8
-            if (mem_mbc_type != MBC3 || val < 0x4) {
-               mem_current_ram_bank = val & 0x03;
+            if (mbc != MBC3 || val < 0x4) {
+               ram_bank = val & 0x03;
             } else {
                // TODO: MBC3 can also map real time
                // clock registers by writing here
@@ -325,63 +364,53 @@ void wbyte(word addr, byte val) {
          // This register selects our ROM / RAM banking mode
          // for MBC1 and MBC2. MBC3 uses this location to
          // latch current time into RTC registers (TODO: That.)
-         if (mem_mbc_type == MBC1 || mem_mbc_type == MBC2) {
+         if (mbc == MBC1 || mbc == MBC2) {
             if ((val & 0x01) == 0) {
-               mem_mbc_bankmode = ROM16_RAM8;
+               banking = ROM16_RAM8;
             }
             if ((val & 0x01) == 1) {
-               mem_mbc_bankmode = ROM4_RAM32;
+               banking = ROM4_RAM32;
             }
          }
          return;
       case 0x8000: // VRAM
       case 0x9000:
          if (lcd_vram_accessible()) {
-            mem_ram[addr] = val;
-         } else {
-            if (break_on_invalid) {
-               debugger_break();
-            }
-            debugger_log("Invalid VRAM write");
+            ram[addr] = val;
          }
          return;
       case 0xA000: // External RAM
       case 0xB000:
-         if (mem_mbc_type == NONE) {
-            mem_ram[addr] = val;
+         if (mbc == NONE) {
+            ram[addr] = val;
             return;
          }
-         if (mem_ram_bank_locked == false) {
+         if (ram_locked == false) {
             addr -= 0xA000;
-            if (mem_mbc_type == MBC3 || mem_mbc_bankmode == ROM4_RAM32) {
-               mem_ram_bank[(addr + mem_current_ram_bank * 0x2000) & 0xFFFF] =
+            if (mbc == MBC3 || banking == ROM4_RAM32) {
+               banked_ram[(addr + ram_bank * 0x2000) & 0xFFFF] =
                      val;
                return;
             }
-            mem_ram_bank[addr] = val;
-         } else {
-            if (break_on_invalid) {
-               debugger_break();
-            }
-            debugger_log("Invalid locked RAM write");
+            banked_ram[addr] = val;
          }
          return;
       case 0xC000: // Work RAM
-      case 0xD000: mem_ram[addr] = val; return;
+      case 0xD000: ram[addr] = val; return;
       case 0xE000: // 0xC000 mirror
-         mem_ram[addr - 0x2000] = val;
+         ram[addr - 0x2000] = val;
          return;
       case 0xF000:
          if (addr < 0xFE00) { // Partial 0xD000 mirror
-            mem_ram[addr - 0x2000] = val;
+            ram[addr - 0x2000] = val;
             return;
          }
          if (addr < 0xFEA0) { // FE00 to FE9F is OAM
             // OAM can only be written to during HBLANK or VBLANK,
             // and not during an OAM DMA transfer
             if (lcd_oam_accessible()) {
-               if (mem_oam_state == INACTIVE || mem_oam_state == STARTING) {
-                  mem_ram[addr] = val;
+               if (dma == INACTIVE || dma == STARTING) {
+                  ram[addr] = val;
                }
             }
             return;
@@ -393,10 +422,6 @@ void wbyte(word addr, byte val) {
    // in the 0xF000 case. We can assume we're dealing with
    // HRAM or hardware registers.
    if (addr >= 0xFEA0 && addr < 0xFEFF) {
-      if (break_on_invalid) {
-         debugger_break();
-      }
-      debugger_log("Invalid unusable RAM write");
       return; // This memory is not usable
    }
 
@@ -406,7 +431,7 @@ void wbyte(word addr, byte val) {
          // TIMA and DIV use the same internal counter,
          // so resetting DIV also resets TIMA
          cpu_reset_timer();
-         mem_ram[DIV] = 0;
+         ram[DIV] = 0;
          return;
       case LCDC:
       case STAT:
@@ -414,13 +439,13 @@ void wbyte(word addr, byte val) {
       case SCX:
       case LY:
       case LYC: lcd_reg_write(addr, val); return;
-      case DMA: mem_dma(val); return;
+      case DMA: start_dma(val); return;
       case JOYP: mem_input_last_write = val & 0x30; return;
       default: break;
    }
 
    // 0xFF00 to 0xFFFF
-   mem_ram[addr] = val;
+   ram[addr] = val;
 }
 
 // Read byte
@@ -431,50 +456,50 @@ byte rbyte(word addr) {
       case 0x0000: // ROM bank 0
       case 0x1000:
       case 0x2000:
-      case 0x3000: return mem_rom[addr];
+      case 0x3000: return rom[addr];
       case 0x4000: // Rom banks 1-X
       case 0x5000:
       case 0x6000:
       case 0x7000:
-         if (mem_mbc_type == NONE) {
-            return mem_rom[addr];
+         if (mbc == NONE) {
+            return rom[addr];
          }
          addr -= 0x4000;
-         return mem_rom[(mem_get_current_rom_bank() % mem_rom_bank_count)
+         return rom[(mem_get_current_rom_bank() % rom_banks)
                               * 0x4000
                         + addr];
       case 0x8000: // VRAM
       case 0x9000:
          if (lcd_vram_accessible()) {
-            return mem_ram[addr];
+            return ram[addr];
          }
          return 0xFF;
       case 0xA000: // External RAM
       case 0xB000:
-         if (mem_mbc_type == NONE) {
-            return mem_ram[addr];
+         if (mbc == NONE) {
+            return ram[addr];
          }
          addr -= 0xA000;
 
-         if (mem_mbc_type == MBC3 || mem_mbc_bankmode == ROM4_RAM32) {
-            return mem_ram_bank[(addr + mem_current_ram_bank * 2000) & 0xFFFF];
+         if (mbc == MBC3 || banking == ROM4_RAM32) {
+            return banked_ram[(addr + ram_bank * 2000) & 0xFFFF];
          }
-         return mem_ram_bank[addr];
+         return banked_ram[addr];
       case 0xC000:
       case 0xD000: // Work RAM
-         return mem_ram[addr];
+         return ram[addr];
       case 0xE000: // Mirror of 0xC000
-         return mem_ram[addr - 0x2000];
+         return ram[addr - 0x2000];
       case 0xF000:
          if (addr < 0xFE00) { // Partial 0xD000 mirror
-            return mem_ram[addr - 0x2000];
+            return ram[addr - 0x2000];
          }
          if (addr < 0xFEA0) { // FE00 to FE9F is OAM
             // OAM can only be read during HBLANK or VBLANK,
             // and not during an OAM DMA transfer
             if (lcd_oam_accessible()) {
-               if (mem_oam_state == INACTIVE || mem_oam_state == STARTING) {
-                  return mem_ram[addr];
+               if (dma == INACTIVE || dma == STARTING) {
+                  return ram[addr];
                }
             }
             return 0xFF;
@@ -504,8 +529,8 @@ byte rbyte(word addr) {
             return 0xC0 | mem_dpad;
          }
          return 0xFF;
-      case IE: return 0xE0 | (mem_ram[IE] & 0x1F);
-      case IF: return 0xE0 | (mem_ram[IF] & 0x1F);
+      case IE: return 0xE0 | (ram[IE] & 0x1F);
+      case IF: return 0xE0 | (ram[IF] & 0x1F);
       case LCDC:
       case STAT:
       case SCY:
@@ -516,7 +541,7 @@ byte rbyte(word addr) {
    }
 
    // HRAM and other registers
-   return mem_ram[addr];
+   return ram[addr];
 }
 
 // Write word

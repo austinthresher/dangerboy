@@ -233,13 +233,6 @@ void print_status_bar() {
          rbyte(LY),
          dread(LYC),
          lcd_get_timer());
-   wprintw(status_bar,
-         "\t[RAM:%d ROM:%02X]",
-         mem_current_ram_bank,
-         mem_current_rom_bank);
-   if (mem_mbc_type == MBC1) {
-      wprintw(status_bar, "\t[MBC1:%d]", mem_mbc_bankmode);
-   }
    wmove(status_bar, 1, 0);
    wprintw(status_bar,
          "[PC:%04X SP:%04X]\t"

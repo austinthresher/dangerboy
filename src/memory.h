@@ -28,33 +28,8 @@
 #define WINY 0xFF4A
 #define IE 0xFFFF
 
-typedef enum mbc_type_ { NONE = 0, MBC1 = 1, MBC2 = 2, MBC3 = 3 } mbc_type;
-typedef enum mbc_bankmode_ { ROM16_RAM8 = 0, ROM4_RAM32 = 1 } mbc_bankmode;
-typedef enum oam_state_ {
-   INACTIVE,
-   STARTING,
-   ACTIVE,
-   RESTARTING,
-} oam_state;
-
-oam_state mem_oam_state;
-mbc_type mem_mbc_type;
-mbc_bankmode mem_mbc_bankmode;
-
-bool mem_ram_bank_locked;
-byte mem_rom_bank_count;
-byte mem_ram_bank_count;
-byte mem_current_rom_bank;
-byte mem_current_ram_bank;
 byte mem_dpad;
 byte mem_buttons;
-byte mem_input_last_write;
-
-byte* mem_ram;
-byte* mem_rom;
-byte* mem_ram_bank;
-
-char mem_rom_name[16];
 
 void mem_init();
 void mem_free();
@@ -70,8 +45,7 @@ word rword(word addr);
 // Direct memory access. Does not perform banking or register lookup.
 // Used to get around normal memory access limitations (DMA transfers,
 // registers that reset on write, etc).
-inline void dwrite(word addr, byte val) { mem_ram[addr] = val; }
-inline byte dread(word addr) { return mem_ram[addr]; }
-
+void dwrite(word addr, byte val);
+byte dread(word addr);
 
 #endif

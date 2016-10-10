@@ -69,6 +69,10 @@ void draw_pixel(int x, int y);
 void draw_scanline();
 void set_mode(lcd_mode new_mode);
 void calc_timing();
+void try_fire_oam();
+void try_fire_hblank();
+void try_fire_vblank();
+void try_fire_lyc();
 bool lyc();
 byte color(byte col, byte pal);
 
