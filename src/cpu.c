@@ -1,8 +1,8 @@
 #include "cpu.h"
 #include "debugger.h"
+#include "lcd.h"
 #include "memory.h"
 #include "opcodes.h"
-#include "lcd.h"
 
 tick last_tima_overflow;
 word internal_timer;

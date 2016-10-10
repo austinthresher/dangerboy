@@ -58,19 +58,18 @@ void fire_vblank() {
 }
 
 void lcd_init() {
-   disabled       = false;
-   lcd_draw          = false;
-   x_pixel           = 0;
+   disabled     = false;
+   lcd_draw     = false;
+   x_pixel      = 0;
    vblank_fired = false;
-   ignore_oams       = 0;
-   stat_fired    = false;
+   ignore_oams  = 0;
+   stat_fired   = false;
 
    stat_vbl_on = false;
-   stat_oam_on    = false;
-   stat_lyc_on    = false;
+   stat_oam_on = false;
+   stat_lyc_on = false;
    lcd_reset();
 }
-
 
 void lcd_reset() {
    mode   = LCD_MODE_OAM;
@@ -127,7 +126,6 @@ void try_fire_lyc() {
    }
 }
 
-
 // This used to do more, but now it just outputs
 // debug messages. Still useful.
 void set_mode(byte new_mode) {
@@ -147,8 +145,8 @@ byte lcd_reg_read(word addr) {
       case LY: return ly;
       case STAT:
          return 0x80 | (stat_lyc_on << 6) | (stat_oam_on << 5)
-                | (stat_vbl_on << 4) | (stat_hbl_on << 3)
-                | (lyc() << 2) | (mode & 3);
+                | (stat_vbl_on << 4) | (stat_hbl_on << 3) | (lyc() << 2)
+                | (mode & 3);
       default: break;
    }
    return mem_direct_read(addr);
@@ -175,10 +173,10 @@ void lcd_reg_write(word addr, byte val) {
             disabled = false;
          } else {
             if (!disabled) {
-               lcd_draw    = true;
+               lcd_draw = true;
                disabled = true;
-               ly      = 0;
-               win_ly  = 0;
+               ly       = 0;
+               win_ly   = 0;
                debugger_notify_mem_write(LY, 0);
                set_mode(LCD_MODE_HBLANK);
             }
@@ -423,8 +421,8 @@ void draw_pixel(int x, int y) {
             continue;
          }
 
-         byte color = get_color(
-               pal_index, mem_direct_read(OBJPAL + !!(attr & 0x10)));
+         byte color =
+               get_color(pal_index, mem_direct_read(OBJPAL + !!(attr & 0x10)));
 
          int vram_addr         = (y * 160 + x) * 3;
          lcd_vram[vram_addr++] = color;

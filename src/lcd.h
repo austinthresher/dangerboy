@@ -5,10 +5,10 @@
 #include "datatypes.h"
 
 // External defines
-#define LCD_MODE_HBLANK 0 // Lasts ~200 cycles 
-#define LCD_MODE_VBLANK 1 // Lasts ~4560 cycles 
-#define LCD_MODE_OAM 2 // Lasts ~84 cycles 
-#define LCD_MODE_VRAM 3 // Lasts ~172 cycles
+#define LCD_MODE_HBLANK 0 // Lasts ~200 cycles
+#define LCD_MODE_VBLANK 1 // Lasts ~4560 cycles
+#define LCD_MODE_OAM 2    // Lasts ~84 cycles
+#define LCD_MODE_VRAM 3   // Lasts ~172 cycles
 #define LCD_WHITE 0xFE
 #define LCD_LITE 0xC6
 #define LCD_DARK 0x7C

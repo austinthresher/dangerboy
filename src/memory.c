@@ -4,8 +4,8 @@
 #include <string.h>
 
 #include "debugger.h"
-#include "memory.h"
 #include "lcd.h"
+#include "memory.h"
 
 bool break_on_invalid = false; // true;
 word dma_src, dma_dst, dma_rst;

@@ -1,7 +1,7 @@
 #include "debugger.h"
 #include "disas.h"
-#include "memory.h"
 #include "lcd.h"
+#include "memory.h"
 
 #include <ncurses.h>
 #include <stdio.h>
