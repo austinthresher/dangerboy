@@ -28,31 +28,31 @@
 
 #define PUSH(hi, lo)      \
    TIME(1);               \
-   wbyte(--cpu_SP, (hi)); \
+   wbyte(--cpu_sp, (hi)); \
    TIME(1);               \
-   wbyte(--cpu_SP, (lo));
+   wbyte(--cpu_sp, (lo));
 
 #define POP(hi, lo)      \
    TIME(1);              \
-   lo = rbyte(cpu_SP++); \
+   lo = rbyte(cpu_sp++); \
    TIME(1);              \
-   hi = rbyte(cpu_SP++);
+   hi = rbyte(cpu_sp++);
 
 #define PUSHW(val)                       \
    TIME(1);                              \
-   wbyte(--cpu_SP, ((val) >> 8) & 0xFF); \
+   wbyte(--cpu_sp, ((val) >> 8) & 0xFF); \
    TIME(1);                              \
-   wbyte(--cpu_SP, (val)&0xFF);
+   wbyte(--cpu_sp, (val)&0xFF);
 
 #define POPW(val)          \
    TIME(1);                \
    val &= 0xFF00;          \
-   val |= rbyte(cpu_SP++); \
+   val |= rbyte(cpu_sp++); \
    TIME(1);                \
    val &= 0x00FF;          \
-   val |= rbyte(cpu_SP++) << 8;
+   val |= rbyte(cpu_sp++) << 8;
 
-#define JR() cpu_PC += (sbyte)rbyte(cpu_PC) + 1;
+#define JR() cpu_pc += (sbyte)rbyte(cpu_pc) + 1;
 
 #define ADD(val)                                    \
    byte v   = (val);                                \
@@ -159,28 +159,28 @@ void dec16(byte* hi, byte* low) {
 void call() {
    byte hi, lo;
    TIME(2);
-   lo = rbyte(cpu_PC);
+   lo = rbyte(cpu_pc);
    TIME(1);
-   hi = rbyte(cpu_PC + 1);
+   hi = rbyte(cpu_pc + 1);
    TIME(1);
-   PUSHW(cpu_PC + 2);
-   cpu_PC = (hi << 8) | lo;
+   PUSHW(cpu_pc + 2);
+   cpu_pc = (hi << 8) | lo;
 }
 
 void ret() {
    TIME(1);
-   POPW(cpu_PC);
+   POPW(cpu_pc);
    TIME(1);
 }
 
 void jp() {
    byte hi, lo;
    TIME(2);
-   lo = rbyte(cpu_PC);
+   lo = rbyte(cpu_pc);
    TIME(1);
-   hi = rbyte(cpu_PC + 1);
+   hi = rbyte(cpu_pc + 1);
    TIME(1);
-   cpu_PC = (hi << 8) | lo;
+   cpu_pc = (hi << 8) | lo;
 }
 
 void cpu_nop() { TIME(1); }
@@ -415,31 +415,31 @@ void set(byte* inp, byte bit) {
 
 void cpu_lda_n() {
    TIME(2);
-   LOAD(cpu_a, rbyte(cpu_PC++));
+   LOAD(cpu_a, rbyte(cpu_pc++));
 }
 void cpu_ldb_n() {
    TIME(2);
-   LOAD(cpu_b, rbyte(cpu_PC++));
+   LOAD(cpu_b, rbyte(cpu_pc++));
 }
 void cpu_ldc_n() {
    TIME(2);
-   LOAD(cpu_c, rbyte(cpu_PC++));
+   LOAD(cpu_c, rbyte(cpu_pc++));
 }
 void cpu_ldd_n() {
    TIME(2);
-   LOAD(cpu_d, rbyte(cpu_PC++));
+   LOAD(cpu_d, rbyte(cpu_pc++));
 }
 void cpu_lde_n() {
    TIME(2);
-   LOAD(cpu_e, rbyte(cpu_PC++));
+   LOAD(cpu_e, rbyte(cpu_pc++));
 }
 void cpu_ldh_n() {
    TIME(2);
-   LOAD(cpu_h, rbyte(cpu_PC++));
+   LOAD(cpu_h, rbyte(cpu_pc++));
 }
 void cpu_ldl_n() {
    TIME(2);
-   LOAD(cpu_l, rbyte(cpu_PC++));
+   LOAD(cpu_l, rbyte(cpu_pc++));
 }
 void cpu_lda_a() {
    TIME(1);
@@ -691,7 +691,7 @@ void cpu_ld_at_hl_l() {
 }
 void cpu_ld_at_hl_n() {
    TIME(3);
-   STORE(cpu_h, cpu_l, rbyte(cpu_PC++));
+   STORE(cpu_h, cpu_l, rbyte(cpu_pc++));
 }
 void cpu_lda_at_bc() {
    TIME(2);
@@ -724,14 +724,14 @@ void cpu_ld_at_c_a() {
 
 void cpu_lda_at_nn() {
    TIME(4);
-   LOAD(cpu_a, rbyte(rword(cpu_PC)));
-   cpu_PC += 2;
+   LOAD(cpu_a, rbyte(rword(cpu_pc)));
+   cpu_pc += 2;
 }
 
 void cpu_ld_at_nn_a() {
    TIME(4);
-   wbyte(rword(cpu_PC), cpu_a);
-   cpu_PC += 2;
+   wbyte(rword(cpu_pc), cpu_a);
+   cpu_pc += 2;
 }
 
 void cpu_lda_at_hld() {
@@ -760,61 +760,61 @@ void cpu_ld_at_hli_a() {
 
 void cpu_ld_n_a() {
    TIME(3);
-   STORE(0xFF, rbyte(cpu_PC++), cpu_a);
+   STORE(0xFF, rbyte(cpu_pc++), cpu_a);
 }
 
 void cpu_ld_a_n() {
    TIME(3);
-   cpu_a = FETCH(0xFF, rbyte(cpu_PC++));
+   cpu_a = FETCH(0xFF, rbyte(cpu_pc++));
 }
 
 void cpu_ldbc_nn() {
    TIME(3);
-   cpu_c = rbyte(cpu_PC++);
-   cpu_b = rbyte(cpu_PC++);
+   cpu_c = rbyte(cpu_pc++);
+   cpu_b = rbyte(cpu_pc++);
 }
 
 void cpu_ldde_nn() {
    TIME(3);
-   cpu_e = rbyte(cpu_PC++);
-   cpu_d = rbyte(cpu_PC++);
+   cpu_e = rbyte(cpu_pc++);
+   cpu_d = rbyte(cpu_pc++);
 }
 
 void cpu_ldhl_nn() {
    TIME(3);
-   cpu_l = rbyte(cpu_PC++);
-   cpu_h = rbyte(cpu_PC++);
+   cpu_l = rbyte(cpu_pc++);
+   cpu_h = rbyte(cpu_pc++);
 }
 
 void cpu_ldsp_nn() {
    TIME(3);
-   cpu_SP = rword(cpu_PC);
-   cpu_PC += 2;
+   cpu_sp = rword(cpu_pc);
+   cpu_pc += 2;
 }
 
 void cpu_ldsp_hl() {
    TIME(2);
-   cpu_SP = (cpu_h << 8) | cpu_l;
+   cpu_sp = (cpu_h << 8) | cpu_l;
 }
 
 void cpu_ldhl_sp_n() {
    TIME(2);
-   byte next = rbyte(cpu_PC++);
+   byte next = rbyte(cpu_pc++);
    TIME(1);
    sbyte off = (sbyte)next;
-   int res   = off + cpu_SP;
+   int res   = off + cpu_sp;
    CLEAR_FLAGS();
-   FLAG_C = ((cpu_SP & 0xFF) + next > 0xFF);
-   FLAG_H = ((cpu_SP & 0xF) + (next & 0xF) > 0xF);
+   FLAG_C = ((cpu_sp & 0xFF) + next > 0xFF);
+   FLAG_H = ((cpu_sp & 0xF) + (next & 0xF) > 0xF);
    cpu_h  = (res & 0xFF00) >> 8;
    cpu_l  = res & 0x00FF;
 }
 
 void cpu_ld_nn_sp() {
    TIME(5);
-   word tmp = rword(cpu_PC);
-   cpu_PC += 2;
-   wword(tmp, cpu_SP);
+   word tmp = rword(cpu_pc);
+   cpu_pc += 2;
+   wword(tmp, cpu_sp);
 }
 
 // PUSH / POP
@@ -971,20 +971,20 @@ void cpu_xor_at_hl() {
 }
 void cpu_and_n() {
    TIME(2);
-   AND(rbyte(cpu_PC++));
+   AND(rbyte(cpu_pc++));
 }
 void cpu_or_n() {
    TIME(2);
-   OR(rbyte(cpu_PC++));
+   OR(rbyte(cpu_pc++));
 }
 void cpu_xor_n() {
    TIME(2);
-   XOR(rbyte(cpu_PC++));
+   XOR(rbyte(cpu_pc++));
 }
 
 void cpu_cb() {
    TIME(2);
-   byte sub_op  = rbyte(cpu_PC++);
+   byte sub_op  = rbyte(cpu_pc++);
    byte* regs[] = {
          &cpu_b, &cpu_c, &cpu_d, &cpu_e, &cpu_h, &cpu_l, NULL, &cpu_a};
    byte index = sub_op & 0x0F;
@@ -1045,7 +1045,7 @@ void cpu_jp_nz_nn() {
       jp();
    } else {
       TIME(3);
-      cpu_PC += 2;
+      cpu_pc += 2;
    }
 }
 
@@ -1054,7 +1054,7 @@ void cpu_jp_z_nn() {
       jp();
    } else {
       TIME(3);
-      cpu_PC += 2;
+      cpu_pc += 2;
    }
 }
 
@@ -1063,7 +1063,7 @@ void cpu_jp_nc_nn() {
       jp();
    } else {
       TIME(3);
-      cpu_PC += 2;
+      cpu_pc += 2;
    }
 }
 
@@ -1072,13 +1072,13 @@ void cpu_jp_c_nn() {
       jp();
    } else {
       TIME(3);
-      cpu_PC += 2;
+      cpu_pc += 2;
    }
 }
 
 void cpu_jp_at_hl() {
    TIME(1);
-   cpu_PC = ((cpu_h << 8) | cpu_l);
+   cpu_pc = ((cpu_h << 8) | cpu_l);
 }
 
 void cpu_jr_n() {
@@ -1092,7 +1092,7 @@ void cpu_jr_nz_n() {
       JR();
    } else {
       TIME(2);
-      cpu_PC++;
+      cpu_pc++;
    }
 }
 
@@ -1102,7 +1102,7 @@ void cpu_jr_z_n() {
       JR();
    } else {
       TIME(2);
-      cpu_PC++;
+      cpu_pc++;
    }
 }
 
@@ -1112,7 +1112,7 @@ void cpu_jr_nc_n() {
       JR();
    } else {
       TIME(2);
-      cpu_PC++;
+      cpu_pc++;
    }
 }
 
@@ -1122,7 +1122,7 @@ void cpu_jr_c_n() {
       JR();
    } else {
       TIME(2);
-      cpu_PC++;
+      cpu_pc++;
    }
 }
 
@@ -1133,7 +1133,7 @@ void cpu_call_nz_nn() {
       call();
    } else {
       TIME(3);
-      cpu_PC += 2;
+      cpu_pc += 2;
    }
 }
 
@@ -1142,7 +1142,7 @@ void cpu_call_z_nn() {
       call();
    } else {
       TIME(3);
-      cpu_PC += 2;
+      cpu_pc += 2;
    }
 }
 
@@ -1151,7 +1151,7 @@ void cpu_call_nc_nn() {
       call();
    } else {
       TIME(3);
-      cpu_PC += 2;
+      cpu_pc += 2;
    }
 }
 
@@ -1160,7 +1160,7 @@ void cpu_call_c_nn() {
       call();
    } else {
       TIME(3);
-      cpu_PC += 2;
+      cpu_pc += 2;
    }
 }
 
@@ -1168,66 +1168,66 @@ void cpu_call_c_nn() {
 
 void cpu_rst_00h() {
    TIME(2);
-   PUSHW(cpu_PC);
+   PUSHW(cpu_pc);
    cpu_halted  = false;
    cpu_stopped = false;
-   cpu_PC      = 0x00;
+   cpu_pc      = 0x00;
 }
 
 void cpu_rst_08h() {
    TIME(2);
-   PUSHW(cpu_PC);
+   PUSHW(cpu_pc);
    cpu_halted  = false;
    cpu_stopped = false;
-   cpu_PC      = 0x08;
+   cpu_pc      = 0x08;
 }
 
 void cpu_rst_10h() {
    TIME(2);
-   PUSHW(cpu_PC);
+   PUSHW(cpu_pc);
    cpu_halted  = false;
    cpu_stopped = false;
-   cpu_PC      = 0x10;
+   cpu_pc      = 0x10;
 }
 
 void cpu_rst_18h() {
    TIME(2);
-   PUSHW(cpu_PC);
+   PUSHW(cpu_pc);
    cpu_halted  = false;
    cpu_stopped = false;
-   cpu_PC      = 0x18;
+   cpu_pc      = 0x18;
 }
 
 void cpu_rst_20h() {
    TIME(2);
-   PUSHW(cpu_PC);
+   PUSHW(cpu_pc);
    cpu_halted  = false;
    cpu_stopped = false;
-   cpu_PC      = 0x20;
+   cpu_pc      = 0x20;
 }
 
 void cpu_rst_28h() {
    TIME(2);
-   PUSHW(cpu_PC);
+   PUSHW(cpu_pc);
    cpu_halted  = false;
    cpu_stopped = false;
-   cpu_PC      = 0x28;
+   cpu_pc      = 0x28;
 }
 
 void cpu_rst_30h() {
    TIME(2);
-   PUSHW(cpu_PC);
+   PUSHW(cpu_pc);
    cpu_halted  = false;
    cpu_stopped = false;
-   cpu_PC      = 0x30;
+   cpu_pc      = 0x30;
 }
 
 void cpu_rst_38h() {
    TIME(2);
-   PUSHW(cpu_PC);
+   PUSHW(cpu_pc);
    cpu_halted  = false;
    cpu_stopped = false;
-   cpu_PC      = 0x38;
+   cpu_pc      = 0x38;
 }
 
 // Returns
@@ -1295,18 +1295,18 @@ void cpu_add16_hl_hl() {
 
 void cpu_add16_hl_sp() {
    TIME(2);
-   add16(&cpu_h, &cpu_l, (cpu_SP & 0xFF00) >> 8, cpu_SP & 0x00FF);
+   add16(&cpu_h, &cpu_l, (cpu_sp & 0xFF00) >> 8, cpu_sp & 0x00FF);
 }
 
 void cpu_add16_sp_n() {
    TIME(2);
-   byte val = rbyte(cpu_PC++);
+   byte val = rbyte(cpu_pc++);
    TIME(2);
    sbyte off = (sbyte)val;
    CLEAR_FLAGS();
-   FLAG_H = ((cpu_SP & 0xF) + (val & 0xF) > 0xF);
-   FLAG_C = (((cpu_SP & 0xFF) + val > 0xFF));
-   cpu_SP += off;
+   FLAG_H = ((cpu_sp & 0xF) + (val & 0xF) > 0xF);
+   FLAG_C = (((cpu_sp & 0xFF) + val > 0xFF));
+   cpu_sp += off;
 }
 
 // 0x03
@@ -1327,7 +1327,7 @@ void cpu_inc16_hl() {
 
 void cpu_inc16_sp() {
    TIME(2);
-   cpu_SP++;
+   cpu_sp++;
 }
 
 void cpu_dec16_bc() {
@@ -1347,7 +1347,7 @@ void cpu_dec16_hl() {
 
 void cpu_dec16_sp() {
    TIME(2);
-   cpu_SP--;
+   cpu_sp--;
 }
 
 // Rotates / misc
@@ -1377,7 +1377,7 @@ void cpu_rra() {
 }
 
 void cpu_di() {
-   //   //printf("[%04X] DI, %02X, %d, %lld\n", cpu_PC - 1,
+   //   //printf("[%04X] DI, %02X, %d, %lld\n", cpu_pc - 1,
    //   rbyte(LCD_STATUS_ADDR), ppu_ly, ppu_get_timer());
    TIME(1);
    cpu_ime       = false;
@@ -1385,7 +1385,7 @@ void cpu_di() {
 }
 
 void cpu_ei() {
-   //   //printf("[%04X] EI, %02X, %d, %lld\n", cpu_PC - 1,
+   //   //printf("[%04X] EI, %02X, %d, %lld\n", cpu_pc - 1,
    //   rbyte(LCD_STATUS_ADDR), ppu_ly, ppu_get_timer());
    TIME(1);
    cpu_ime       = true;
@@ -1507,19 +1507,19 @@ void cpu_sbc_a_l() {
 }
 void cpu_add_a_n() {
    TIME(2);
-   ADD(rbyte(cpu_PC++));
+   ADD(rbyte(cpu_pc++));
 }
 void cpu_adc_a_n() {
    TIME(2);
-   ADC(rbyte(cpu_PC++));
+   ADC(rbyte(cpu_pc++));
 }
 void cpu_sub_a_n() {
    TIME(2);
-   SUB(rbyte(cpu_PC++));
+   SUB(rbyte(cpu_pc++));
 }
 void cpu_sbc_a_n() {
    TIME(2);
-   SBC(rbyte(cpu_PC++));
+   SBC(rbyte(cpu_pc++));
 }
 void cpu_add_a_at_hl() {
    TIME(2);
@@ -1653,7 +1653,7 @@ void cpu_cp_at_hl() {
 }
 void cpu_cp_a_n() {
    TIME(2);
-   COMPARE(rbyte(cpu_PC++));
+   COMPARE(rbyte(cpu_pc++));
 }
 
 void cpu_cpl() {

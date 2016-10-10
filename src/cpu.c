@@ -21,13 +21,13 @@ void cpu_reset() {
 
    // These startup values are based on
    // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
-   cpu_PC         = 0x0100;
+   cpu_pc         = 0x0100;
    cpu_a          = 0x01;
    cpu_b          = 0x00;
    cpu_c          = 0x13;
    cpu_d          = 0x00;
    cpu_e          = 0xD8;
-   cpu_SP         = 0xFFFE;
+   cpu_sp         = 0xFFFE;
    cpu_h          = 0x01;
    cpu_l          = 0x4D;
    cpu_ime        = false;
@@ -172,9 +172,9 @@ void cpu_execute_step() {
          if (target != 0x00) {
             raised  = true;
             cpu_ime = false;
-            PUSHW(cpu_PC);
+            PUSHW(cpu_pc);
             TIME(2);
-            cpu_PC = target;
+            cpu_pc = target;
             TIME(1);
          }
       } else {
@@ -184,10 +184,10 @@ void cpu_execute_step() {
 
    if (!raised) {
       if (!cpu_halted && !cpu_stopped) {
-         cpu_last_pc = cpu_PC;
-         cpu_last_op = rbyte(cpu_PC++);
+         cpu_last_pc = cpu_pc;
+         cpu_last_op = rbyte(cpu_pc++);
          (*cpu_opcodes[cpu_last_op])();
-         debugger_notify_mem_exec(cpu_PC);
+         debugger_notify_mem_exec(cpu_pc);
       } else {
          cpu_nop();
       }

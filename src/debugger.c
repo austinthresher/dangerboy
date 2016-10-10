@@ -74,7 +74,7 @@ void store_regs() {
    e  = cpu_e;
    h  = cpu_h;
    l  = cpu_l;
-   sp = cpu_SP;
+   sp = cpu_sp;
    ei = cpu_ime;
 }
 
@@ -104,8 +104,8 @@ void print_reg_diff() {
    if (l != cpu_l) {
       wprintw(console_pane, "L: %02X => %02X\n", l, cpu_l);
    }
-   if (sp != cpu_SP) {
-      wprintw(console_pane, "SP: %04X => %04X\n", sp, cpu_SP);
+   if (sp != cpu_sp) {
+      wprintw(console_pane, "SP: %04X => %04X\n", sp, cpu_sp);
    }
    if (ei != cpu_ime) {
       if (ei) {
@@ -163,7 +163,7 @@ void print_memory_map(int x, word addr) {
                // Check if the value we're printing needs hilighting
                // (breakpoint, program counter, etc)
                bool hilite = false;
-               if (cur_addr == cpu_PC) {
+               if (cur_addr == cpu_pc) {
                   COLOR(memory_map, COL_OPCODE);
                   hilite = true;
                } else if (breakpoints[cur_addr].break_on_read
@@ -244,8 +244,8 @@ void print_status_bar() {
    wprintw(status_bar,
          "[PC:%04X SP:%04X]\t"
          "[A:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X]",
-         cpu_PC,
-         cpu_SP,
+         cpu_pc,
+         cpu_sp,
          cpu_a,
          cpu_b,
          cpu_c,
@@ -268,11 +268,10 @@ void debugger_cli() {
    wmove(console_pane, console_height - 1, 0);
    if (show_pc) {
       COLOR(console_pane, COL_MEMADD);
-      wprintw(console_pane, "[%04X] ", cpu_PC);
+      wprintw(console_pane, "[%04X] ", cpu_pc);
       COLOR(console_pane, COL_NORMAL);
    }
-   disas_at(cpu_PC, console_pane);
-
+   disas_at(cpu_pc, console_pane);
    do {
       print_status_bar();
       print_memory_map(console_width, memory_view_addr);
