@@ -13,7 +13,9 @@
 #define COL_OPCODE 5
 #define COL_VALUES 6
 
-#define COLOR(w, x) if(has_colors()) wattrset((w), COLOR_PAIR(x));
+#define COLOR(w, x)  \
+   if (has_colors()) \
+      wattrset((w), COLOR_PAIR(x));
 
 bool debugger_should_break();
 void debugger_cli();

@@ -4,8 +4,8 @@
 #include "ppu.h"
 
 #include <ncurses.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct BreakpointEntry {
@@ -48,13 +48,13 @@ void init_curses() {
    if (console_pane == NULL) {
       // The 2 here is status bar height. TODO: Change to variable
       console_height = LINES - 2;
-      console_width = COLS / 2;
-      show_pc = false;
+      console_width  = COLS / 2;
+      show_pc        = false;
       if (console_width < 32) {
          console_width = 32;
       }
       if (console_width > 40) {
-         show_pc = true;
+         show_pc       = true;
          console_width = 40;
       }
       console_pane = newwin(console_height, console_width, 2, 0);
@@ -67,13 +67,13 @@ void store_regs() {
    // Save the state of CPU registers after each
    // step so that we can view what each operation
    // changed.
-   a  = cpu_A;
-   b  = cpu_B;
-   c  = cpu_C;
-   d  = cpu_D;
-   e  = cpu_E;
-   h  = cpu_H;
-   l  = cpu_L;
+   a  = cpu_a;
+   b  = cpu_b;
+   c  = cpu_c;
+   d  = cpu_d;
+   e  = cpu_e;
+   h  = cpu_h;
+   l  = cpu_l;
    sp = cpu_SP;
    ei = cpu_ime;
 }
@@ -83,26 +83,26 @@ void print_reg_diff() {
    // Print any registers whose values changed
    // since they were last recorded.
    COLOR(console_pane, COL_VALUES);
-   if (a != cpu_A) {
-      wprintw(console_pane, "A: %02X => %02X\n", a, cpu_A);
+   if (a != cpu_a) {
+      wprintw(console_pane, "A: %02X => %02X\n", a, cpu_a);
    }
-   if (b != cpu_B) {
-      wprintw(console_pane, "B: %02X => %02X\n", b, cpu_B);
+   if (b != cpu_b) {
+      wprintw(console_pane, "B: %02X => %02X\n", b, cpu_b);
    }
-   if (c != cpu_C) {
-      wprintw(console_pane, "C: %02X => %02X\n", c, cpu_C);
+   if (c != cpu_c) {
+      wprintw(console_pane, "C: %02X => %02X\n", c, cpu_c);
    }
-   if (d != cpu_D) {
-      wprintw(console_pane, "D: %02X => %02X\n", d, cpu_D);
+   if (d != cpu_d) {
+      wprintw(console_pane, "D: %02X => %02X\n", d, cpu_d);
    }
-   if (e != cpu_E) {
-      wprintw(console_pane, "E: %02X => %02X\n", e, cpu_E);
+   if (e != cpu_e) {
+      wprintw(console_pane, "E: %02X => %02X\n", e, cpu_e);
    }
-   if (h != cpu_H) {
-      wprintw(console_pane, "H: %02X => %02X\n", h, cpu_H);
+   if (h != cpu_h) {
+      wprintw(console_pane, "H: %02X => %02X\n", h, cpu_h);
    }
-   if (l != cpu_L) {
-      wprintw(console_pane, "L: %02X => %02X\n", l, cpu_L);
+   if (l != cpu_l) {
+      wprintw(console_pane, "L: %02X => %02X\n", l, cpu_l);
    }
    if (sp != cpu_SP) {
       wprintw(console_pane, "SP: %04X => %04X\n", sp, cpu_SP);
@@ -119,33 +119,33 @@ void print_reg_diff() {
 
 void print_memory_map(int x, word addr) {
    // 2 lines for status bar, 1 for prompt
-   int width = COLS - x;
+   int width  = COLS - x;
    int height = console_height - 1;
    if (memory_map == NULL) {
       memory_map = newwin(height, width, 2, x);
    }
- 
+
    // 4 digits for addr, then a space, and 2 for border
    // Right now, this is characters per line
    int bytes_per_line = (width - 7);
 
    // Display memory in 4 byte + 1 space chunks
    // (4 * 2) + 1 = 9 characters per 4 bytes
-   int chunks = bytes_per_line / 9; 
+   int chunks     = bytes_per_line / 9;
    bytes_per_line = chunks * 5;
 
    int cur_addr = addr;
-   for (int i = 0; i < height-2; ++i) {
+   for (int i = 0; i < height - 2; ++i) {
       // Clear this row (TODO: There's probably a better way to do this)
-      wmove(memory_map, i+1, 1);
+      wmove(memory_map, i + 1, 1);
       COLOR(memory_map, COL_MEMVAL);
       for (int w = 0; w < width; w++) {
-//         wprintw(memory_map, ".");
+         //         wprintw(memory_map, ".");
       }
 
       // Print the address for this row
-      wmove(memory_map, i+1, 1);
-      COLOR(memory_map, COL_MEMADD); 
+      wmove(memory_map, i + 1, 1);
+      COLOR(memory_map, COL_MEMADD);
       if (cur_addr <= 0xFFFF) {
          wprintw(memory_map, "%04X ", cur_addr);
       } else {
@@ -167,15 +167,15 @@ void print_memory_map(int x, word addr) {
                   COLOR(memory_map, COL_OPCODE);
                   hilite = true;
                } else if (breakpoints[cur_addr].break_on_read
-                       || breakpoints[cur_addr].break_on_write
-                       || breakpoints[cur_addr].break_on_exec
-                       || breakpoints[cur_addr].break_on_equal) {
+                          || breakpoints[cur_addr].break_on_write
+                          || breakpoints[cur_addr].break_on_exec
+                          || breakpoints[cur_addr].break_on_equal) {
                   COLOR(memory_map, COL_HILITE);
                   hilite = true;
                }
-               
-               wprintw(memory_map, "%02X", mem_rb(cur_addr++));
-              
+
+               wprintw(memory_map, "%02X", rbyte(cur_addr++));
+
                // Reset the color if we changed it
                if (hilite) {
                   COLOR(memory_map, COL_MEMVAL);
@@ -202,7 +202,7 @@ void debugger_log(const char* str) {
 // TODO: Make status bar only over memory map,
 // different lines for different categories
 void print_status_bar() {
-   int width = COLS;
+   int width  = COLS;
    int height = 2;
    if (status_bar == NULL) {
       status_bar = newwin(height, width, 0, 0);
@@ -218,39 +218,41 @@ void print_status_bar() {
          "[DIV:%02X]\t"
          "[IE:%02X IF:%02X]\t"
          "[TICK:%d]",
-         mem_rb(TIMA_ADDR),
-         mem_rb(TMA_ADDR),
-         mem_rb(TIMER_CONTROL_ADDR) & 4,
-         mem_rb(DIV_REGISTER_ADDR),
-         mem_rb(INT_ENABLED_ADDR),
-         mem_rb(INT_FLAG_ADDR),
+         rbyte(TIMA),
+         rbyte(TMA),
+         rbyte(TAC) & 4,
+         rbyte(DIV),
+         rbyte(IE),
+         rbyte(IF),
          cpu_ticks);
    wprintw(status_bar, "\t[IME:%d]", cpu_ime ? 1 : 0);
-   wprintw(status_bar, "\t[LCD:%d STAT:%02X LY:%02X LYC:%02X TIMER: %06d]",
+   wprintw(status_bar,
+         "\t[LCD:%d STAT:%02X LY:%02X LYC:%02X TIMER: %06d]",
          (mem_direct_read(0xFF40) & 0x80) ? 1 : 0,
-         mem_rb(LCD_STATUS_ADDR),
-         mem_rb(LCD_LINE_Y_ADDR),
-         mem_direct_read(LCD_LINE_Y_C_ADDR),
+         rbyte(STAT),
+         rbyte(LY),
+         mem_direct_read(LYC),
          ppu_get_timer());
-   wprintw(status_bar, "\t[RAM:%d ROM:%02X]",
+   wprintw(status_bar,
+         "\t[RAM:%d ROM:%02X]",
          mem_current_ram_bank,
-         mem_current_rom_bank); 
+         mem_current_rom_bank);
    if (mem_mbc_type == MBC1) {
       wprintw(status_bar, "\t[MBC1:%d]", mem_mbc_bankmode);
    }
    wmove(status_bar, 1, 0);
-   wprintw(status_bar, 
+   wprintw(status_bar,
          "[PC:%04X SP:%04X]\t"
          "[A:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X]",
          cpu_PC,
          cpu_SP,
-         cpu_A,
-         cpu_B,
-         cpu_C,
-         cpu_D,
-         cpu_E,
-         cpu_H,
-         cpu_L);
+         cpu_a,
+         cpu_b,
+         cpu_c,
+         cpu_d,
+         cpu_e,
+         cpu_h,
+         cpu_l);
    wrefresh(status_bar);
 }
 
@@ -261,7 +263,7 @@ void debugger_cli() {
       curses_on = true;
    }
 
-   // Print prompt 
+   // Print prompt
    print_reg_diff();
    wmove(console_pane, console_height - 1, 0);
    if (show_pc) {
@@ -287,7 +289,7 @@ void debugger_cli() {
          strcpy(cmd, buff);
       }
    } while (!handle_input(cmd));
-   
+
    store_regs();
 }
 
@@ -301,21 +303,22 @@ void debugger_free() {
 }
 
 bool handle_input(const char* str) {
-   
+
    // Attempt splitting our input at spaces to parse arguments
    char inp[256];
    strcpy(inp, str);
-   char *args = strtok(inp, " ");
+   char* args = strtok(inp, " ");
    if (args == &inp[0]) {
       args = strtok(NULL, " ");
    }
-   
+
    // TODO: Add a reset command
 
    // Help command
    if (sc(inp, "help") || sc(inp, "h") || sc(inp, "?")) {
       wprintw(console_pane, "Available commands:\n");
-      wprintw(console_pane, "\tquit\n\tstep\n\tmem\n\tdisas\n\tbreak\n\tbreakop\n\tcontinue\n");
+      wprintw(console_pane,
+            "\tquit\n\tstep\n\tmem\n\tdisas\n\tbreak\n\tbreakop\n\tcontinue\n");
       return false;
    }
 
@@ -337,14 +340,13 @@ bool handle_input(const char* str) {
          wprintw(console_pane, "Disabled break on opcode %02X\n", op);
       }
       return false;
- 
    }
 
    // Breakpoint command
    if (sc(inp, "break") || sc(inp, "b")) {
-      char *addr_str = args;
-      char *cmd_str = strtok(NULL, " ");
-      char *val_str = strtok(NULL, " ");
+      char* addr_str = args;
+      char* cmd_str  = strtok(NULL, " ");
+      char* val_str  = strtok(NULL, " ");
       if (addr_str != NULL && cmd_str != NULL) {
          int addr = strtol(addr_str, NULL, 16);
          if (addr < 0 || addr > 0xFFFF) {
@@ -382,35 +384,37 @@ bool handle_input(const char* str) {
                return false;
             }
             debugger_break_on_equal(addr, (byte)eq_val);
-            wprintw(console_pane, "Breaking when (%04X) == %02X\n", addr, eq_val);
+            wprintw(
+                  console_pane, "Breaking when (%04X) == %02X\n", addr, eq_val);
             return false;
          }
       }
-      wprintw(console_pane, "USAGE:\n"
-                            "break [addr] [read | r]\n"
-                            "break [addr] [write | w]\n"
-                            "break [addr] [exec | x]\n"
-                            "break [addr] [equal | e] [value]\n"
-                            "break [addr] [clear | c]\n");
+      wprintw(console_pane,
+            "USAGE:\n"
+            "break [addr] [read | r]\n"
+            "break [addr] [write | w]\n"
+            "break [addr] [exec | x]\n"
+            "break [addr] [equal | e] [value]\n"
+            "break [addr] [clear | c]\n");
       return false;
    }
 
    // Disassemble command
    if (sc(inp, "disas") || sc(inp, "d")) {
-      char *start_addr_str = args;
-      char *end_addr_str = strtok(NULL, " ");
+      char* start_addr_str = args;
+      char* end_addr_str   = strtok(NULL, " ");
       if (start_addr_str == NULL || end_addr_str == NULL) {
          wprintw(console_pane, "USAGE:\ndisas [start addr] [end addr]\n");
          return false;
       }
       int start_addr = strtol(start_addr_str, NULL, 16);
-      int end_addr = strtol(end_addr_str, NULL, 16);
+      int end_addr   = strtol(end_addr_str, NULL, 16);
       if (start_addr > end_addr) {
          wprintw(console_pane, "start addr must be less than end addr\n");
          return false;
       }
-      if (start_addr < 0 || start_addr > 0xFFFF
-       || end_addr < 0 || end_addr > 0xFFFF) {
+      if (start_addr < 0 || start_addr > 0xFFFF || end_addr < 0
+            || end_addr > 0xFFFF) {
          wprintw(console_pane, "invalid range\n");
          return false;
       }
@@ -420,10 +424,10 @@ bool handle_input(const char* str) {
             COLOR(console_pane, COL_MEMADD);
             wprintw(console_pane, "[%04X] ", add);
             COLOR(console_pane, COL_NORMAL);
-         }     
+         }
          add = disas_at(add, console_pane);
       }
-      return false; 
+      return false;
    }
 
    // Continue execution command
@@ -483,13 +487,12 @@ void debugger_init() {
    for (int i = 0; i < 0x100; ++i) {
       break_on_op[i] = false;
    }
-   curses_on = false;
-   memory_map = NULL;
-   status_bar = NULL;
-   console_pane = NULL;
+   curses_on        = false;
+   memory_map       = NULL;
+   status_bar       = NULL;
+   console_pane     = NULL;
    memory_view_addr = 0;
 }
-
 
 void debugger_clear_breakpoint(word addr) {
    breakpoints[addr].break_on_read  = false;
@@ -521,16 +524,17 @@ void debugger_notify_mem_exec(word addr) {
       return;
    }
    if (breakpoints[addr].break_on_exec) {
-      need_break = true;
+      need_break       = true;
       memory_view_addr = addr;
 
       wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%04X is about to execute. Breaking.\n", addr);
-   } else if (break_on_op[mem_rb(addr)]) {
-      need_break = true;
+   } else if (break_on_op[rbyte(addr)]) {
+      need_break       = true;
       memory_view_addr = addr;
       wprintw(console_pane, "[%ld] ", cpu_ticks);
-      wprintw(console_pane, "%02X is about to execute. Breaking.\n", mem_rb(addr));
+      wprintw(
+            console_pane, "%02X is about to execute. Breaking.\n", rbyte(addr));
    }
 }
 
@@ -540,13 +544,12 @@ void debugger_notify_mem_write(word addr, byte val) {
    }
    if (breakpoints[addr].break_on_equal
          && breakpoints[addr].watch_value == val) {
-      need_break = true;
+      need_break       = true;
       memory_view_addr = addr;
       wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%02X was written to %04X. Breaking.\n", val, addr);
-   }
-   else if (breakpoints[addr].break_on_write) {
-      need_break = true;
+   } else if (breakpoints[addr].break_on_write) {
+      need_break       = true;
       memory_view_addr = addr;
       wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%04X was written to. Breaking.\n", addr);
@@ -558,7 +561,7 @@ void debugger_notify_mem_read(word addr) {
       return;
    }
    if (breakpoints[addr].break_on_read) {
-      need_break = true;
+      need_break       = true;
       memory_view_addr = addr;
       wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%04X was read. Breaking.\n", addr);

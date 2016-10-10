@@ -6,88 +6,88 @@
 
 #define LOAD(reg, val) reg = (val);
 
-#define STORE(hi, lo, val) mem_wb((((hi)&0xFF) << 8) | ((lo)&0xFF), (val));
+#define STORE(hi, lo, val) wbyte((((hi)&0xFF) << 8) | ((lo)&0xFF), (val));
 
-#define FETCH(hi, lo) mem_rb((((hi)&0xFF) << 8) | ((lo)&0xFF))
+#define FETCH(hi, lo) rbyte((((hi)&0xFF) << 8) | ((lo)&0xFF))
 
 #define AND(val)             \
-   cpu_A  = cpu_A & (val);   \
+   cpu_a  = cpu_a & (val);   \
    FLAG_C = FLAG_N = false;  \
-   FLAG_Z          = !cpu_A; \
+   FLAG_Z          = !cpu_a; \
    FLAG_H          = true;
 
 #define OR(val)                      \
-   cpu_A  = cpu_A | (val);           \
+   cpu_a  = cpu_a | (val);           \
    FLAG_C = FLAG_H = FLAG_N = false; \
-   FLAG_Z                   = !cpu_A;
+   FLAG_Z                   = !cpu_a;
 
 #define XOR(val)                     \
-   cpu_A  = cpu_A ^ (val);           \
+   cpu_a  = cpu_a ^ (val);           \
    FLAG_C = FLAG_H = FLAG_N = false; \
-   FLAG_Z                   = !cpu_A;
+   FLAG_Z                   = !cpu_a;
 
-#define PUSH(hi, lo) \
-   TIME(1);  \
-   mem_wb(--cpu_SP, (hi)); \
-   TIME(1); \
-   mem_wb(--cpu_SP, (lo)); 
+#define PUSH(hi, lo)      \
+   TIME(1);               \
+   wbyte(--cpu_SP, (hi)); \
+   TIME(1);               \
+   wbyte(--cpu_SP, (lo));
 
-#define POP(hi, lo) \
-   TIME(1); \
-   lo = mem_rb(cpu_SP++); \
-   TIME(1); \
-   hi = mem_rb(cpu_SP++);
+#define POP(hi, lo)      \
+   TIME(1);              \
+   lo = rbyte(cpu_SP++); \
+   TIME(1);              \
+   hi = rbyte(cpu_SP++);
 
-#define PUSHW(val) \
-   TIME(1); \
-   mem_wb(--cpu_SP, ((val) >> 8) & 0xFF); \
-   TIME(1); \
-   mem_wb(--cpu_SP, (val) & 0xFF);
+#define PUSHW(val)                       \
+   TIME(1);                              \
+   wbyte(--cpu_SP, ((val) >> 8) & 0xFF); \
+   TIME(1);                              \
+   wbyte(--cpu_SP, (val)&0xFF);
 
-#define POPW(val) \
-   TIME(1); \
-   val &= 0xFF00; \
-   val |= mem_rb(cpu_SP++); \
-   TIME(1); \
-   val &= 0x00FF; \
-   val |= mem_rb(cpu_SP++) << 8;
+#define POPW(val)          \
+   TIME(1);                \
+   val &= 0xFF00;          \
+   val |= rbyte(cpu_SP++); \
+   TIME(1);                \
+   val &= 0x00FF;          \
+   val |= rbyte(cpu_SP++) << 8;
 
-#define JR() cpu_PC += (sbyte)mem_rb(cpu_PC) + 1;
+#define JR() cpu_PC += (sbyte)rbyte(cpu_PC) + 1;
 
 #define ADD(val)                                    \
    byte v   = (val);                                \
    FLAG_N   = false;                                \
-   FLAG_H   = ((cpu_A & 0x0F) + (v & 0x0F)) > 0x0F; \
-   word tmp = cpu_A + v;                            \
-   cpu_A    = tmp & 0xFF;                           \
+   FLAG_H   = ((cpu_a & 0x0F) + (v & 0x0F)) > 0x0F; \
+   word tmp = cpu_a + v;                            \
+   cpu_a    = tmp & 0xFF;                           \
    FLAG_C   = tmp > 0xFF;                           \
-   FLAG_Z   = cpu_A == 0;
+   FLAG_Z   = cpu_a == 0;
 
 #define ADC(val)                                           \
    byte v   = (val);                                       \
    FLAG_N   = false;                                       \
-   word tmp = cpu_A + v + FLAG_C;                          \
-   FLAG_H   = (cpu_A & 0x0F) + (v & 0x0F) + FLAG_C > 0x0F; \
+   word tmp = cpu_a + v + FLAG_C;                          \
+   FLAG_H   = (cpu_a & 0x0F) + (v & 0x0F) + FLAG_C > 0x0F; \
    FLAG_C   = tmp > 0xFF;                                  \
-   cpu_A    = tmp & 0xFF;                                  \
-   FLAG_Z   = cpu_A == 0;
+   cpu_a    = tmp & 0xFF;                                  \
+   FLAG_Z   = cpu_a == 0;
 
 #define SUB(val)                         \
    byte v = (val);                       \
    FLAG_N = true;                        \
-   FLAG_H = (cpu_A & 0x0F) < (v & 0x0F); \
-   FLAG_C = cpu_A < v;                   \
-   cpu_A -= v;                           \
-   FLAG_Z = cpu_A == 0;
+   FLAG_H = (cpu_a & 0x0F) < (v & 0x0F); \
+   FLAG_C = cpu_a < v;                   \
+   cpu_a -= v;                           \
+   FLAG_Z = cpu_a == 0;
 
 #define SBC(val)                                    \
    byte v   = (val);                                \
    FLAG_N   = true;                                 \
-   byte tmp = cpu_A - v - FLAG_C;                   \
-   FLAG_H   = (cpu_A & 0x0F) < (v & 0x0F) + FLAG_C; \
-   FLAG_C   = cpu_A < v + FLAG_C;                   \
-   cpu_A    = tmp;                                  \
-   FLAG_Z   = cpu_A == 0;
+   byte tmp = cpu_a - v - FLAG_C;                   \
+   FLAG_H   = (cpu_a & 0x0F) < (v & 0x0F) + FLAG_C; \
+   FLAG_C   = cpu_a < v + FLAG_C;                   \
+   cpu_a    = tmp;                                  \
+   FLAG_Z   = cpu_a == 0;
 
 #define INC(dst)                     \
    FLAG_H = ((dst)&0x0F) + 1 > 0x0F; \
@@ -103,10 +103,10 @@
 
 #define COMPARE(val)                     \
    byte v = (val);                       \
-   FLAG_H = (cpu_A & 0x0F) < (v & 0x0F); \
-   FLAG_C = cpu_A < v;                   \
+   FLAG_H = (cpu_a & 0x0F) < (v & 0x0F); \
+   FLAG_C = cpu_a < v;                   \
    FLAG_N = true;                        \
-   FLAG_Z = cpu_A == v;
+   FLAG_Z = cpu_a == v;
 
 #define CLEAR_FLAGS() \
    FLAG_C = false;    \
@@ -132,10 +132,10 @@ void add16(byte* a_hi, byte* a_low, byte b_hi, byte b_low) {
    word b = (b_hi << 8) | b_low;
 
    uint32_t carryCheck = a + b;
-   
-   FLAG_H              = ((0x0FFF & a) + (0x0FFF & b) > 0x0FFF);
-   FLAG_C              = (carryCheck > 0x0000FFFF);
-   FLAG_N              = (false);
+
+   FLAG_H = ((0x0FFF & a) + (0x0FFF & b) > 0x0FFF);
+   FLAG_C = (carryCheck > 0x0000FFFF);
+   FLAG_N = (false);
 
    a += b;
    *a_hi  = (a & 0xFF00) >> 8;
@@ -159,9 +159,9 @@ void dec16(byte* hi, byte* low) {
 void call() {
    byte hi, lo;
    TIME(2);
-   lo = mem_rb(cpu_PC);
+   lo = rbyte(cpu_PC);
    TIME(1);
-   hi = mem_rb(cpu_PC+1);
+   hi = rbyte(cpu_PC + 1);
    TIME(1);
    PUSHW(cpu_PC + 2);
    cpu_PC = (hi << 8) | lo;
@@ -176,23 +176,21 @@ void ret() {
 void jp() {
    byte hi, lo;
    TIME(2);
-   lo = mem_rb(cpu_PC);
+   lo = rbyte(cpu_PC);
    TIME(1);
-   hi = mem_rb(cpu_PC+1);
+   hi = rbyte(cpu_PC + 1);
    TIME(1);
    cpu_PC = (hi << 8) | lo;
 }
 
-void cpu_nop() {
-   TIME(1);
-}
+void cpu_nop() { TIME(1); }
 
 void rlc(byte* inp) {
    byte t;
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    FLAG_C = (t & 0x80);
@@ -203,7 +201,7 @@ void rlc(byte* inp) {
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -214,7 +212,7 @@ void rrc(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    FLAG_C = (t & 0x01);
@@ -225,7 +223,7 @@ void rrc(byte* inp) {
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -236,7 +234,7 @@ void rl(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    byte old_carry = FLAG_C;
@@ -248,7 +246,7 @@ void rl(byte* inp) {
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -259,7 +257,7 @@ void rr(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    byte old_carry = FLAG_C;
@@ -271,7 +269,7 @@ void rr(byte* inp) {
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -282,7 +280,7 @@ void sla(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    FLAG_C = (t & 0x80);
@@ -293,7 +291,7 @@ void sla(byte* inp) {
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -304,7 +302,7 @@ void sra(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    byte msb = t & 0x80;
@@ -316,7 +314,7 @@ void sra(byte* inp) {
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -327,7 +325,7 @@ void swap(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    t = ((t << 4) | (t >> 4));
@@ -336,7 +334,7 @@ void swap(byte* inp) {
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -347,7 +345,7 @@ void srl(byte* inp) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    FLAG_C = (t & 0x01);
@@ -358,7 +356,7 @@ void srl(byte* inp) {
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -369,7 +367,7 @@ void bit(byte* inp, byte bit) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    FLAG_Z = (!(t & (1 << bit)));
@@ -382,14 +380,14 @@ void res(byte* inp, byte bit) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    t = t & ~(1 << bit);
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -400,14 +398,14 @@ void set(byte* inp, byte bit) {
    if (inp != NULL) {
       t = *inp;
    } else {
-      t = FETCH(cpu_H, cpu_L);
+      t = FETCH(cpu_h, cpu_l);
    }
 
    t = t | (1 << bit);
 
    if (inp == NULL) {
       TIME(1);
-      STORE(cpu_H, cpu_L, t);
+      STORE(cpu_h, cpu_l, t);
    } else {
       *inp = t;
    }
@@ -417,433 +415,433 @@ void set(byte* inp, byte bit) {
 
 void cpu_lda_n() {
    TIME(2);
-   LOAD(cpu_A, mem_rb(cpu_PC++));
+   LOAD(cpu_a, rbyte(cpu_PC++));
 }
 void cpu_ldb_n() {
    TIME(2);
-   LOAD(cpu_B, mem_rb(cpu_PC++));
+   LOAD(cpu_b, rbyte(cpu_PC++));
 }
 void cpu_ldc_n() {
    TIME(2);
-   LOAD(cpu_C, mem_rb(cpu_PC++));
+   LOAD(cpu_c, rbyte(cpu_PC++));
 }
 void cpu_ldd_n() {
    TIME(2);
-   LOAD(cpu_D, mem_rb(cpu_PC++));
+   LOAD(cpu_d, rbyte(cpu_PC++));
 }
 void cpu_lde_n() {
    TIME(2);
-   LOAD(cpu_E, mem_rb(cpu_PC++));
+   LOAD(cpu_e, rbyte(cpu_PC++));
 }
 void cpu_ldh_n() {
    TIME(2);
-   LOAD(cpu_H, mem_rb(cpu_PC++));
+   LOAD(cpu_h, rbyte(cpu_PC++));
 }
 void cpu_ldl_n() {
    TIME(2);
-   LOAD(cpu_L, mem_rb(cpu_PC++));
+   LOAD(cpu_l, rbyte(cpu_PC++));
 }
 void cpu_lda_a() {
    TIME(1);
-   LOAD(cpu_A, cpu_A);
+   LOAD(cpu_a, cpu_a);
 }
 void cpu_lda_b() {
    TIME(1);
-   LOAD(cpu_A, cpu_B);
+   LOAD(cpu_a, cpu_b);
 }
 void cpu_lda_c() {
    TIME(1);
-   LOAD(cpu_A, cpu_C);
+   LOAD(cpu_a, cpu_c);
 }
 void cpu_lda_d() {
    TIME(1);
-   LOAD(cpu_A, cpu_D);
+   LOAD(cpu_a, cpu_d);
 }
 void cpu_lda_e() {
    TIME(1);
-   LOAD(cpu_A, cpu_E);
+   LOAD(cpu_a, cpu_e);
 }
 void cpu_lda_h() {
    TIME(1);
-   LOAD(cpu_A, cpu_H);
+   LOAD(cpu_a, cpu_h);
 }
 void cpu_lda_l() {
    TIME(1);
-   LOAD(cpu_A, cpu_L);
+   LOAD(cpu_a, cpu_l);
 }
 void cpu_ldb_a() {
    TIME(1);
-   LOAD(cpu_B, cpu_A);
+   LOAD(cpu_b, cpu_a);
 }
 void cpu_ldb_b() {
    TIME(1);
-   LOAD(cpu_B, cpu_B);
+   LOAD(cpu_b, cpu_b);
 }
 void cpu_ldb_c() {
    TIME(1);
-   LOAD(cpu_B, cpu_C);
+   LOAD(cpu_b, cpu_c);
 }
 void cpu_ldb_d() {
    TIME(1);
-   LOAD(cpu_B, cpu_D);
+   LOAD(cpu_b, cpu_d);
 }
 void cpu_ldb_e() {
    TIME(1);
-   LOAD(cpu_B, cpu_E);
+   LOAD(cpu_b, cpu_e);
 }
 void cpu_ldb_h() {
    TIME(1);
-   LOAD(cpu_B, cpu_H);
+   LOAD(cpu_b, cpu_h);
 }
 void cpu_ldb_l() {
    TIME(1);
-   LOAD(cpu_B, cpu_L);
+   LOAD(cpu_b, cpu_l);
 }
 void cpu_ldc_a() {
    TIME(1);
-   LOAD(cpu_C, cpu_A);
+   LOAD(cpu_c, cpu_a);
 }
 void cpu_ldc_b() {
    TIME(1);
-   LOAD(cpu_C, cpu_B);
+   LOAD(cpu_c, cpu_b);
 }
 void cpu_ldc_c() {
    TIME(1);
-   LOAD(cpu_C, cpu_C);
+   LOAD(cpu_c, cpu_c);
 }
 void cpu_ldc_d() {
    TIME(1);
-   LOAD(cpu_C, cpu_D);
+   LOAD(cpu_c, cpu_d);
 }
 void cpu_ldc_e() {
    TIME(1);
-   LOAD(cpu_C, cpu_E);
+   LOAD(cpu_c, cpu_e);
 }
 void cpu_ldc_h() {
    TIME(1);
-   LOAD(cpu_C, cpu_H);
+   LOAD(cpu_c, cpu_h);
 }
 void cpu_ldc_l() {
    TIME(1);
-   LOAD(cpu_C, cpu_L);
+   LOAD(cpu_c, cpu_l);
 }
 void cpu_ldd_a() {
    TIME(1);
-   LOAD(cpu_D, cpu_A);
+   LOAD(cpu_d, cpu_a);
 }
 void cpu_ldd_b() {
    TIME(1);
-   LOAD(cpu_D, cpu_B);
+   LOAD(cpu_d, cpu_b);
 }
 void cpu_ldd_c() {
    TIME(1);
-   LOAD(cpu_D, cpu_C);
+   LOAD(cpu_d, cpu_c);
 }
 void cpu_ldd_d() {
    TIME(1);
-   LOAD(cpu_D, cpu_D);
+   LOAD(cpu_d, cpu_d);
 }
 void cpu_ldd_e() {
    TIME(1);
-   LOAD(cpu_D, cpu_E);
+   LOAD(cpu_d, cpu_e);
 }
 void cpu_ldd_h() {
    TIME(1);
-   LOAD(cpu_D, cpu_H);
+   LOAD(cpu_d, cpu_h);
 }
 void cpu_ldd_l() {
    TIME(1);
-   LOAD(cpu_D, cpu_L);
+   LOAD(cpu_d, cpu_l);
 }
 void cpu_lde_a() {
    TIME(1);
-   LOAD(cpu_E, cpu_A);
+   LOAD(cpu_e, cpu_a);
 }
 void cpu_lde_b() {
    TIME(1);
-   LOAD(cpu_E, cpu_B);
+   LOAD(cpu_e, cpu_b);
 }
 void cpu_lde_c() {
    TIME(1);
-   LOAD(cpu_E, cpu_C);
+   LOAD(cpu_e, cpu_c);
 }
 void cpu_lde_d() {
    TIME(1);
-   LOAD(cpu_E, cpu_D);
+   LOAD(cpu_e, cpu_d);
 }
 void cpu_lde_e() {
    TIME(1);
-   LOAD(cpu_E, cpu_E);
+   LOAD(cpu_e, cpu_e);
 }
 void cpu_lde_h() {
    TIME(1);
-   LOAD(cpu_E, cpu_H);
+   LOAD(cpu_e, cpu_h);
 }
 void cpu_lde_l() {
    TIME(1);
-   LOAD(cpu_E, cpu_L);
+   LOAD(cpu_e, cpu_l);
 }
 void cpu_ldh_a() {
    TIME(1);
-   LOAD(cpu_H, cpu_A);
+   LOAD(cpu_h, cpu_a);
 }
 void cpu_ldh_b() {
    TIME(1);
-   LOAD(cpu_H, cpu_B);
+   LOAD(cpu_h, cpu_b);
 }
 void cpu_ldh_c() {
    TIME(1);
-   LOAD(cpu_H, cpu_C);
+   LOAD(cpu_h, cpu_c);
 }
 void cpu_ldh_d() {
    TIME(1);
-   LOAD(cpu_H, cpu_D);
+   LOAD(cpu_h, cpu_d);
 }
 void cpu_ldh_e() {
    TIME(1);
-   LOAD(cpu_H, cpu_E);
+   LOAD(cpu_h, cpu_e);
 }
 void cpu_ldh_h() {
    TIME(1);
-   LOAD(cpu_H, cpu_H);
+   LOAD(cpu_h, cpu_h);
 }
 void cpu_ldh_l() {
    TIME(1);
-   LOAD(cpu_H, cpu_L);
+   LOAD(cpu_h, cpu_l);
 }
 void cpu_ldl_a() {
    TIME(1);
-   LOAD(cpu_L, cpu_A);
+   LOAD(cpu_l, cpu_a);
 }
 void cpu_ldl_b() {
    TIME(1);
-   LOAD(cpu_L, cpu_B);
+   LOAD(cpu_l, cpu_b);
 }
 void cpu_ldl_c() {
    TIME(1);
-   LOAD(cpu_L, cpu_C);
+   LOAD(cpu_l, cpu_c);
 }
 void cpu_ldl_d() {
    TIME(1);
-   LOAD(cpu_L, cpu_D);
+   LOAD(cpu_l, cpu_d);
 }
 void cpu_ldl_e() {
    TIME(1);
-   LOAD(cpu_L, cpu_E);
+   LOAD(cpu_l, cpu_e);
 }
 void cpu_ldl_h() {
    TIME(1);
-   LOAD(cpu_L, cpu_H);
+   LOAD(cpu_l, cpu_h);
 }
 void cpu_ldl_l() {
    TIME(1);
-   LOAD(cpu_L, cpu_L);
+   LOAD(cpu_l, cpu_l);
 }
 void cpu_lda_at_hl() {
    TIME(2);
-   LOAD(cpu_A, FETCH(cpu_H, cpu_L));
+   LOAD(cpu_a, FETCH(cpu_h, cpu_l));
 }
 void cpu_ldb_at_hl() {
    TIME(2);
-   LOAD(cpu_B, FETCH(cpu_H, cpu_L));
+   LOAD(cpu_b, FETCH(cpu_h, cpu_l));
 }
 void cpu_ldc_at_hl() {
    TIME(2);
-   LOAD(cpu_C, FETCH(cpu_H, cpu_L));
+   LOAD(cpu_c, FETCH(cpu_h, cpu_l));
 }
 void cpu_ldd_at_hl() {
    TIME(2);
-   LOAD(cpu_D, FETCH(cpu_H, cpu_L));
+   LOAD(cpu_d, FETCH(cpu_h, cpu_l));
 }
 void cpu_lde_at_hl() {
    TIME(2);
-   LOAD(cpu_E, FETCH(cpu_H, cpu_L));
+   LOAD(cpu_e, FETCH(cpu_h, cpu_l));
 }
 void cpu_ldh_at_hl() {
    TIME(2);
-   LOAD(cpu_H, FETCH(cpu_H, cpu_L));
+   LOAD(cpu_h, FETCH(cpu_h, cpu_l));
 }
 void cpu_ldl_at_hl() {
    TIME(2);
-   LOAD(cpu_L, FETCH(cpu_H, cpu_L));
+   LOAD(cpu_l, FETCH(cpu_h, cpu_l));
 }
 void cpu_ld_at_hl_b() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_B);
+   STORE(cpu_h, cpu_l, cpu_b);
 }
 void cpu_ld_at_hl_c() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_C);
+   STORE(cpu_h, cpu_l, cpu_c);
 }
 void cpu_ld_at_hl_d() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_D);
+   STORE(cpu_h, cpu_l, cpu_d);
 }
 void cpu_ld_at_hl_e() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_E);
+   STORE(cpu_h, cpu_l, cpu_e);
 }
 void cpu_ld_at_hl_h() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_H);
+   STORE(cpu_h, cpu_l, cpu_h);
 }
 void cpu_ld_at_hl_l() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_L);
+   STORE(cpu_h, cpu_l, cpu_l);
 }
 void cpu_ld_at_hl_n() {
    TIME(3);
-   STORE(cpu_H, cpu_L, mem_rb(cpu_PC++));
+   STORE(cpu_h, cpu_l, rbyte(cpu_PC++));
 }
 void cpu_lda_at_bc() {
    TIME(2);
-   LOAD(cpu_A, FETCH(cpu_B, cpu_C));
+   LOAD(cpu_a, FETCH(cpu_b, cpu_c));
 }
 void cpu_lda_at_de() {
    TIME(2);
-   LOAD(cpu_A, FETCH(cpu_D, cpu_E));
+   LOAD(cpu_a, FETCH(cpu_d, cpu_e));
 }
 void cpu_ld_at_bc_a() {
    TIME(2);
-   STORE(cpu_B, cpu_C, cpu_A);
+   STORE(cpu_b, cpu_c, cpu_a);
 }
 void cpu_ld_at_de_a() {
    TIME(2);
-   STORE(cpu_D, cpu_E, cpu_A);
+   STORE(cpu_d, cpu_e, cpu_a);
 }
 void cpu_ld_at_hl_a() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_A);
+   STORE(cpu_h, cpu_l, cpu_a);
 }
 void cpu_lda_at_c() {
    TIME(2);
-   LOAD(cpu_A, mem_rb(0xFF00 + cpu_C));
+   LOAD(cpu_a, rbyte(0xFF00 + cpu_c));
 }
 void cpu_ld_at_c_a() {
    TIME(2);
-   STORE(0xFF, cpu_C, cpu_A);
+   STORE(0xFF, cpu_c, cpu_a);
 }
 
 void cpu_lda_at_nn() {
    TIME(4);
-   LOAD(cpu_A, mem_rb(mem_rw(cpu_PC)));
+   LOAD(cpu_a, rbyte(rword(cpu_PC)));
    cpu_PC += 2;
 }
 
 void cpu_ld_at_nn_a() {
    TIME(4);
-   mem_wb(mem_rw(cpu_PC), cpu_A);
+   wbyte(rword(cpu_PC), cpu_a);
    cpu_PC += 2;
 }
 
 void cpu_lda_at_hld() {
    TIME(2);
-   cpu_A = FETCH(cpu_H, cpu_L);
-   dec16(&cpu_H, &cpu_L);
+   cpu_a = FETCH(cpu_h, cpu_l);
+   dec16(&cpu_h, &cpu_l);
 }
 
 void cpu_lda_at_hli() {
    TIME(2);
-   cpu_A = FETCH(cpu_H, cpu_L);
-   inc16(&cpu_H, &cpu_L);
+   cpu_a = FETCH(cpu_h, cpu_l);
+   inc16(&cpu_h, &cpu_l);
 }
 
 void cpu_ld_at_hld_a() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_A);
-   dec16(&cpu_H, &cpu_L);
+   STORE(cpu_h, cpu_l, cpu_a);
+   dec16(&cpu_h, &cpu_l);
 }
 
 void cpu_ld_at_hli_a() {
    TIME(2);
-   STORE(cpu_H, cpu_L, cpu_A);
-   inc16(&cpu_H, &cpu_L);
+   STORE(cpu_h, cpu_l, cpu_a);
+   inc16(&cpu_h, &cpu_l);
 }
 
 void cpu_ld_n_a() {
    TIME(3);
-   STORE(0xFF, mem_rb(cpu_PC++), cpu_A);
+   STORE(0xFF, rbyte(cpu_PC++), cpu_a);
 }
 
 void cpu_ld_a_n() {
    TIME(3);
-   cpu_A = FETCH(0xFF, mem_rb(cpu_PC++));
+   cpu_a = FETCH(0xFF, rbyte(cpu_PC++));
 }
 
 void cpu_ldbc_nn() {
    TIME(3);
-   cpu_C = mem_rb(cpu_PC++);
-   cpu_B = mem_rb(cpu_PC++);
+   cpu_c = rbyte(cpu_PC++);
+   cpu_b = rbyte(cpu_PC++);
 }
 
 void cpu_ldde_nn() {
    TIME(3);
-   cpu_E = mem_rb(cpu_PC++);
-   cpu_D = mem_rb(cpu_PC++);
+   cpu_e = rbyte(cpu_PC++);
+   cpu_d = rbyte(cpu_PC++);
 }
 
 void cpu_ldhl_nn() {
    TIME(3);
-   cpu_L = mem_rb(cpu_PC++);
-   cpu_H = mem_rb(cpu_PC++);
+   cpu_l = rbyte(cpu_PC++);
+   cpu_h = rbyte(cpu_PC++);
 }
 
 void cpu_ldsp_nn() {
    TIME(3);
-   cpu_SP = mem_rw(cpu_PC);
+   cpu_SP = rword(cpu_PC);
    cpu_PC += 2;
 }
 
 void cpu_ldsp_hl() {
    TIME(2);
-   cpu_SP = (cpu_H << 8) | cpu_L;
+   cpu_SP = (cpu_h << 8) | cpu_l;
 }
 
 void cpu_ldhl_sp_n() {
    TIME(2);
-   byte next = mem_rb(cpu_PC++);
+   byte next = rbyte(cpu_PC++);
    TIME(1);
    sbyte off = (sbyte)next;
    int res   = off + cpu_SP;
    CLEAR_FLAGS();
    FLAG_C = ((cpu_SP & 0xFF) + next > 0xFF);
    FLAG_H = ((cpu_SP & 0xF) + (next & 0xF) > 0xF);
-   cpu_H  = (res & 0xFF00) >> 8;
-   cpu_L  = res & 0x00FF;
+   cpu_h  = (res & 0xFF00) >> 8;
+   cpu_l  = res & 0x00FF;
 }
 
 void cpu_ld_nn_sp() {
    TIME(5);
-   word tmp = mem_rw(cpu_PC);
+   word tmp = rword(cpu_PC);
    cpu_PC += 2;
-   mem_ww(tmp, cpu_SP);
+   wword(tmp, cpu_SP);
 }
 
 // PUSH / POP
 
 void cpu_pushbc() {
    TIME(2);
-   PUSH(cpu_B, cpu_C);
+   PUSH(cpu_b, cpu_c);
 }
 void cpu_pushde() {
    TIME(2);
-   PUSH(cpu_D, cpu_E);
+   PUSH(cpu_d, cpu_e);
 }
 void cpu_pushhl() {
    TIME(2);
-   PUSH(cpu_H, cpu_L);
+   PUSH(cpu_h, cpu_l);
 }
 void cpu_popbc() {
    TIME(1);
-   POP(cpu_B, cpu_C);
+   POP(cpu_b, cpu_c);
 }
 void cpu_popde() {
    TIME(1);
-   POP(cpu_D, cpu_E);
+   POP(cpu_d, cpu_e);
 }
 void cpu_pophl() {
    TIME(1);
-   POP(cpu_H, cpu_L);
+   POP(cpu_h, cpu_l);
 }
 
 void cpu_pushaf() {
@@ -861,13 +859,13 @@ void cpu_pushaf() {
       flags |= BITMASK_N;
    }
    TIME(2);
-   PUSH(cpu_A, flags);
+   PUSH(cpu_a, flags);
 }
 
 void cpu_popaf() {
    byte flags = 0;
    TIME(1);
-   POP(cpu_A, flags);
+   POP(cpu_a, flags);
    FLAG_Z = (flags & BITMASK_Z);
    FLAG_C = (flags & BITMASK_C);
    FLAG_H = (flags & BITMASK_H);
@@ -877,118 +875,118 @@ void cpu_popaf() {
 // AND / OR / XOR
 void cpu_and_a() {
    TIME(1);
-   AND(cpu_A);
+   AND(cpu_a);
 }
 void cpu_and_b() {
    TIME(1);
-   AND(cpu_B);
+   AND(cpu_b);
 }
 void cpu_and_c() {
    TIME(1);
-   AND(cpu_C);
+   AND(cpu_c);
 }
 void cpu_and_d() {
    TIME(1);
-   AND(cpu_D);
+   AND(cpu_d);
 }
 void cpu_and_e() {
    TIME(1);
-   AND(cpu_E);
+   AND(cpu_e);
 }
 void cpu_and_h() {
    TIME(1);
-   AND(cpu_H);
+   AND(cpu_h);
 }
 void cpu_and_l() {
    TIME(1);
-   AND(cpu_L);
+   AND(cpu_l);
 }
 void cpu_or_a() {
    TIME(1);
-   OR(cpu_A);
+   OR(cpu_a);
 }
 void cpu_or_b() {
    TIME(1);
-   OR(cpu_B);
+   OR(cpu_b);
 }
 void cpu_or_c() {
    TIME(1);
-   OR(cpu_C);
+   OR(cpu_c);
 }
 void cpu_or_d() {
    TIME(1);
-   OR(cpu_D);
+   OR(cpu_d);
 }
 void cpu_or_e() {
    TIME(1);
-   OR(cpu_E);
+   OR(cpu_e);
 }
 void cpu_or_h() {
    TIME(1);
-   OR(cpu_H);
+   OR(cpu_h);
 }
 void cpu_or_l() {
    TIME(1);
-   OR(cpu_L);
+   OR(cpu_l);
 }
 void cpu_xor_a() {
    TIME(1);
-   XOR(cpu_A);
+   XOR(cpu_a);
 }
 void cpu_xor_b() {
    TIME(1);
-   XOR(cpu_B);
+   XOR(cpu_b);
 }
 void cpu_xor_c() {
    TIME(1);
-   XOR(cpu_C);
+   XOR(cpu_c);
 }
 void cpu_xor_d() {
    TIME(1);
-   XOR(cpu_D);
+   XOR(cpu_d);
 }
 void cpu_xor_e() {
    TIME(1);
-   XOR(cpu_E);
+   XOR(cpu_e);
 }
 void cpu_xor_h() {
    TIME(1);
-   XOR(cpu_H);
+   XOR(cpu_h);
 }
 void cpu_xor_l() {
    TIME(1);
-   XOR(cpu_L);
+   XOR(cpu_l);
 }
 void cpu_and_at_hl() {
    TIME(2);
-   AND(FETCH(cpu_H, cpu_L));
+   AND(FETCH(cpu_h, cpu_l));
 }
 void cpu_or_at_hl() {
    TIME(2);
-   OR(FETCH(cpu_H, cpu_L));
+   OR(FETCH(cpu_h, cpu_l));
 }
 void cpu_xor_at_hl() {
    TIME(2);
-   XOR(FETCH(cpu_H, cpu_L));
+   XOR(FETCH(cpu_h, cpu_l));
 }
 void cpu_and_n() {
    TIME(2);
-   AND(mem_rb(cpu_PC++));
+   AND(rbyte(cpu_PC++));
 }
 void cpu_or_n() {
    TIME(2);
-   OR(mem_rb(cpu_PC++));
+   OR(rbyte(cpu_PC++));
 }
 void cpu_xor_n() {
    TIME(2);
-   XOR(mem_rb(cpu_PC++));
+   XOR(rbyte(cpu_PC++));
 }
 
 void cpu_cb() {
    TIME(2);
-   byte sub_op  = mem_rb(cpu_PC++);
+   byte sub_op  = rbyte(cpu_PC++);
    byte* regs[] = {
-         &cpu_B, &cpu_C, &cpu_D, &cpu_E, &cpu_H, &cpu_L, NULL, &cpu_A};
+         &cpu_b, &cpu_c, &cpu_d, &cpu_e, &cpu_h, &cpu_l, NULL, &cpu_a};
    byte index = sub_op & 0x0F;
    if (index == 6 || index == 14) {
       TIME(1);
@@ -1040,9 +1038,7 @@ void cpu_cb() {
 
 // JUMP / RETURN
 
-void cpu_jp_nn() {
-   jp();
-}
+void cpu_jp_nn() { jp(); }
 
 void cpu_jp_nz_nn() {
    if (!FLAG_Z) {
@@ -1082,7 +1078,7 @@ void cpu_jp_c_nn() {
 
 void cpu_jp_at_hl() {
    TIME(1);
-   cpu_PC = ((cpu_H << 8) | cpu_L);
+   cpu_PC = ((cpu_h << 8) | cpu_l);
 }
 
 void cpu_jr_n() {
@@ -1130,9 +1126,7 @@ void cpu_jr_c_n() {
    }
 }
 
-void cpu_call_nn() {
-   call();
-}
+void cpu_call_nn() { call(); }
 
 void cpu_call_nz_nn() {
    if (!FLAG_Z) {
@@ -1238,9 +1232,7 @@ void cpu_rst_38h() {
 
 // Returns
 
-void cpu_ret() {
-   ret();
-}
+void cpu_ret() { ret(); }
 
 void cpu_ret_nz() {
    if (!FLAG_Z) {
@@ -1288,27 +1280,27 @@ void cpu_reti() {
 
 void cpu_add16_hl_bc() {
    TIME(2);
-   add16(&cpu_H, &cpu_L, cpu_B, cpu_C);
+   add16(&cpu_h, &cpu_l, cpu_b, cpu_c);
 }
 
 void cpu_add16_hl_de() {
    TIME(2);
-   add16(&cpu_H, &cpu_L, cpu_D, cpu_E);
+   add16(&cpu_h, &cpu_l, cpu_d, cpu_e);
 }
 
 void cpu_add16_hl_hl() {
    TIME(2);
-   add16(&cpu_H, &cpu_L, cpu_H, cpu_L);
+   add16(&cpu_h, &cpu_l, cpu_h, cpu_l);
 }
 
 void cpu_add16_hl_sp() {
    TIME(2);
-   add16(&cpu_H, &cpu_L, (cpu_SP & 0xFF00) >> 8, cpu_SP & 0x00FF);
+   add16(&cpu_h, &cpu_l, (cpu_SP & 0xFF00) >> 8, cpu_SP & 0x00FF);
 }
 
 void cpu_add16_sp_n() {
    TIME(2);
-   byte val  = mem_rb(cpu_PC++);
+   byte val = rbyte(cpu_PC++);
    TIME(2);
    sbyte off = (sbyte)val;
    CLEAR_FLAGS();
@@ -1320,17 +1312,17 @@ void cpu_add16_sp_n() {
 // 0x03
 void cpu_inc16_bc() {
    TIME(2);
-   inc16(&cpu_B, &cpu_C);
+   inc16(&cpu_b, &cpu_c);
 }
 
 void cpu_inc16_de() {
    TIME(2);
-   inc16(&cpu_D, &cpu_E);
+   inc16(&cpu_d, &cpu_e);
 }
 
 void cpu_inc16_hl() {
    TIME(2);
-   inc16(&cpu_H, &cpu_L);
+   inc16(&cpu_h, &cpu_l);
 }
 
 void cpu_inc16_sp() {
@@ -1340,17 +1332,17 @@ void cpu_inc16_sp() {
 
 void cpu_dec16_bc() {
    TIME(2);
-   dec16(&cpu_B, &cpu_C);
+   dec16(&cpu_b, &cpu_c);
 }
 
 void cpu_dec16_de() {
    TIME(2);
-   dec16(&cpu_D, &cpu_E);
+   dec16(&cpu_d, &cpu_e);
 }
 
 void cpu_dec16_hl() {
    TIME(2);
-   dec16(&cpu_H, &cpu_L);
+   dec16(&cpu_h, &cpu_l);
 }
 
 void cpu_dec16_sp() {
@@ -1362,37 +1354,39 @@ void cpu_dec16_sp() {
 
 void cpu_rla() {
    TIME(1);
-   rl(&cpu_A);
+   rl(&cpu_a);
    FLAG_Z = false;
 }
 
 void cpu_rlca() {
    TIME(1);
-   rlc(&cpu_A);
+   rlc(&cpu_a);
    FLAG_Z = false;
 }
 
 void cpu_rrca() {
    TIME(1);
-   rrc(&cpu_A);
+   rrc(&cpu_a);
    FLAG_Z = false;
 }
 
 void cpu_rra() {
    TIME(1);
-   rr(&cpu_A);
+   rr(&cpu_a);
    FLAG_Z = false;
 }
 
 void cpu_di() {
-//   //printf("[%04X] DI, %02X, %d, %lld\n", cpu_PC - 1, mem_rb(LCD_STATUS_ADDR), ppu_ly, ppu_get_timer());
+   //   //printf("[%04X] DI, %02X, %d, %lld\n", cpu_PC - 1,
+   //   rbyte(LCD_STATUS_ADDR), ppu_ly, ppu_get_timer());
    TIME(1);
    cpu_ime       = false;
    cpu_ime_delay = false;
 }
 
 void cpu_ei() {
-//   //printf("[%04X] EI, %02X, %d, %lld\n", cpu_PC - 1, mem_rb(LCD_STATUS_ADDR), ppu_ly, ppu_get_timer());
+   //   //printf("[%04X] EI, %02X, %d, %lld\n", cpu_PC - 1,
+   //   rbyte(LCD_STATUS_ADDR), ppu_ly, ppu_get_timer());
    TIME(1);
    cpu_ime       = true;
    cpu_ime_delay = true;
@@ -1401,270 +1395,270 @@ void cpu_ei() {
 // ADD / ADC / SUB / SUBC
 void cpu_add_a_a() {
    TIME(1);
-   ADD(cpu_A);
+   ADD(cpu_a);
 }
 void cpu_add_a_b() {
    TIME(1);
-   ADD(cpu_B);
+   ADD(cpu_b);
 }
 void cpu_add_a_c() {
    TIME(1);
-   ADD(cpu_C);
+   ADD(cpu_c);
 }
 void cpu_add_a_d() {
    TIME(1);
-   ADD(cpu_D);
+   ADD(cpu_d);
 }
 void cpu_add_a_e() {
    TIME(1);
-   ADD(cpu_E);
+   ADD(cpu_e);
 }
 void cpu_add_a_h() {
    TIME(1);
-   ADD(cpu_H);
+   ADD(cpu_h);
 }
 void cpu_add_a_l() {
    TIME(1);
-   ADD(cpu_L);
+   ADD(cpu_l);
 }
 void cpu_adc_a_a() {
    TIME(1);
-   ADC(cpu_A);
+   ADC(cpu_a);
 }
 void cpu_adc_a_b() {
    TIME(1);
-   ADC(cpu_B);
+   ADC(cpu_b);
 }
 void cpu_adc_a_c() {
    TIME(1);
-   ADC(cpu_C);
+   ADC(cpu_c);
 }
 void cpu_adc_a_d() {
    TIME(1);
-   ADC(cpu_D);
+   ADC(cpu_d);
 }
 void cpu_adc_a_e() {
    TIME(1);
-   ADC(cpu_E);
+   ADC(cpu_e);
 }
 void cpu_adc_a_h() {
    TIME(1);
-   ADC(cpu_H);
+   ADC(cpu_h);
 }
 void cpu_adc_a_l() {
    TIME(1);
-   ADC(cpu_L);
+   ADC(cpu_l);
 }
 void cpu_sub_a_a() {
    TIME(1);
-   SUB(cpu_A);
+   SUB(cpu_a);
 }
 void cpu_sub_a_b() {
    TIME(1);
-   SUB(cpu_B);
+   SUB(cpu_b);
 }
 void cpu_sub_a_c() {
    TIME(1);
-   SUB(cpu_C);
+   SUB(cpu_c);
 }
 void cpu_sub_a_d() {
    TIME(1);
-   SUB(cpu_D);
+   SUB(cpu_d);
 }
 void cpu_sub_a_e() {
    TIME(1);
-   SUB(cpu_E);
+   SUB(cpu_e);
 }
 void cpu_sub_a_h() {
    TIME(1);
-   SUB(cpu_H);
+   SUB(cpu_h);
 }
 void cpu_sub_a_l() {
    TIME(1);
-   SUB(cpu_L);
+   SUB(cpu_l);
 }
 void cpu_sbc_a_a() {
    TIME(1);
-   SBC(cpu_A);
+   SBC(cpu_a);
 }
 void cpu_sbc_a_b() {
    TIME(1);
-   SBC(cpu_B);
+   SBC(cpu_b);
 }
 void cpu_sbc_a_c() {
    TIME(1);
-   SBC(cpu_C);
+   SBC(cpu_c);
 }
 void cpu_sbc_a_d() {
    TIME(1);
-   SBC(cpu_D);
+   SBC(cpu_d);
 }
 void cpu_sbc_a_e() {
    TIME(1);
-   SBC(cpu_E);
+   SBC(cpu_e);
 }
 void cpu_sbc_a_h() {
    TIME(1);
-   SBC(cpu_H);
+   SBC(cpu_h);
 }
 void cpu_sbc_a_l() {
    TIME(1);
-   SBC(cpu_L);
+   SBC(cpu_l);
 }
 void cpu_add_a_n() {
    TIME(2);
-   ADD(mem_rb(cpu_PC++));
+   ADD(rbyte(cpu_PC++));
 }
 void cpu_adc_a_n() {
    TIME(2);
-   ADC(mem_rb(cpu_PC++));
+   ADC(rbyte(cpu_PC++));
 }
 void cpu_sub_a_n() {
    TIME(2);
-   SUB(mem_rb(cpu_PC++));
+   SUB(rbyte(cpu_PC++));
 }
 void cpu_sbc_a_n() {
    TIME(2);
-   SBC(mem_rb(cpu_PC++));
+   SBC(rbyte(cpu_PC++));
 }
 void cpu_add_a_at_hl() {
    TIME(2);
-   ADD(FETCH(cpu_H, cpu_L));
+   ADD(FETCH(cpu_h, cpu_l));
 }
 void cpu_adc_a_at_hl() {
    TIME(2);
-   ADC(FETCH(cpu_H, cpu_L));
+   ADC(FETCH(cpu_h, cpu_l));
 }
 void cpu_sub_a_at_hl() {
    TIME(2);
-   SUB(FETCH(cpu_H, cpu_L));
+   SUB(FETCH(cpu_h, cpu_l));
 }
 void cpu_sbc_a_at_hl() {
    TIME(2);
-   SBC(FETCH(cpu_H, cpu_L));
+   SBC(FETCH(cpu_h, cpu_l));
 }
 
 // INCREMENT / DECREMENT
 void cpu_inc_a() {
-   INC(cpu_A);
+   INC(cpu_a);
    TIME(1);
 }
 void cpu_inc_b() {
-   INC(cpu_B);
+   INC(cpu_b);
    TIME(1);
 }
 void cpu_inc_c() {
-   INC(cpu_C);
+   INC(cpu_c);
    TIME(1);
 }
 void cpu_inc_d() {
-   INC(cpu_D);
+   INC(cpu_d);
    TIME(1);
 }
 void cpu_inc_e() {
-   INC(cpu_E);
+   INC(cpu_e);
    TIME(1);
 }
 void cpu_inc_h() {
    TIME(1);
-   INC(cpu_H);
+   INC(cpu_h);
 }
 void cpu_inc_l() {
-   INC(cpu_L);
+   INC(cpu_l);
    TIME(1);
 }
 void cpu_dec_a() {
-   DEC(cpu_A);
+   DEC(cpu_a);
    TIME(1);
 }
 void cpu_dec_b() {
-   DEC(cpu_B);
+   DEC(cpu_b);
    TIME(1);
 }
 void cpu_dec_c() {
-   DEC(cpu_C);
+   DEC(cpu_c);
    TIME(1);
 }
 void cpu_dec_d() {
-   DEC(cpu_D);
+   DEC(cpu_d);
    TIME(1);
 }
 void cpu_dec_e() {
-   DEC(cpu_E);
+   DEC(cpu_e);
    TIME(1);
 }
 void cpu_dec_h() {
-   DEC(cpu_H);
+   DEC(cpu_h);
    TIME(1);
 }
 void cpu_dec_l() {
-   DEC(cpu_L);
+   DEC(cpu_l);
    TIME(1);
 }
 
 void cpu_inc_at_hl() {
    TIME(2);
-   byte val = FETCH(cpu_H, cpu_L);
+   byte val = FETCH(cpu_h, cpu_l);
    FLAG_H   = (val & 0x0F) + 1 > 0x0F;
    FLAG_N   = false;
    val++;
    FLAG_Z = val == 0;
    TIME(1);
-   STORE(cpu_H, cpu_L, val);
+   STORE(cpu_h, cpu_l, val);
 }
 
 void cpu_dec_at_hl() {
    TIME(2);
-   byte val = FETCH(cpu_H, cpu_L);
+   byte val = FETCH(cpu_h, cpu_l);
    FLAG_H   = (val & 0x0F) == 0;
    val--;
    FLAG_Z = val == 0;
    FLAG_N = true;
    TIME(1);
-   STORE(cpu_H, cpu_L, val);
+   STORE(cpu_h, cpu_l, val);
 }
 
 // COMPARE
 void cpu_cp_a() {
    TIME(1);
-   COMPARE(cpu_A);
+   COMPARE(cpu_a);
 }
 void cpu_cp_b() {
    TIME(1);
-   COMPARE(cpu_B);
+   COMPARE(cpu_b);
 }
 void cpu_cp_c() {
    TIME(1);
-   COMPARE(cpu_C);
+   COMPARE(cpu_c);
 }
 void cpu_cp_d() {
    TIME(1);
-   COMPARE(cpu_D);
+   COMPARE(cpu_d);
 }
 void cpu_cp_e() {
    TIME(1);
-   COMPARE(cpu_E);
+   COMPARE(cpu_e);
 }
 void cpu_cp_h() {
    TIME(1);
-   COMPARE(cpu_H);
+   COMPARE(cpu_h);
 }
 void cpu_cp_l() {
    TIME(1);
-   COMPARE(cpu_L);
+   COMPARE(cpu_l);
 }
 void cpu_cp_at_hl() {
    TIME(2);
-   COMPARE(FETCH(cpu_H, cpu_L));
+   COMPARE(FETCH(cpu_h, cpu_l));
 }
 void cpu_cp_a_n() {
    TIME(2);
-   COMPARE(mem_rb(cpu_PC++));
+   COMPARE(rbyte(cpu_PC++));
 }
 
 void cpu_cpl() {
    TIME(1);
-   cpu_A  = ~cpu_A;
+   cpu_a  = ~cpu_a;
    FLAG_H = true;
    FLAG_N = true;
 }
@@ -1697,7 +1691,7 @@ void cpu_stop() {
 // http://forums.nesdev.com/viewtopic.php?t=9088
 void cpu_daa() {
    TIME(1);
-   int a = cpu_A;
+   int a = cpu_a;
    if (!FLAG_N) {
       if (FLAG_H || (a & 0xF) > 9) {
          a += 0x06;
@@ -1713,9 +1707,9 @@ void cpu_daa() {
          a -= 0x60;
       }
    }
-   cpu_A  = (byte)a;
+   cpu_a  = (byte)a;
    FLAG_H = false;
-   FLAG_Z = !cpu_A;
+   FLAG_Z = !cpu_a;
    if ((a & 0x100) == 0x100) {
       FLAG_C = true;
    }

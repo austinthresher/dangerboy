@@ -1,26 +1,26 @@
 #include "disas.h"
 #include "debugger.h"
 
-#include <string.h>
 #include <ncurses.h>
+#include <string.h>
 
-#define PRINT(...)      \
+#define PRINT(...)            \
    wprintw(win, __VA_ARGS__); \
    break;
 
-byte rb(word *addr) {
-   byte val = mem_rb(*addr);
+byte rb(word* addr) {
+   byte val = rbyte(*addr);
    *addr += 1;
    return val;
 }
 
-word rw(word *addr) {
-   word val = mem_rw(*addr);
+word rw(word* addr) {
+   word val = rword(*addr);
    *addr += 2;
    return val;
 }
 
-void info(word addr, char *note) {
+void info(word addr, char* note) {
    switch (addr) {
       case 0xFF00: strcpy(note, "; input"); break;
       case 0xFF01: strcpy(note, "; serial data"); break;
@@ -69,7 +69,7 @@ void info(word addr, char *note) {
    }
 }
 
-word disas_at(word addr, WINDOW *win) {
+word disas_at(word addr, WINDOW* win) {
    char note[256];
    byte opcode = rb(&addr);
    byte cbop   = 0;
@@ -86,7 +86,7 @@ word disas_at(word addr, WINDOW *win) {
    switch (opcode) {
       case 0x00: PRINT("NOP");
       case 0x01:
-         info(mem_rw(addr), note);
+         info(rword(addr), note);
          PRINT("LD BC %04X %s", rw(&addr), note);
       case 0x02: PRINT("LD A, (BC)");
       case 0x03: PRINT("INC BC");
@@ -94,8 +94,8 @@ word disas_at(word addr, WINDOW *win) {
       case 0x05: PRINT("DEC B");
       case 0x06: PRINT("LD B, %02X", rb(&addr));
       case 0x07: PRINT("RLCA");
-      case 0x08: 
-         info(mem_rw(addr), note);
+      case 0x08:
+         info(rword(addr), note);
          PRINT("LD %04X, SP%s", rw(&addr), note);
       case 0x09: PRINT("ADD HL, BC");
       case 0x0A: PRINT("LD A, (BC)");
@@ -105,8 +105,8 @@ word disas_at(word addr, WINDOW *win) {
       case 0x0E: PRINT("LD C, %02X", rb(&addr));
       case 0x0F: PRINT("RRCA");
       case 0x10: PRINT("STOP");
-      case 0x11: 
-         info(mem_rw(addr), note);
+      case 0x11:
+         info(rword(addr), note);
          PRINT("LD DE %04X %s", rw(&addr), note);
       case 0x12: PRINT("LD A, (DE)");
       case 0x13: PRINT("INC DE");
@@ -114,7 +114,7 @@ word disas_at(word addr, WINDOW *win) {
       case 0x15: PRINT("DEC D");
       case 0x16: PRINT("LD D, %02X", rb(&addr));
       case 0x17: PRINT("RLA");
-      case 0x18: PRINT("JR %02X \t; %d", mem_rb(addr), (sbyte)rb(&addr));
+      case 0x18: PRINT("JR %02X \t; %d", rbyte(addr), (sbyte)rb(&addr));
       case 0x19: PRINT("ADD HL, DE");
       case 0x1A: PRINT("LD A, (DE)");
       case 0x1B: PRINT("DEC DE");
@@ -122,9 +122,9 @@ word disas_at(word addr, WINDOW *win) {
       case 0x1D: PRINT("DEC E");
       case 0x1E: PRINT("LD E, %02X", rb(&addr));
       case 0x1F: PRINT("RRA");
-      case 0x20: PRINT("JR NZ, %02X \t; %d", mem_rb(addr), (sbyte)rb(&addr));
+      case 0x20: PRINT("JR NZ, %02X \t; %d", rbyte(addr), (sbyte)rb(&addr));
       case 0x21:
-         info(mem_rw(addr), note);
+         info(rword(addr), note);
          PRINT("LD HL, %04X %s", rw(&addr), note);
       case 0x22: PRINT("LD (HL+), A");
       case 0x23: PRINT("INC HL");
@@ -132,7 +132,7 @@ word disas_at(word addr, WINDOW *win) {
       case 0x25: PRINT("DEC H");
       case 0x26: PRINT("LD H, %02X", rb(&addr));
       case 0x27: PRINT("DAA");
-      case 0x28: PRINT("JR Z, %02X \t; %d", mem_rb(addr), (sbyte)rb(&addr));
+      case 0x28: PRINT("JR Z, %02X \t; %d", rbyte(addr), (sbyte)rb(&addr));
       case 0x29: PRINT("ADD HL, HL");
       case 0x2A: PRINT("LD A, (HL+)");
       case 0x2B: PRINT("DEC HL");
@@ -140,9 +140,9 @@ word disas_at(word addr, WINDOW *win) {
       case 0x2D: PRINT("DEC L");
       case 0x2E: PRINT("LD L, %02X", rb(&addr));
       case 0x2F: PRINT("CPL");
-      case 0x30: PRINT("JR NC, %02X \t; %d", mem_rb(addr), (sbyte)rb(&addr));
+      case 0x30: PRINT("JR NC, %02X \t; %d", rbyte(addr), (sbyte)rb(&addr));
       case 0x31:
-         info(mem_rw(addr), note);
+         info(rword(addr), note);
          PRINT("LD SP, %04X %s", rw(&addr), note);
       case 0x32: PRINT("LD (HL-), A");
       case 0x33: PRINT("INC SP");
@@ -150,7 +150,7 @@ word disas_at(word addr, WINDOW *win) {
       case 0x35: PRINT("DEC (HL)");
       case 0x36: PRINT("LD (HL), %02X", rb(&addr));
       case 0x37: PRINT("SCF");
-      case 0x38: PRINT("JR C, %02X \t; %d", mem_rb(addr), (sbyte)rb(&addr));
+      case 0x38: PRINT("JR C, %02X \t; %d", rbyte(addr), (sbyte)rb(&addr));
       case 0x39: PRINT("ADD HL, SP");
       case 0x3A: PRINT("LD A, (HL-)");
       case 0x3B: PRINT("DEC SP");
@@ -317,7 +317,7 @@ word disas_at(word addr, WINDOW *win) {
       case 0xDE: PRINT("SBC %02X", rb(&addr));
       case 0xDF: PRINT("RST 18");
       case 0xE0:
-         info(0xFF00 + mem_rb(addr), note);
+         info(0xFF00 + rbyte(addr), note);
          PRINT("LD (FF%02X), A %s", rb(&addr), note);
       case 0xE1: PRINT("POP HL");
       case 0xE2: PRINT("LD (FF00 + C), A");
@@ -326,11 +326,10 @@ word disas_at(word addr, WINDOW *win) {
       case 0xE5: PRINT("PUSH HL");
       case 0xE6: PRINT("AND %02X", rb(&addr));
       case 0xE7: PRINT("RST 20");
-      case 0xE8:
-         PRINT("ADD SP, %02X \t; %d", mem_rb(addr), (sbyte)rb(&addr));
+      case 0xE8: PRINT("ADD SP, %02X \t; %d", rbyte(addr), (sbyte)rb(&addr));
       case 0xE9: PRINT("JP (HL)");
       case 0xEA:
-         info(mem_rw(addr), note);
+         info(rword(addr), note);
          PRINT("LD (%04X), A %s", rw(&addr), note);
       case 0xEB: PRINT("ERROR");
       case 0xEC: PRINT("ERROR");
@@ -338,7 +337,7 @@ word disas_at(word addr, WINDOW *win) {
       case 0xEE: PRINT("XOR %02X", rb(&addr));
       case 0xEF: PRINT("RST 28");
       case 0xF0:
-         info(0xFF00 + mem_rb(addr), note);
+         info(0xFF00 + rbyte(addr), note);
          PRINT("LD A, (FF%02X) %s", rb(&addr), note);
       case 0xF1: PRINT("POP AF");
       case 0xF2: PRINT("LD A, (FF00 + C)");
@@ -348,10 +347,10 @@ word disas_at(word addr, WINDOW *win) {
       case 0xF6: PRINT("OR %02X", rb(&addr));
       case 0xF7: PRINT("RST 30");
       case 0xF8:
-         PRINT("LD HL, SP + %02X \t; %d", mem_rb(addr), (sbyte)rb(&addr));
+         PRINT("LD HL, SP + %02X \t; %d", rbyte(addr), (sbyte)rb(&addr));
       case 0xF9: PRINT("LD SP, HL");
       case 0xFA:
-         info(mem_rw(addr), note);
+         info(rword(addr), note);
          PRINT("LD A, (%04X) %s", rw(&addr), note);
       case 0xFB: PRINT("EI");
       case 0xFC: PRINT("ERROR");

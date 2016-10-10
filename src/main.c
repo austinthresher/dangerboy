@@ -70,8 +70,8 @@ int main(int argc, char* args[]) {
       debugger_break();
    }
    bool rand_press = false;
-   byte rand_mask = 0;
-   int rand_timer = 5;
+   byte rand_mask  = 0;
+   int rand_timer  = 5;
    while (is_running) {
       int t = SDL_GetTicks();
       if (t - i_prev > INPUT_POLL_RATE) {
@@ -87,12 +87,12 @@ int main(int argc, char* args[]) {
                         rand_mask = 8;
                      }
                      mem_buttons &= ~rand_mask;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                } else {
                   mem_buttons |= rand_mask;
                   rand_press = false;
-                  rand_mask = 0;
+                  rand_mask  = 0;
                }
             }
             turbo = true;
@@ -171,35 +171,35 @@ int main(int argc, char* args[]) {
                   }
                   if (event.key.keysym.sym == SDLK_LEFT) {
                      mem_dpad &= 0xFD;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                   if (event.key.keysym.sym == SDLK_UP) {
                      mem_dpad &= 0xFB;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                   if (event.key.keysym.sym == SDLK_RIGHT) {
                      mem_dpad &= 0xFE;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                   if (event.key.keysym.sym == SDLK_DOWN) {
                      mem_dpad &= 0xF7;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                   if (event.key.keysym.sym == SDLK_z) { // A
                      mem_buttons &= 0xFE;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                   if (event.key.keysym.sym == SDLK_x) { // B
                      mem_buttons &= 0xFD;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                   if (event.key.keysym.sym == SDLK_RETURN) { // Start
                      mem_buttons &= 0xF7;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                   if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
                      mem_buttons &= 0xFB;
-                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                   break;
                case SDL_QUIT: is_running = false; break;

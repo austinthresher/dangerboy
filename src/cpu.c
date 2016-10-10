@@ -1,8 +1,8 @@
 #include "cpu.h"
 #include "debugger.h"
-#include "ppu.h"
 #include "memory.h"
 #include "opcodes.h"
+#include "ppu.h"
 
 tick last_tima_overflow;
 word internal_timer;
@@ -18,24 +18,24 @@ void cpu_init() {
 }
 
 void cpu_reset() {
-   
+
    // These startup values are based on
    // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
    cpu_PC         = 0x0100;
-   cpu_A          = 0x01;
-   cpu_B          = 0x00;
-   cpu_C          = 0x13;
-   cpu_D          = 0x00;
-   cpu_E          = 0xD8;
+   cpu_a          = 0x01;
+   cpu_b          = 0x00;
+   cpu_c          = 0x13;
+   cpu_d          = 0x00;
+   cpu_e          = 0xD8;
    cpu_SP         = 0xFFFE;
-   cpu_H          = 0x01;
-   cpu_L          = 0x4D;
+   cpu_h          = 0x01;
+   cpu_l          = 0x4D;
    cpu_ime        = false;
    cpu_ime_delay  = false;
    cpu_ticks      = 0;
    cpu_halted     = false;
    cpu_stopped    = false;
-   internal_timer = 0; 
+   internal_timer = 0;
    prev_timer_bit = false;
 
    FLAG_C = true;
@@ -44,50 +44,48 @@ void cpu_reset() {
    FLAG_N = false;
 
    // Setup our in-memory registers
-   mem_wb(0xFF02, 0x7E); // Serial Transfer Control
-   mem_wb(0xFF05, 0x00); // TIMA
-   mem_wb(0xFF06, 0x00); // TMA
-   mem_wb(0xFF07, 0xF8); // TAC
-   mem_wb(0xFF10, 0x80); // NR10
-   mem_wb(0xFF11, 0xBF); // NR11
-   mem_wb(0xFF12, 0xF3); // NR12
-   mem_wb(0xFF14, 0xBF); // NR14
-   mem_wb(0xFF16, 0x3F); // NR21
-   mem_wb(0xFF17, 0x00); // NR22
-   mem_wb(0xFF19, 0xBF); // NR24
-   mem_wb(0xFF1A, 0x7F); // NR30
-   mem_wb(0xFF1B, 0xFF); // NR31
-   mem_wb(0xFF1C, 0x9F); // NR32
-   mem_wb(0xFF1E, 0xBF); // NR33
-   mem_wb(0xFF20, 0xFF); // NR41
-   mem_wb(0xFF21, 0x00); // NR42
-   mem_wb(0xFF22, 0x00); // NR43
-   mem_wb(0xFF23, 0xBF); // NR30
-   mem_wb(0xFF24, 0x77); // NR50
-   mem_wb(0xFF25, 0xF3); // NR51
-   mem_wb(0xFF26, 0xF1); // NR52
-   mem_wb(0xFF40, 0x91); // LCDC
-   mem_wb(0xFF42, 0x00); // SCY
-   mem_wb(0xFF43, 0x00); // SCX
-   mem_wb(0xFF45, 0x00); // LYC
-   mem_wb(0xFF47, 0xFC); // BG PAL
-   mem_wb(0xFF48, 0xFF); // OBJ0 PAL
-   mem_wb(0xFF49, 0xFF); // OBJ1 PAL
-   mem_wb(0xFF4A, 0x00); // WINX
-   mem_wb(0xFF4B, 0x00); // WINY
-   mem_wb(0xFFFF, 0x00); // IE
+   wbyte(0xFF02, 0x7E); // Serial Transfer Control
+   wbyte(0xFF05, 0x00); // TIMA
+   wbyte(0xFF06, 0x00); // TMA
+   wbyte(0xFF07, 0xF8); // TAC
+   wbyte(0xFF10, 0x80); // NR10
+   wbyte(0xFF11, 0xBF); // NR11
+   wbyte(0xFF12, 0xF3); // NR12
+   wbyte(0xFF14, 0xBF); // NR14
+   wbyte(0xFF16, 0x3F); // NR21
+   wbyte(0xFF17, 0x00); // NR22
+   wbyte(0xFF19, 0xBF); // NR24
+   wbyte(0xFF1A, 0x7F); // NR30
+   wbyte(0xFF1B, 0xFF); // NR31
+   wbyte(0xFF1C, 0x9F); // NR32
+   wbyte(0xFF1E, 0xBF); // NR33
+   wbyte(0xFF20, 0xFF); // NR41
+   wbyte(0xFF21, 0x00); // NR42
+   wbyte(0xFF22, 0x00); // NR43
+   wbyte(0xFF23, 0xBF); // NR30
+   wbyte(0xFF24, 0x77); // NR50
+   wbyte(0xFF25, 0xF3); // NR51
+   wbyte(0xFF26, 0xF1); // NR52
+   wbyte(0xFF40, 0x91); // LCDC
+   wbyte(0xFF42, 0x00); // SCY
+   wbyte(0xFF43, 0x00); // SCX
+   wbyte(0xFF45, 0x00); // LYC
+   wbyte(0xFF47, 0xFC); // BG PAL
+   wbyte(0xFF48, 0xFF); // OBJ0 PAL
+   wbyte(0xFF49, 0xFF); // OBJ1 PAL
+   wbyte(0xFF4A, 0x00); // WINX
+   wbyte(0xFF4B, 0x00); // WINY
+   wbyte(0xFFFF, 0x00); // IE
 }
 
-void cpu_reset_timer() {
-   internal_timer = 0;
-}
+void cpu_reset_timer() { internal_timer = 0; }
 
 void cpu_advance_time(tick dt) {
    ppu_advance_time(dt);
    mem_advance_time(dt);
-   
-   bool timer_on  = mem_direct_read(TIMER_CONTROL_ADDR) & 4;
-   byte tac_speed = mem_direct_read(TIMER_CONTROL_ADDR) & 3;
+
+   bool timer_on  = mem_direct_read(TAC) & 4;
+   byte tac_speed = mem_direct_read(TAC) & 3;
    word timer_bit = 1;
    switch (tac_speed) {
       case 0: timer_bit <<= 9; break;
@@ -95,13 +93,12 @@ void cpu_advance_time(tick dt) {
       case 2: timer_bit <<= 5; break;
       case 3: timer_bit <<= 7; break;
    }
-   for (int i = 0; i < dt/4; ++i) {
-      internal_timer+=4;
+   for (int i = 0; i < dt / 4; ++i) {
+      internal_timer += 4;
       cpu_ticks++;
       if (last_tima_overflow != -1 && cpu_ticks >= last_tima_overflow + 1) {
-         mem_direct_write(
-               INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR) | INT_TIMA);
-         mem_direct_write(TIMA_ADDR, mem_direct_read(TMA_ADDR));
+         mem_direct_write(IF, mem_direct_read(IF) | INT_TIMA);
+         mem_direct_write(TIMA, mem_direct_read(TMA));
          last_tima_overflow = -1;
       }
 
@@ -111,10 +108,10 @@ void cpu_advance_time(tick dt) {
       if (!timer_on) {
          test_val = 0;
       }
-         
+
       if (prev_timer_bit && !test_val) {
-         mem_direct_write(TIMA_ADDR, (mem_direct_read(TIMA_ADDR) + 1) & 0xFF);
-         if (mem_direct_read(TIMA_ADDR) == 0) {
+         mem_direct_write(TIMA, (mem_direct_read(TIMA) + 1) & 0xFF);
+         if (mem_direct_read(TIMA) == 0) {
             // TIMA interrupt happens 4 cycles after
             // the overflow. It holds 0 until then.
             last_tima_overflow = cpu_ticks;
@@ -122,15 +119,15 @@ void cpu_advance_time(tick dt) {
       }
       prev_timer_bit = test_val != 0;
    }
-   mem_direct_write(DIV_REGISTER_ADDR, internal_timer >> 8);
+   mem_direct_write(DIV, internal_timer >> 8);
 }
 
 void cpu_execute_step() {
    // Check interrupts
-   bool interrupted = false;
-   byte int_IE      = mem_direct_read(INT_ENABLED_ADDR);
-   byte int_IF      = mem_direct_read(INT_FLAG_ADDR);
-   byte irq         = int_IE & int_IF & INT_MASK;
+   bool raised = false;
+   byte int_IE = mem_direct_read(IE);
+   byte int_IF = mem_direct_read(IF);
+   byte irq    = int_IE & int_IF & INT_MASK;
 
    if (irq && cpu_halted) {
       cpu_halted = false;
@@ -148,33 +145,33 @@ void cpu_execute_step() {
          byte target = 0x00;
          if (irq & INT_VBLANK) {
             target = 0x40;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_VBLANK);
+            mem_direct_write(IF, int_IF & ~INT_VBLANK);
             debugger_log("VBLANK Interrupt");
-            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
+            debugger_notify_mem_write(IF, mem_direct_read(IF));
          } else if (irq & INT_STAT) {
             target = 0x48;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_STAT);
+            mem_direct_write(IF, int_IF & ~INT_STAT);
             debugger_log("STAT Interrupt");
-            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
+            debugger_notify_mem_write(IF, mem_direct_read(IF));
          } else if (irq & INT_TIMA) {
             target = 0x50;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_TIMA);
+            mem_direct_write(IF, int_IF & ~INT_TIMA);
             debugger_log("TIMA Interrupt");
-            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
+            debugger_notify_mem_write(IF, mem_direct_read(IF));
          } else if (irq & INT_SERIAL) {
             target = 0x58;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_SERIAL);
+            mem_direct_write(IF, int_IF & ~INT_SERIAL);
             debugger_log("Serial interrupt");
-            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
+            debugger_notify_mem_write(IF, mem_direct_read(IF));
          } else if (irq & INT_INPUT) {
             target = 0x60;
-            mem_direct_write(INT_FLAG_ADDR, int_IF & ~INT_INPUT);
+            mem_direct_write(IF, int_IF & ~INT_INPUT);
             debugger_log("Input Interrupt");
-            debugger_notify_mem_write(INT_FLAG_ADDR, mem_direct_read(INT_FLAG_ADDR));
+            debugger_notify_mem_write(IF, mem_direct_read(IF));
          }
          if (target != 0x00) {
-            interrupted = true;
-            cpu_ime     = false;
+            raised  = true;
+            cpu_ime = false;
             PUSHW(cpu_PC);
             TIME(2);
             cpu_PC = target;
@@ -185,10 +182,10 @@ void cpu_execute_step() {
       }
    }
 
-   if (!interrupted) {
+   if (!raised) {
       if (!cpu_halted && !cpu_stopped) {
          cpu_last_pc = cpu_PC;
-         cpu_last_op = mem_rb(cpu_PC++);
+         cpu_last_op = rbyte(cpu_PC++);
          (*cpu_opcodes[cpu_last_op])();
          debugger_notify_mem_exec(cpu_PC);
       } else {

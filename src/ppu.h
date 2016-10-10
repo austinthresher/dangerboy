@@ -5,16 +5,16 @@
 #include "datatypes.h"
 
 // HBlank. Lasts 200 ticks according to mooneye
-#define PPU_MODE_HBLANK 0
+#define LCD_MODE_HBLANK 0
 
 // VBlank. Lasts 4560 ticks.
-#define PPU_MODE_VBLANK 1
+#define LCD_MODE_VBLANK 1
 
 // Object attribute memory access. Lasts 84 ticks according to mooneye
-#define PPU_MODE_SCAN_OAM 2
+#define LCD_MODE_OAM 2
 
 // VRAM access. Lasts 172 ticks.
-#define PPU_MODE_SCAN_VRAM 3
+#define LCD_MODE_VRAM 3
 
 #define LCD_WHITE 0xFE
 #define LCD_LITE 0xC6
