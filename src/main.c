@@ -64,8 +64,8 @@ int main(int argc, char* args[]) {
    mem_init();
    mem_load_image(file);
    debugger_init();
-   lcd_init(gb_screen);
    cpu_init();
+   lcd_reset();
    if (debug_flag) {
       debugger_break();
    }
@@ -209,58 +209,63 @@ int main(int argc, char* args[]) {
       }
       // We pause execution when the screen is ready to
       // be flipped to prevent emulating faster than 60 fps
-      if (lcd_draw == false) {
+      if (!lcd_ready()) {
+         // If we aren't ready to render, check if the debugger
+         // wants to break. Otherwise, execute an opcode and
+         // advance time.
          if (debugger_should_break()) {
             debugger_cli();
          }
          cpu_execute_step();
       } else {
+         // If we're skipping frames, only draw every turbo_skip frame
          if (turbo) {
             if (turbo_count < turbo_skip) {
                turbo_count++;
-               lcd_draw = false;
                continue;
             }
             turbo_count = 0;
          }
-         if (t - t_prev > 16 || turbo) { // 60 fps
-            t_prev = t;
-            if (lcd_disabled()) {
-               SDL_FillRect(screen, NULL, 0xFFFFFFFF);
-               SDL_Flip(screen);
-               lcd_draw = false;
-               continue;
-            }
-            SDL_LockSurface(gb_screen);
 
-            // Copy the display over one row at a time.
-            // This avoids memory alignment issues on some platforms.
-            for (int y = 0; y < gb_screen->h; ++y) {
-               for (int x = 0; x < gb_screen->w; ++x) {
-                  *(uint8_t*)(gb_screen->pixels
-                              + (y * gb_screen->pitch
-                                      + x * gb_screen->format->BytesPerPixel
-                                      + 3)) = 255;
-                  for (int c = 0; c < 3; ++c) {
-                     int small_x = x / SCALE_FACTOR;
-                     int small_y = y / SCALE_FACTOR;
-                     *(uint8_t*)(gb_screen->pixels
-                                 + (y * gb_screen->pitch
-                                         + x * gb_screen->format->BytesPerPixel
-                                         + c)) =
-                           lcd_vram[small_y * 160 * 3 + small_x * 3 + c];
-                  }
+         // Delay until we're rendering at 60fps
+         while (t - t_prev < 16 && !turbo) {
+            SDL_Delay(1);
+            t = SDL_GetTicks();
+         }
+         t_prev = t;
+
+         // If the LCD is off, just draw white to the screen
+         if (lcd_disabled()) {
+            SDL_FillRect(screen, NULL, 0xFEFEFEFF);
+            SDL_Flip(screen);
+            continue;
+         }
+
+         // Copy the LCD framebuffer to the display. We expand
+         // the framebuffer from 1 value per pixel (greyscale)
+         // to RGB here.
+         SDL_LockSurface(gb_screen);
+
+         uint8_t *framebuffer = lcd_get_framebuffer();
+         uint8_t *display     = gb_screen->pixels;
+         int pitch            = gb_screen->pitch;
+         int bpp              = gb_screen->format->BytesPerPixel;
+         for (int y = 0; y < gb_screen->h; ++y) {
+            for (int x = 0; x < gb_screen->w; ++x) {
+               // Set Alpha channel to 255
+               display[y * pitch + x * bpp + 3] = 255;
+               for (int c = 0; c < 3; ++c) {
+                  int small_x = x / SCALE_FACTOR;
+                  int small_y = y / SCALE_FACTOR;
+                  display[y * pitch + x * bpp + c] =
+                     framebuffer[small_y * 160 + small_x];
                }
             }
-
-            SDL_UnlockSurface(gb_screen);
-            SDL_BlitSurface(gb_screen, NULL, screen, NULL);
-            SDL_Flip(screen);
-
-            lcd_draw = false;
-         } else if (!turbo) {
-            SDL_Delay(1);
          }
+
+         SDL_UnlockSurface(gb_screen);
+         SDL_BlitSurface(gb_screen, NULL, screen, NULL);
+         SDL_Flip(screen);
       }
    }
 

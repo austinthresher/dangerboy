@@ -2,7 +2,7 @@
 #ifndef __OPCODES_H__
 #define __OPCODES_H__
 
-#define TIME(x) cpu_advance_time((x)*4)
+#define TIME(x) cpu_advance_time((x)<<2)
 
 #define LOAD(reg, val) reg = (val);
 

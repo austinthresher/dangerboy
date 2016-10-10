@@ -7,6 +7,8 @@
 #include "lcd.h"
 #include "memory.h"
 
+
+
 bool break_on_invalid = false; // true;
 word dma_src, dma_dst, dma_rst;
 void mem_dma(byte val);
@@ -72,7 +74,7 @@ void mem_load_image(char* fname) {
       i++;
    }
 
-   int rom_size = mem_direct_read(ROMSIZE);
+   int rom_size = dread(ROMSIZE);
    if (rom_size < 8) {
       mem_rom_bank_count = pow(2, rom_size + 1);
       rom_size           = mem_rom_bank_count * 0x4000;
@@ -180,7 +182,7 @@ void mem_dma(byte val) {
       debugger_log("OAM DMA Starting");
       mem_oam_state = STARTING;
       dma_src       = val << 8;
-      dma_dst       = OAM;
+      dma_dst       = OAMSTART;
       ;
    } else {
       debugger_log("OAM DMA Restarting");
@@ -189,7 +191,7 @@ void mem_dma(byte val) {
    }
 }
 
-void mem_advance_time(tick ticks) {
+void mem_advance_time(cycle ticks) {
    if (mem_oam_state != INACTIVE) {
       while (ticks > 0) {
          ticks -= 4;
@@ -205,10 +207,8 @@ void mem_advance_time(tick ticks) {
                debugger_break();
             }
          }
-         mem_direct_write(dma_dst, rbyte(dma_src));
 
-         dma_src++;
-         dma_dst++;
+         dwrite(dma_dst++, rbyte(dma_src++));
 
          if (dma_dst >= OAMEND + 1 && mem_oam_state != RESTARTING) {
             dma_dst = 0;
@@ -222,7 +222,7 @@ void mem_advance_time(tick ticks) {
             debugger_log("OAM DMA Restarted");
             mem_oam_state = ACTIVE;
             dma_src       = dma_rst;
-            dma_dst       = OAM;
+            dma_dst       = OAMSTART;
             continue;
          }
       }
@@ -250,9 +250,7 @@ byte mem_get_current_rom_bank() {
    return mem_current_rom_bank & 0x7F;
 }
 
-void mem_direct_write(word addr, byte val) { mem_ram[addr] = val; }
-byte mem_direct_read(word addr) { return mem_ram[addr]; }
-
+// Write byte
 void wbyte(word addr, byte val) {
    debugger_notify_mem_write(addr, val);
 
@@ -338,7 +336,7 @@ void wbyte(word addr, byte val) {
          return;
       case 0x8000: // VRAM
       case 0x9000:
-         if ((rbyte(STAT) & 3) != LCD_MODE_VRAM || lcd_disabled()) {
+         if (lcd_vram_accessible()) {
             mem_ram[addr] = val;
          } else {
             if (break_on_invalid) {
@@ -381,9 +379,7 @@ void wbyte(word addr, byte val) {
          if (addr < 0xFEA0) { // FE00 to FE9F is OAM
             // OAM can only be written to during HBLANK or VBLANK,
             // and not during an OAM DMA transfer
-            if ((rbyte(STAT) & 3) == LCD_MODE_HBLANK
-                  || (rbyte(STAT) & 3) == LCD_MODE_VBLANK
-                  || lcd_disabled()) {
+            if (lcd_oam_accessible()) {
                if (mem_oam_state == INACTIVE || mem_oam_state == STARTING) {
                   mem_ram[addr] = val;
                }
@@ -418,7 +414,7 @@ void wbyte(word addr, byte val) {
       case SCX:
       case LY:
       case LYC: lcd_reg_write(addr, val); return;
-      case DMASTART: mem_dma(val); return;
+      case DMA: mem_dma(val); return;
       case JOYP: mem_input_last_write = val & 0x30; return;
       default: break;
    }
@@ -427,6 +423,7 @@ void wbyte(word addr, byte val) {
    mem_ram[addr] = val;
 }
 
+// Read byte
 byte rbyte(word addr) {
    debugger_notify_mem_read(addr);
 
@@ -448,7 +445,7 @@ byte rbyte(word addr) {
                         + addr];
       case 0x8000: // VRAM
       case 0x9000:
-         if ((rbyte(STAT) & 3) != LCD_MODE_VRAM || lcd_disabled()) {
+         if (lcd_vram_accessible()) {
             return mem_ram[addr];
          }
          return 0xFF;
@@ -475,9 +472,7 @@ byte rbyte(word addr) {
          if (addr < 0xFEA0) { // FE00 to FE9F is OAM
             // OAM can only be read during HBLANK or VBLANK,
             // and not during an OAM DMA transfer
-            if ((rbyte(STAT) & 3) == LCD_MODE_HBLANK
-                  || (rbyte(STAT) & 3) == LCD_MODE_VBLANK
-                  || lcd_disabled()) {
+            if (lcd_oam_accessible()) {
                if (mem_oam_state == INACTIVE || mem_oam_state == STARTING) {
                   return mem_ram[addr];
                }
@@ -524,15 +519,13 @@ byte rbyte(word addr) {
    return mem_ram[addr];
 }
 
-void wword(word addr, word val) // Write word
-{
+// Write word
+void wword(word addr, word val) {
    wbyte(addr, val & 0x00FF);
    wbyte(addr + 1, (val & 0xFF00) >> 8);
 }
 
+// Read word
 word rword(word addr) {
-   word result = 0;
-   result += rbyte(addr);
-   result += rbyte(addr + 1) << 8;
-   return result;
+   return rbyte(addr) | (rbyte(addr + 1) << 8);
 }

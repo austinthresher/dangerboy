@@ -8,7 +8,7 @@
 
 #define byte uint8_t
 #define word uint16_t
-#define tick int64_t
+#define cycle int64_t
 #define sbyte int8_t
 
 #endif

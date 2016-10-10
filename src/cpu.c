@@ -4,7 +4,7 @@
 #include "memory.h"
 #include "opcodes.h"
 
-tick last_tima_overflow;
+cycle last_tima_overflow;
 word internal_timer;
 bool prev_timer_bit;
 void build_op_table();
@@ -80,12 +80,12 @@ void cpu_reset() {
 
 void cpu_reset_timer() { internal_timer = 0; }
 
-void cpu_advance_time(tick dt) {
+void cpu_advance_time(cycle dt) {
    lcd_advance_time(dt);
    mem_advance_time(dt);
 
-   bool timer_on  = mem_direct_read(TAC) & 4;
-   byte tac_speed = mem_direct_read(TAC) & 3;
+   bool timer_on  = dread(TAC) & 4;
+   byte tac_speed = dread(TAC) & 3;
    word timer_bit = 1;
    switch (tac_speed) {
       case 0: timer_bit <<= 9; break;
@@ -97,8 +97,8 @@ void cpu_advance_time(tick dt) {
       internal_timer += 4;
       cpu_ticks++;
       if (last_tima_overflow != -1 && cpu_ticks >= last_tima_overflow + 1) {
-         mem_direct_write(IF, mem_direct_read(IF) | INT_TIMA);
-         mem_direct_write(TIMA, mem_direct_read(TMA));
+         dwrite(IF, dread(IF) | INT_TIMA);
+         dwrite(TIMA, dread(TMA));
          last_tima_overflow = -1;
       }
 
@@ -110,8 +110,8 @@ void cpu_advance_time(tick dt) {
       }
 
       if (prev_timer_bit && !test_val) {
-         mem_direct_write(TIMA, (mem_direct_read(TIMA) + 1) & 0xFF);
-         if (mem_direct_read(TIMA) == 0) {
+         dwrite(TIMA, (dread(TIMA) + 1) & 0xFF);
+         if (dread(TIMA) == 0) {
             // TIMA interrupt happens 4 cycles after
             // the overflow. It holds 0 until then.
             last_tima_overflow = cpu_ticks;
@@ -119,14 +119,14 @@ void cpu_advance_time(tick dt) {
       }
       prev_timer_bit = test_val != 0;
    }
-   mem_direct_write(DIV, internal_timer >> 8);
+   dwrite(DIV, internal_timer >> 8);
 }
 
 void cpu_execute_step() {
    // Check interrupts
    bool raised = false;
-   byte int_IE = mem_direct_read(IE);
-   byte int_IF = mem_direct_read(IF);
+   byte int_IE = dread(IE);
+   byte int_IF = dread(IF);
    byte irq    = int_IE & int_IF & INT_MASK;
 
    if (irq && cpu_halted) {
@@ -145,29 +145,29 @@ void cpu_execute_step() {
          byte target = 0x00;
          if (irq & INT_VBLANK) {
             target = 0x40;
-            mem_direct_write(IF, int_IF & ~INT_VBLANK);
+            dwrite(IF, int_IF & ~INT_VBLANK);
             debugger_log("VBLANK Interrupt");
-            debugger_notify_mem_write(IF, mem_direct_read(IF));
+            debugger_notify_mem_write(IF, dread(IF));
          } else if (irq & INT_STAT) {
             target = 0x48;
-            mem_direct_write(IF, int_IF & ~INT_STAT);
+            dwrite(IF, int_IF & ~INT_STAT);
             debugger_log("STAT Interrupt");
-            debugger_notify_mem_write(IF, mem_direct_read(IF));
+            debugger_notify_mem_write(IF, dread(IF));
          } else if (irq & INT_TIMA) {
             target = 0x50;
-            mem_direct_write(IF, int_IF & ~INT_TIMA);
+            dwrite(IF, int_IF & ~INT_TIMA);
             debugger_log("TIMA Interrupt");
-            debugger_notify_mem_write(IF, mem_direct_read(IF));
+            debugger_notify_mem_write(IF, dread(IF));
          } else if (irq & INT_SERIAL) {
             target = 0x58;
-            mem_direct_write(IF, int_IF & ~INT_SERIAL);
+            dwrite(IF, int_IF & ~INT_SERIAL);
             debugger_log("Serial interrupt");
-            debugger_notify_mem_write(IF, mem_direct_read(IF));
+            debugger_notify_mem_write(IF, dread(IF));
          } else if (irq & INT_INPUT) {
             target = 0x60;
-            mem_direct_write(IF, int_IF & ~INT_INPUT);
+            dwrite(IF, int_IF & ~INT_INPUT);
             debugger_log("Input Interrupt");
-            debugger_notify_mem_write(IF, mem_direct_read(IF));
+            debugger_notify_mem_write(IF, dread(IF));
          }
          if (target != 0x00) {
             raised  = true;

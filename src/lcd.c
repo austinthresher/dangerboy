@@ -1,50 +1,133 @@
 #include "lcd.h"
 #include "debugger.h"
 
+// ----------------
 // Internal defines
+// ----------------
 
+// Palette color values
+#define C_WHITE 0xFE
+#define C_LITE 0xC6
+#define C_DARK 0x7C
+#define C_BLACK 0x00
+
+// STAT Bitflags
 #define BIT_LYCEQ (1 << 2)
 #define BIT_HBLANK (1 << 3)
 #define BIT_VBLANK (1 << 4)
 #define BIT_OAM (1 << 5)
 #define BIT_LYC (1 << 6)
+
 // This macro switches between per-scanline and per-pixel rendering.
 // TODO: Make this a runtime option.
 //#define PER_PIXEL
 
+typedef enum lcd_mode_ {
+   HBLANK = 0, // Lasts ~200 cycles
+   VBLANK = 1, // Lasts ~4560 cycles
+   OAM    = 2, // Lasts ~84 cycles
+   VRAM   = 3  // Lasts ~172 cycles
+} lcd_mode;
+
+// ------------------
 // Internal variables
-tick timer;
-byte mode;
+// ------------------
+
+cycle timer;
 byte win_ly;
 byte ly;
+byte x_pixel;
+byte framebuffer[160 * 144];
+bool stat_fired;
+bool disabled;
+bool ready;
+
+// These variables combined are the STAT register.
+lcd_mode mode;
 bool stat_vbl_on;
 bool stat_hbl_on;
 bool stat_oam_on;
 bool stat_lyc_on;
-bool stat_fired;
+
+// These values are used to replicate the behavior found in
+// http://gameboy.mongenel.com/dmg/istat98.txt
+// This doesn't seem to be totally accurate, so this behavior
+// needs to be verified.
 bool vblank_fired;
-bool disabled;
-int scroll_tick_mod;
-int x_pixel;
 int ignore_oams;
 
+// Mooneye tests demonstrate that SCX affects
+// the length of the VRAM and HBLANK modes.
+int scroll_delay;
+
+
+// ------------------
 // Internal functions
+// ------------------
+
 void draw_pixel(int x, int y);
 void draw_scanline();
-void set_mode(byte new_mode);
-void update_scroll_mod();
+void set_mode(lcd_mode new_mode);
+void calc_timing();
 bool lyc();
-byte get_color(byte col, byte pal);
+byte color(byte col, byte pal);
 
+// --------------------
 // Function definitions
+// --------------------
 
-tick lcd_get_timer() { return timer; }
-bool lcd_disabled() { return disabled; }
-bool lyc() { return ly == mem_direct_read(LYC); }
+// Signals when the LCD framebuffer is ready to draw.
+// Resets the ready flag internally, so the framebuffer
+// must be drawn when this returns true.
+bool lcd_ready() {
+   bool answer = ready;
+   ready = false;
+   return answer;
+}
 
+byte* lcd_get_framebuffer() {
+   return framebuffer;
+}
+
+// Exposes the internal timer for debugging
+cycle lcd_get_timer() {
+   return timer;
+}
+
+bool lcd_disabled() {
+   return disabled;
+}
+
+bool lyc() {
+   return ly == dread(LYC);
+}
+
+bool lcd_vram_accessible() {
+   return disabled
+      ||  mode != VRAM;
+}
+
+bool lcd_oam_accessible() {
+   return disabled
+      || (mode != VRAM
+       && mode != OAM);
+}
+
+// Calculates the actual color value from the given palette and index
+byte color(byte col, byte pal) {
+   switch ((pal >> (col * 2)) & 0x03) {
+      case 3: return C_BLACK;
+      case 2: return C_DARK;
+      case 1: return C_LITE;
+      case 0: return C_WHITE;
+   }
+   return C_WHITE;
+}
+
+// Fires STAT, but only if STAT didn't fire last update
 bool fire_stat() {
    if (!stat_fired) {
-      wbyte(IF, mem_direct_read(IF) | INT_STAT);
+      wbyte(IF, dread(IF) | INT_STAT);
       stat_fired = true;
       return true;
    }
@@ -53,29 +136,25 @@ bool fire_stat() {
 
 // This fires the hardware VBLANK interrupt, not STAT
 void fire_vblank() {
-   lcd_draw = true;
-   wbyte(IF, mem_direct_read(IF) | INT_VBLANK);
+   ready = true;
+   wbyte(IF, dread(IF) | INT_VBLANK);
 }
 
-void lcd_init() {
+void lcd_reset() {
    disabled     = false;
-   lcd_draw     = false;
+   ready        = false;
    x_pixel      = 0;
    vblank_fired = false;
    ignore_oams  = 0;
    stat_fired   = false;
-
-   stat_vbl_on = false;
-   stat_oam_on = false;
-   stat_lyc_on = false;
-   lcd_reset();
-}
-
-void lcd_reset() {
-   mode   = LCD_MODE_OAM;
-   ly     = 0;
-   win_ly = 0;
-   timer  = 0;
+   mode         = OAM;
+   ly           = 0;
+   win_ly       = 0;
+   timer        = 0;
+   stat_hbl_on  = false;
+   stat_vbl_on  = false;
+   stat_oam_on  = false;
+   stat_lyc_on  = false;
 }
 
 void try_fire_oam() {
@@ -128,18 +207,20 @@ void try_fire_lyc() {
 
 // This used to do more, but now it just outputs
 // debug messages. Still useful.
-void set_mode(byte new_mode) {
+void set_mode(lcd_mode new_mode) {
    if (mode != new_mode) {
       switch (new_mode) {
-         case LCD_MODE_VBLANK: debugger_log("STAT mode switch: VBLANK"); break;
-         case LCD_MODE_HBLANK: debugger_log("STAT mode switch: HBLANK"); break;
-         case LCD_MODE_OAM: debugger_log("STAT mode switch: OAM"); break;
-         case LCD_MODE_VRAM: debugger_log("STAT mode switch: VRAM"); break;
+         case VBLANK: debugger_log("STAT mode switch: VBLANK"); break;
+         case HBLANK: debugger_log("STAT mode switch: HBLANK"); break;
+         case OAM: debugger_log("STAT mode switch: OAM"); break;
+         case VRAM: debugger_log("STAT mode switch: VRAM"); break;
       }
    }
    mode = new_mode;
 }
 
+// These intercept reads and writes to LCD registers, allowing us
+// to represent their state with variables instead of bitflags.
 byte lcd_reg_read(word addr) {
    switch (addr) {
       case LY: return ly;
@@ -149,7 +230,7 @@ byte lcd_reg_read(word addr) {
                 | (mode & 3);
       default: break;
    }
-   return mem_direct_read(addr);
+   return dread(addr);
 }
 
 void lcd_reg_write(word addr, byte val) {
@@ -160,25 +241,24 @@ void lcd_reg_write(word addr, byte val) {
          debugger_notify_mem_write(LY, 0);
          break;
       case LCDC:
-         mem_direct_write(LCDC, val);
+         dwrite(LCDC, val);
          if (val & 0x80) {
             if (disabled) {
-               set_mode(LCD_MODE_HBLANK);
-               timer = 200 - 84; // This is supposed to last the same length as
-                                 // OAM mode
-                                 //               timer = 0;
-               //               set_mode(LCD_MODE_OAM);
+               set_mode(HBLANK);
+               // According to Gambatte tests, this is supposed
+               // to last the same length as OAM mode
+               timer = 200 - 84;
                try_fire_lyc();
             }
             disabled = false;
          } else {
             if (!disabled) {
-               lcd_draw = true;
+               ready = true;
                disabled = true;
                ly       = 0;
                win_ly   = 0;
                debugger_notify_mem_write(LY, 0);
-               set_mode(LCD_MODE_HBLANK);
+               set_mode(HBLANK);
             }
          }
          break;
@@ -188,44 +268,48 @@ void lcd_reg_write(word addr, byte val) {
          stat_oam_on = val & BIT_OAM;
          stat_lyc_on = val & BIT_LYC;
          break;
-      default: mem_direct_write(addr, val);
+      default: dwrite(addr, val);
    }
 }
 
-// Based on Mooneye's implementation
-void update_scroll_mod() {
-   byte scx        = mem_direct_read(SCX) % 8;
-   scroll_tick_mod = 0;
-   if (scx > 4) {
-      scroll_tick_mod = 8;
-   } else if (scx > 0) {
-      scroll_tick_mod = 4;
+// Based on Mooneye's gpu timing tests.
+// Different values of SCX affect the length of modes 3 and 0.
+// More info here:
+// http://blog.kevtris.org/blogfiles/Nitty Gritty Gameboy VRAM Timing.txt
+void calc_timing() {
+   byte scrollx = dread(SCX) % 8;
+   scroll_delay = 0;
+   if (scrollx > 4) {
+      scroll_delay = 8;
+   } else if (scrollx > 0) {
+      scroll_delay = 4;
    }
 }
 
-void lcd_advance_time(tick ticks) {
+// Advance the LCD state by a specified number of cycles.
+void lcd_advance_time(cycle cycles) {
    stat_fired = false;
 
    if (disabled) {
       return;
    }
 
-   int vram_length = 172 + scroll_tick_mod;
-   tick old_timer  = timer;
-   byte stat_reg   = mem_direct_read(STAT);
+   int vram_length = 172 + scroll_delay;
+   cycle old_timer  = timer;
+   byte stat_reg   = dread(STAT);
 
-   timer += ticks;
+   timer += cycles;
 
    switch (mode) {
-      case LCD_MODE_OAM:
+      case OAM:
          if (timer >= 84) {
             timer -= 84;
-            update_scroll_mod();
-            set_mode(LCD_MODE_VRAM);
+            calc_timing();
+            set_mode(VRAM);
          }
          break;
 
-      case LCD_MODE_VRAM:
+      case VRAM:
 
 #ifdef PER_PIXEL
          // Draw our current scanline one pixel at a time
@@ -244,29 +328,29 @@ void lcd_advance_time(tick ticks) {
          }
          if (timer >= vram_length) {
             timer -= vram_length;
-            set_mode(LCD_MODE_HBLANK);
+            set_mode(HBLANK);
          }
-
          break;
 
-      case LCD_MODE_HBLANK:
-         if (timer >= 200 - scroll_tick_mod) {
-            timer -= 200 - scroll_tick_mod;
+      case HBLANK:
+         if (timer >= 200 - scroll_delay) {
+            timer -= 200 - scroll_delay;
             x_pixel = 0;
             ly++;
             debugger_notify_mem_write(LY, ly);
             try_fire_lyc();
             if (ly >= 144) {
                fire_vblank();
-               set_mode(LCD_MODE_VBLANK);
+               set_mode(VBLANK);
                try_fire_vblank();
             } else {
-               set_mode(LCD_MODE_OAM);
+               set_mode(OAM);
                try_fire_oam();
             }
          }
          break;
-      case LCD_MODE_VBLANK:
+
+      case VBLANK:
          // LY = 99 only lasts for 56 cycles,
          // which makes LY == 0 last for 856
          if (ly >= 153 && timer >= 56) {
@@ -283,7 +367,7 @@ void lcd_advance_time(tick ticks) {
             if (ly == 1) {
                ly     = 0;
                win_ly = 0;
-               set_mode(LCD_MODE_OAM);
+               set_mode(OAM);
                try_fire_oam();
             }
             // LY == 0 happens during VBLANK for LY == 153
@@ -310,11 +394,11 @@ void draw_pixel(int x, int y) {
    bool sp_enabled = lcdc & (1 << 1);
    bool bg_enabled = lcdc & (1 << 0);
 
-   int scroll_x = mem_direct_read(SCX);
-   int scroll_y = mem_direct_read(SCY);
+   int scroll_x = dread(SCX);
+   int scroll_y = dread(SCY);
    // TODO: Draw the window here too
-   int wn_x_pos = mem_direct_read(WINX) - 7;
-   int wn_y_pos = mem_direct_read(WINY);
+   int wn_x_pos = dread(WINX) - 7;
+   int wn_y_pos = dread(WINY);
 
    bool bg_in_front = true;
 
@@ -337,7 +421,7 @@ void draw_pixel(int x, int y) {
       int tile_index = tilemap_tile_y * 32 + tilemap_tile_x;
 
       tile_index =
-            mem_direct_read(0x9800 + (bg_tilemap ? 0x400 : 0) + tile_index);
+            dread(0x9800 + (bg_tilemap ? 0x400 : 0) + tile_index);
 
       int tile_addr = 0x8000;
       if (tile_index < 128) {
@@ -356,31 +440,25 @@ void draw_pixel(int x, int y) {
       int tile_px_x = tilemap_x & 7;
       int tile_px_y = tilemap_y & 7;
       int row_byte  = tile_addr + tile_px_y * 2;
-      int pal_index =
-            (!!(mem_direct_read(row_byte) & (0x80 >> tile_px_x)))
-            | (!!(mem_direct_read(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
+      int palette =
+            (!!(dread(row_byte) & (0x80 >> tile_px_x)))
+            | (!!(dread(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
 
-      if (pal_index == 0) {
+      if (palette == 0) {
          bg_in_front = false;
       }
-      byte color = get_color(pal_index, mem_direct_read(BGPAL));
 
-      int vram_addr         = (y * 160 + x) * 3;
-      lcd_vram[vram_addr++] = color;
-      lcd_vram[vram_addr++] = color;
-      lcd_vram[vram_addr++] = color;
+      framebuffer[y * 160 + x] = color(palette, dread(BGPAL));
+
    } else if (!bg_enabled && !wn_enabled) {
-      int vram_addr         = (y * 160 + x) * 3;
-      lcd_vram[vram_addr++] = LCD_WHITE;
-      lcd_vram[vram_addr++] = LCD_WHITE;
-      lcd_vram[vram_addr++] = LCD_WHITE;
+      framebuffer[y * 160 + x] = C_WHITE;
    }
 
    if (sp_enabled) {
       int sp_height = sp_size ? 16 : 8;
       for (int s = 0; s < 40; ++s) {
-         int sp_y = mem_direct_read(OAM + s * 4) - 16;
-         int sp_x = mem_direct_read(OAM + s * 4 + 1) - 8;
+         int sp_y = dread(OAM + s * 4) - 16;
+         int sp_x = dread(OAM + s * 4 + 1) - 8;
          if (sp_x == 0 || sp_y == 0) {
             continue;
          }
@@ -388,8 +466,8 @@ void draw_pixel(int x, int y) {
             continue;
          }
 
-         byte tile = mem_direct_read(OAM + s * 4 + 2);
-         byte attr = mem_direct_read(OAM + s * 4 + 3);
+         byte tile = dread(OAM + s * 4 + 2);
+         byte attr = dread(OAM + s * 4 + 3);
 
          if ((attr & 0x80) && bg_in_front) {
             continue;
@@ -413,21 +491,16 @@ void draw_pixel(int x, int y) {
          byte tile_index_mask = sp_height - 1;
 
          int row_byte = 0x8000 + tile * 16 + (sp_row & tile_index_mask) * 2;
-         int pal_index =
-               (!!(mem_direct_read(row_byte) & (0x80 >> tile_px_x)))
-               | (!!(mem_direct_read(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
+         int palette =
+               (!!(dread(row_byte) & (0x80 >> tile_px_x)))
+               | (!!(dread(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
 
-         if (pal_index == 0) {
+         if (palette == 0) {
             continue;
          }
 
-         byte color =
-               get_color(pal_index, mem_direct_read(OBJPAL + !!(attr & 0x10)));
-
-         int vram_addr         = (y * 160 + x) * 3;
-         lcd_vram[vram_addr++] = color;
-         lcd_vram[vram_addr++] = color;
-         lcd_vram[vram_addr++] = color;
+         framebuffer[y * 160 + x] =
+            color(palette, dread(OBJPAL + !!(attr & 0x10)));
       }
    }
 }
@@ -438,25 +511,24 @@ void draw_scanline() {
    }
    bool bg_is_zero[160];
    bool window   = false;
-   int vram_addr = ly * 160 * 3;
-   byte win_x    = mem_direct_read(WINX);
+   byte win_x    = dread(WINX);
    if (ly == 0) {
-      win_ly = mem_direct_read(WINY);
+      win_ly = dread(WINY);
    }
-   bool bg_enabled   = mem_direct_read(LCDC) & 0x01;
-   bool win_tile_map = mem_direct_read(LCDC) & 0x40;
-   bool bg_tile_map  = mem_direct_read(LCDC) & 0x08;
-   bool tile_bank    = mem_direct_read(LCDC) & 0x10;
-   byte scroll_x     = mem_direct_read(SCX);
-   byte scroll_y     = mem_direct_read(SCY);
+   bool bg_enabled   = dread(LCDC) & 0x01;
+   bool win_tile_map = dread(LCDC) & 0x40;
+   bool bg_tile_map  = dread(LCDC) & 0x08;
+   bool tile_bank    = dread(LCDC) & 0x10;
+   byte scroll_x     = dread(SCX);
+   byte scroll_y     = dread(SCY);
    word bg_map_loc   = 0x9800 + (bg_tile_map ? 0x400 : 0);
    word win_map_loc  = 0x9800 + (win_tile_map ? 0x400 : 0);
    word bg_map_off   = (((ly + scroll_y) & 0xFF) >> 3) * 32;
    word win_map_off  = ((win_ly & 0xFF) >> 3) * 32;
    byte bg_x_off     = (scroll_x >> 3) & 0x1F;
    byte win_x_off    = 0; // What is this supposed to be set to?
-   byte bg_tile      = mem_direct_read(bg_map_loc + bg_map_off + bg_x_off);
-   byte win_tile     = mem_direct_read(win_map_loc + win_map_off + win_x_off);
+   byte bg_tile      = dread(bg_map_loc + bg_map_off + bg_x_off);
+   byte win_tile     = dread(win_map_loc + win_map_off + win_x_off);
    byte bg_xpx_off   = scroll_x & 0x07;
    byte bg_ypx_off   = (scroll_y + ly) & 0x07;
    byte win_ypx_off  = win_ly & 0x07;
@@ -466,7 +538,7 @@ void draw_scanline() {
    byte outcol       = 0;
 
    for (int i = 0; i < 160; i++) {
-      if ((mem_direct_read(LCDC) & 0x20) && ly >= win_ly && i >= win_x - 7
+      if ((dread(LCDC) & 0x20) && ly >= win_ly && i >= win_x - 7
             && win_x < 166) {
          window = true;
       }
@@ -496,8 +568,8 @@ void draw_scanline() {
          mask <<= 7 - ((win_x_px++) & 0x07);
       }
 
-      byte hi  = mem_direct_read(tile_addr + 1);
-      byte lo  = mem_direct_read(tile_addr);
+      byte hi  = dread(tile_addr + 1);
+      byte lo  = dread(tile_addr);
       byte col = 0;
       if (hi & mask) {
          col = 2;
@@ -505,15 +577,11 @@ void draw_scanline() {
       if (lo & mask) {
          col += 1;
       }
-
+      
+      bg_is_zero[i]  = true;
       if (bg_enabled || window) {
          bg_is_zero[i] = col == 0;
-         outcol        = get_color(col, mem_direct_read(BGPAL));
-         if (vram_addr + 2 < 160 * 144 * 3) {
-            lcd_vram[vram_addr++] = outcol;
-            lcd_vram[vram_addr++] = outcol;
-            lcd_vram[vram_addr++] = outcol;
-         }
+         framebuffer[ly * 160 + i] = color(col, dread(BGPAL));
 
          if (!window) {
             bg_xpx_off++;
@@ -521,7 +589,7 @@ void draw_scanline() {
                bg_xpx_off = 0;
                bg_x_off++;
                bg_x_off &= 0x1F;
-               bg_tile = mem_direct_read(bg_map_loc + bg_map_off + bg_x_off);
+               bg_tile = dread(bg_map_loc + bg_map_off + bg_x_off);
             }
          } else {
             win_xpx_off++;
@@ -529,15 +597,11 @@ void draw_scanline() {
                win_xpx_off = 0;
                win_x_off++;
                win_x_off &= 0x1F;
-               win_tile =
-                     mem_direct_read(win_map_loc + win_map_off + win_x_off);
+               win_tile = dread(win_map_loc + win_map_off + win_x_off);
             }
          }
       } else {
-         bg_is_zero[i]         = true;
-         lcd_vram[vram_addr++] = LCD_WHITE;
-         lcd_vram[vram_addr++] = LCD_WHITE;
-         lcd_vram[vram_addr++] = LCD_WHITE;
+         framebuffer[ly * 160 + i] = C_WHITE;
       }
    }
 
@@ -546,17 +610,17 @@ void draw_scanline() {
    }
 
    // Check if sprites are enabled
-   if (!(mem_direct_read(LCDC) & 0x02)) {
+   if (!(dread(LCDC) & 0x02)) {
       return;
    }
 
    // Begin sprite drawing
-   bool big_sprites = mem_direct_read(LCDC) & 0x04;
+   bool big_sprites = dread(LCDC) & 0x04;
    for (int spr = 0; spr < 40; spr++) {
-      byte y     = mem_direct_read(OAM + spr * 4);
-      byte x     = mem_direct_read(OAM + spr * 4 + 1);
-      byte tile  = mem_direct_read(OAM + spr * 4 + 2);
-      byte attr  = mem_direct_read(OAM + spr * 4 + 3);
+      byte y     = dread(OAM + spr * 4);
+      byte x     = dread(OAM + spr * 4 + 1);
+      byte tile  = dread(OAM + spr * 4 + 2);
+      byte attr  = dread(OAM + spr * 4 + 3);
       bool pal   = attr & 0x10;
       bool xflip = attr & 0x20;
       bool yflip = attr & 0x40;
@@ -583,8 +647,8 @@ void draw_scanline() {
 
          byte y_mask   = height - 1;
          word spr_addr = 0x8000 + spr_index * 16 + (spr_line & y_mask) * 2;
-         byte shi      = mem_direct_read(spr_addr + 1);
-         byte slo      = mem_direct_read(spr_addr);
+         byte shi      = dread(spr_addr + 1);
+         byte slo      = dread(spr_addr);
 
          for (int sx = 0; sx < 8; sx++) {
             byte smask;
@@ -600,31 +664,17 @@ void draw_scanline() {
             if (slo & smask) {
                scol++;
             }
-            outcol = get_color(scol, mem_direct_read(OBJPAL + pal));
 
             if (draw_x + sx < 160 && draw_x + sx >= 0 && scol) {
                if (pri == 1 && !bg_is_zero[draw_x + sx]) {
                   continue;
                }
-               int output_addr = (ly * 160 + draw_x + sx) * 3;
-               if (output_addr + 2 < 160 * 144 * 3) {
-                  lcd_vram[output_addr++] = outcol;
-                  lcd_vram[output_addr++] = outcol;
-                  lcd_vram[output_addr++] = outcol;
-               }
+               framebuffer[ly * 160 + draw_x + sx] =
+                  color(scol, dread(OBJPAL + pal));
             }
          }
       }
    }
 }
 
-byte get_color(byte col, byte pal) {
-   byte temp = (pal >> (col * 2)) & 0x03;
-   switch (temp) {
-      case 3: return LCD_BLACK;
-      case 2: return LCD_DARK;
-      case 1: return LCD_LITE;
-      case 0: return LCD_WHITE;
-   }
-   return LCD_WHITE;
-}
+

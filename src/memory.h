@@ -7,7 +7,7 @@
 #define CARTTYPE 0x0147
 #define ROMSIZE 0x0148
 #define RAMSIZE 0x0149
-#define OAM 0xFE00
+#define OAMSTART 0xFE00
 #define OAMEND 0xFEA0
 #define JOYP 0xFF00
 #define DIV 0xFF04
@@ -21,7 +21,7 @@
 #define SCX 0xFF43
 #define LY 0xFF44
 #define LYC 0xFF45
-#define DMASTART 0xFF46
+#define DMA 0xFF46
 #define BGPAL 0xFF47
 #define OBJPAL 0xFF48
 #define WINX 0xFF4B
@@ -58,15 +58,20 @@ char mem_rom_name[16];
 
 void mem_init();
 void mem_free();
-void mem_advance_time(tick ticks);
+void mem_advance_time(cycle ticks);
 void mem_load_image(char* fname);
 void mem_print_rom_info();
 void wbyte(word addr, byte val);
 void wword(word addr, word val);
-void mem_direct_write(word addr, byte val);
 byte mem_get_current_rom_bank();
-byte mem_direct_read(word addr);
 byte rbyte(word addr);
 word rword(word addr);
+
+// Direct memory access. Does not perform banking or register lookup.
+// Used to get around normal memory access limitations (DMA transfers,
+// registers that reset on write, etc).
+inline void dwrite(word addr, byte val) { mem_ram[addr] = val; }
+inline byte dread(word addr) { return mem_ram[addr]; }
+
 
 #endif

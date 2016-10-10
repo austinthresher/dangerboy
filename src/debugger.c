@@ -217,7 +217,7 @@ void print_status_bar() {
          "[TIMA:%02X TMA:%02X SPD:%d]\t"
          "[DIV:%02X]\t"
          "[IE:%02X IF:%02X]\t"
-         "[TICK:%d]",
+         "[CYCLE:%d]",
          rbyte(TIMA),
          rbyte(TMA),
          rbyte(TAC) & 4,
@@ -228,10 +228,10 @@ void print_status_bar() {
    wprintw(status_bar, "\t[IME:%d]", cpu_ime ? 1 : 0);
    wprintw(status_bar,
          "\t[LCD:%d STAT:%02X LY:%02X LYC:%02X TIMER: %06d]",
-         (mem_direct_read(0xFF40) & 0x80) ? 1 : 0,
+         (dread(0xFF40) & 0x80) ? 1 : 0,
          rbyte(STAT),
          rbyte(LY),
-         mem_direct_read(LYC),
+         dread(LYC),
          lcd_get_timer());
    wprintw(status_bar,
          "\t[RAM:%d ROM:%02X]",

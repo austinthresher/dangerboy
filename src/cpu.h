@@ -32,13 +32,13 @@ bool cpu_ime_delay;
 bool cpu_ime;
 bool cpu_halted;
 bool cpu_stopped;
-tick cpu_ticks;
+cycle cpu_ticks;
 void (*cpu_opcodes[0x100])();
 
 void cpu_execute_step();
 void cpu_init();
 void cpu_reset();
-void cpu_advance_time(tick dt);
+void cpu_advance_time(cycle dt);
 void cpu_reset_timer();
 
 #endif
