@@ -3,7 +3,7 @@
 
 #include "cpu.h"
 #include "debugger.h"
-#include "ppu.h"
+#include "lcd.h"
 
 #define INPUT_POLL_RATE 12 // Poll for input every 12 ms
 #define SCALE_FACTOR 2
@@ -64,7 +64,7 @@ int main(int argc, char* args[]) {
    mem_init();
    mem_load_image(file);
    debugger_init();
-   ppu_init(gb_screen);
+   lcd_init(gb_screen);
    cpu_init();
    if (debug_flag) {
       debugger_break();
@@ -209,7 +209,7 @@ int main(int argc, char* args[]) {
       }
       // We pause execution when the screen is ready to
       // be flipped to prevent emulating faster than 60 fps
-      if (ppu_draw == false) {
+      if (lcd_draw == false) {
          if (debugger_should_break()) {
             debugger_cli();
          }
@@ -218,17 +218,17 @@ int main(int argc, char* args[]) {
          if (turbo) {
             if (turbo_count < turbo_skip) {
                turbo_count++;
-               ppu_draw = false;
+               lcd_draw = false;
                continue;
             }
             turbo_count = 0;
          }
          if (t - t_prev > 16 || turbo) { // 60 fps
             t_prev = t;
-            if (lcd_disable) {
+            if (lcd_disabled()) {
                SDL_FillRect(screen, NULL, 0xFFFFFFFF);
                SDL_Flip(screen);
-               ppu_draw = false;
+               lcd_draw = false;
                continue;
             }
             SDL_LockSurface(gb_screen);
@@ -248,7 +248,7 @@ int main(int argc, char* args[]) {
                                  + (y * gb_screen->pitch
                                          + x * gb_screen->format->BytesPerPixel
                                          + c)) =
-                           ppu_vram[small_y * 160 * 3 + small_x * 3 + c];
+                           lcd_vram[small_y * 160 * 3 + small_x * 3 + c];
                   }
                }
             }
@@ -257,7 +257,7 @@ int main(int argc, char* args[]) {
             SDL_BlitSurface(gb_screen, NULL, screen, NULL);
             SDL_Flip(screen);
 
-            ppu_draw = false;
+            lcd_draw = false;
          } else if (!turbo) {
             SDL_Delay(1);
          }

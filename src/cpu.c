@@ -2,7 +2,7 @@
 #include "debugger.h"
 #include "memory.h"
 #include "opcodes.h"
-#include "ppu.h"
+#include "lcd.h"
 
 tick last_tima_overflow;
 word internal_timer;
@@ -81,7 +81,7 @@ void cpu_reset() {
 void cpu_reset_timer() { internal_timer = 0; }
 
 void cpu_advance_time(tick dt) {
-   ppu_advance_time(dt);
+   lcd_advance_time(dt);
    mem_advance_time(dt);
 
    bool timer_on  = mem_direct_read(TAC) & 4;

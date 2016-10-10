@@ -1,7 +1,7 @@
 #include "debugger.h"
 #include "disas.h"
 #include "memory.h"
-#include "ppu.h"
+#include "lcd.h"
 
 #include <ncurses.h>
 #include <stdio.h>
@@ -232,7 +232,7 @@ void print_status_bar() {
          rbyte(STAT),
          rbyte(LY),
          mem_direct_read(LYC),
-         ppu_get_timer());
+         lcd_get_timer());
    wprintw(status_bar,
          "\t[RAM:%d ROM:%02X]",
          mem_current_ram_bank,

@@ -1,35 +1,51 @@
-#include "ppu.h"
+#include "lcd.h"
 #include "debugger.h"
 
-//#define PER_PIXEL
+// Internal defines
 
 #define BIT_LYCEQ (1 << 2)
 #define BIT_HBLANK (1 << 3)
 #define BIT_VBLANK (1 << 4)
 #define BIT_OAM (1 << 5)
 #define BIT_LYC (1 << 6)
+// This macro switches between per-scanline and per-pixel rendering.
+// TODO: Make this a runtime option.
+//#define PER_PIXEL
 
-bool stat_vblank_on;
-bool stat_hblank_on;
+// Internal variables
+tick timer;
+byte mode;
+byte win_ly;
+byte ly;
+bool stat_vbl_on;
+bool stat_hbl_on;
 bool stat_oam_on;
 bool stat_lyc_on;
-bool stat_requested;
-bool stat_vblank_fired;
-byte mode;
-byte win_y;
-tick timer;
+bool stat_fired;
+bool vblank_fired;
+bool disabled;
 int scroll_tick_mod;
 int x_pixel;
 int ignore_oams;
 
-void update_stat_mode(byte new_mode);
+// Internal functions
+void draw_pixel(int x, int y);
+void draw_scanline();
+void set_mode(byte new_mode);
 void update_scroll_mod();
-bool check_lyc();
+bool lyc();
+byte get_color(byte col, byte pal);
+
+// Function definitions
+
+tick lcd_get_timer() { return timer; }
+bool lcd_disabled() { return disabled; }
+bool lyc() { return ly == mem_direct_read(LYC); }
 
 bool fire_stat() {
-   if (!stat_requested) {
+   if (!stat_fired) {
       wbyte(IF, mem_direct_read(IF) | INT_STAT);
-      stat_requested = true;
+      stat_fired = true;
       return true;
    }
    return false;
@@ -37,34 +53,30 @@ bool fire_stat() {
 
 // This fires the hardware VBLANK interrupt, not STAT
 void fire_vblank() {
-   ppu_draw = true;
+   lcd_draw = true;
    wbyte(IF, mem_direct_read(IF) | INT_VBLANK);
 }
 
-void ppu_init() {
-   lcd_disable       = false;
-   ppu_draw          = false;
+void lcd_init() {
+   disabled       = false;
+   lcd_draw          = false;
    x_pixel           = 0;
-   stat_vblank_fired = false;
+   vblank_fired = false;
    ignore_oams       = 0;
-   stat_requested    = false;
+   stat_fired    = false;
 
-   stat_vblank_on = false;
+   stat_vbl_on = false;
    stat_oam_on    = false;
    stat_lyc_on    = false;
-   ppu_reset();
+   lcd_reset();
 }
 
-tick ppu_get_timer() { return timer; }
 
-void ppu_reset() {
-   //   mode       = LCD_MODE_VBLANK;
-   //   ppu_ly     = 1;
-   //   ppu_win_ly = 1;
-   mode       = LCD_MODE_OAM;
-   ppu_ly     = 0;
-   ppu_win_ly = 0;
-   timer      = 0;
+void lcd_reset() {
+   mode   = LCD_MODE_OAM;
+   ly     = 0;
+   win_ly = 0;
+   timer  = 0;
 }
 
 void try_fire_oam() {
@@ -73,18 +85,18 @@ void try_fire_oam() {
          // STAT documentation indicates that the OAM after a STAT VBLANK
          // should be skipped, but this causes mooneye intr_1_2_timing to
          // fail, which is verified on real hardware.
-         //    if (!(ppu_ly == 0 && stat_vblank_fired)) {
+         //    if (!(ly == 0 && vblank_fired)) {
          fire_stat();
       }
    }
    if (ignore_oams) {
       ignore_oams--;
    }
-   stat_vblank_fired = false;
+   vblank_fired = false;
 }
 
 void try_fire_hblank() {
-   if (stat_hblank_on) {
+   if (stat_hbl_on) {
       if (fire_stat()) {
          ignore_oams = 1;
       }
@@ -92,11 +104,11 @@ void try_fire_hblank() {
 }
 
 void try_fire_vblank() {
-   if (stat_vblank_on) {
+   if (stat_vbl_on) {
       if (fire_stat()) {
-         stat_vblank_fired = true;
+         vblank_fired = true;
       }
-   } else if (ppu_ly == 144) {
+   } else if (ly == 144) {
       // OAM interrupt still fires on ly == 144,
       // but only if STAT VBLANK interrupt did not
       try_fire_oam();
@@ -104,10 +116,10 @@ void try_fire_vblank() {
 }
 
 void try_fire_lyc() {
-   if (stat_lyc_on && check_lyc()) {
-      if (!stat_vblank_fired) {
+   if (stat_lyc_on && lyc()) {
+      if (!vblank_fired) {
          if (fire_stat()) {
-            if (ppu_ly < 0x90) {
+            if (ly < 0x90) {
                ignore_oams = 1;
             }
          }
@@ -115,11 +127,10 @@ void try_fire_lyc() {
    }
 }
 
-bool check_lyc() { return ppu_ly == mem_direct_read(LYC); }
 
 // This used to do more, but now it just outputs
 // debug messages. Still useful.
-void update_stat_mode(byte new_mode) {
+void set_mode(byte new_mode) {
    if (mode != new_mode) {
       switch (new_mode) {
          case LCD_MODE_VBLANK: debugger_log("STAT mode switch: VBLANK"); break;
@@ -131,53 +142,53 @@ void update_stat_mode(byte new_mode) {
    mode = new_mode;
 }
 
-byte ppu_read_register(word addr) {
+byte lcd_reg_read(word addr) {
    switch (addr) {
-      case LY: return ppu_ly;
+      case LY: return ly;
       case STAT:
          return 0x80 | (stat_lyc_on << 6) | (stat_oam_on << 5)
-                | (stat_vblank_on << 4) | (stat_hblank_on << 3)
-                | (check_lyc() << 2) | (mode & 3);
+                | (stat_vbl_on << 4) | (stat_hbl_on << 3)
+                | (lyc() << 2) | (mode & 3);
       default: break;
    }
    return mem_direct_read(addr);
 }
 
-void ppu_update_register(word addr, byte val) {
+void lcd_reg_write(word addr, byte val) {
    switch (addr) {
       case LY:
-         ppu_ly     = 0;
-         ppu_win_ly = 0;
+         ly     = 0;
+         win_ly = 0;
          debugger_notify_mem_write(LY, 0);
          break;
       case LCDC:
          mem_direct_write(LCDC, val);
          if (val & 0x80) {
-            if (lcd_disable) {
-               update_stat_mode(LCD_MODE_HBLANK);
+            if (disabled) {
+               set_mode(LCD_MODE_HBLANK);
                timer = 200 - 84; // This is supposed to last the same length as
                                  // OAM mode
                                  //               timer = 0;
-               //               update_stat_mode(LCD_MODE_OAM);
+               //               set_mode(LCD_MODE_OAM);
                try_fire_lyc();
             }
-            lcd_disable = false;
+            disabled = false;
          } else {
-            if (!lcd_disable) {
-               ppu_draw    = true;
-               lcd_disable = true;
-               ppu_ly      = 0;
-               ppu_win_ly  = 0;
+            if (!disabled) {
+               lcd_draw    = true;
+               disabled = true;
+               ly      = 0;
+               win_ly  = 0;
                debugger_notify_mem_write(LY, 0);
-               update_stat_mode(LCD_MODE_HBLANK);
+               set_mode(LCD_MODE_HBLANK);
             }
          }
          break;
       case STAT:
-         stat_vblank_on = val & BIT_VBLANK;
-         stat_hblank_on = val & BIT_HBLANK;
-         stat_oam_on    = val & BIT_OAM;
-         stat_lyc_on    = val & BIT_LYC;
+         stat_vbl_on = val & BIT_VBLANK;
+         stat_hbl_on = val & BIT_HBLANK;
+         stat_oam_on = val & BIT_OAM;
+         stat_lyc_on = val & BIT_LYC;
          break;
       default: mem_direct_write(addr, val);
    }
@@ -194,10 +205,10 @@ void update_scroll_mod() {
    }
 }
 
-void ppu_advance_time(tick ticks) {
-   stat_requested = false;
+void lcd_advance_time(tick ticks) {
+   stat_fired = false;
 
-   if (lcd_disable) {
+   if (disabled) {
       return;
    }
 
@@ -212,7 +223,7 @@ void ppu_advance_time(tick ticks) {
          if (timer >= 84) {
             timer -= 84;
             update_scroll_mod();
-            update_stat_mode(LCD_MODE_VRAM);
+            set_mode(LCD_MODE_VRAM);
          }
          break;
 
@@ -221,11 +232,11 @@ void ppu_advance_time(tick ticks) {
 #ifdef PER_PIXEL
          // Draw our current scanline one pixel at a time
          while (x_pixel < timer - 12 && x_pixel < 160) {
-            ppu_do_pixel(x_pixel++, ppu_ly);
+            draw_pixel(x_pixel++, ly);
          }
 #else
          if (timer >= vram_length && x_pixel < 160) {
-            ppu_do_scanline();
+            draw_scanline();
             x_pixel = 160;
          }
 #endif
@@ -235,7 +246,7 @@ void ppu_advance_time(tick ticks) {
          }
          if (timer >= vram_length) {
             timer -= vram_length;
-            update_stat_mode(LCD_MODE_HBLANK);
+            set_mode(LCD_MODE_HBLANK);
          }
 
          break;
@@ -244,15 +255,15 @@ void ppu_advance_time(tick ticks) {
          if (timer >= 200 - scroll_tick_mod) {
             timer -= 200 - scroll_tick_mod;
             x_pixel = 0;
-            ppu_ly++;
-            debugger_notify_mem_write(LY, ppu_ly);
+            ly++;
+            debugger_notify_mem_write(LY, ly);
             try_fire_lyc();
-            if (ppu_ly >= 144) {
+            if (ly >= 144) {
                fire_vblank();
-               update_stat_mode(LCD_MODE_VBLANK);
+               set_mode(LCD_MODE_VBLANK);
                try_fire_vblank();
             } else {
-               update_stat_mode(LCD_MODE_OAM);
+               set_mode(LCD_MODE_OAM);
                try_fire_oam();
             }
          }
@@ -260,9 +271,9 @@ void ppu_advance_time(tick ticks) {
       case LCD_MODE_VBLANK:
          // LY = 99 only lasts for 56 cycles,
          // which makes LY == 0 last for 856
-         if (ppu_ly >= 153 && timer >= 56) {
-            ppu_ly     = 0;
-            ppu_win_ly = 0;
+         if (ly >= 153 && timer >= 56) {
+            ly     = 0;
+            win_ly = 0;
             try_fire_lyc();
             // After LYC == 0 at 99, the next 2 OAMs are ignored
             if (ignore_oams == 1) {
@@ -270,15 +281,15 @@ void ppu_advance_time(tick ticks) {
             }
          } else if (timer >= 456) {
             timer -= 456;
-            ppu_ly++;
-            if (ppu_ly == 1) {
-               ppu_ly     = 0;
-               ppu_win_ly = 0;
-               update_stat_mode(LCD_MODE_OAM);
+            ly++;
+            if (ly == 1) {
+               ly     = 0;
+               win_ly = 0;
+               set_mode(LCD_MODE_OAM);
                try_fire_oam();
             }
             // LY == 0 happens during VBLANK for LY == 153
-            if (ppu_ly != 0) {
+            if (ly != 0) {
                try_fire_lyc();
             }
          }
@@ -286,7 +297,7 @@ void ppu_advance_time(tick ticks) {
    }
 }
 
-void ppu_do_pixel(int x, int y) {
+void draw_pixel(int x, int y) {
    if (x < 0 || x >= 160 || y < 0 || y >= 144) {
       return;
    }
@@ -354,17 +365,17 @@ void ppu_do_pixel(int x, int y) {
       if (pal_index == 0) {
          bg_in_front = false;
       }
-      byte color = ppu_pick_color(pal_index, mem_direct_read(BGPAL));
+      byte color = get_color(pal_index, mem_direct_read(BGPAL));
 
       int vram_addr         = (y * 160 + x) * 3;
-      ppu_vram[vram_addr++] = color;
-      ppu_vram[vram_addr++] = color;
-      ppu_vram[vram_addr++] = color;
+      lcd_vram[vram_addr++] = color;
+      lcd_vram[vram_addr++] = color;
+      lcd_vram[vram_addr++] = color;
    } else if (!bg_enabled && !wn_enabled) {
       int vram_addr         = (y * 160 + x) * 3;
-      ppu_vram[vram_addr++] = LCD_WHITE;
-      ppu_vram[vram_addr++] = LCD_WHITE;
-      ppu_vram[vram_addr++] = LCD_WHITE;
+      lcd_vram[vram_addr++] = LCD_WHITE;
+      lcd_vram[vram_addr++] = LCD_WHITE;
+      lcd_vram[vram_addr++] = LCD_WHITE;
    }
 
    if (sp_enabled) {
@@ -412,27 +423,27 @@ void ppu_do_pixel(int x, int y) {
             continue;
          }
 
-         byte color = ppu_pick_color(
+         byte color = get_color(
                pal_index, mem_direct_read(OBJPAL + !!(attr & 0x10)));
 
          int vram_addr         = (y * 160 + x) * 3;
-         ppu_vram[vram_addr++] = color;
-         ppu_vram[vram_addr++] = color;
-         ppu_vram[vram_addr++] = color;
+         lcd_vram[vram_addr++] = color;
+         lcd_vram[vram_addr++] = color;
+         lcd_vram[vram_addr++] = color;
       }
    }
 }
 
-void ppu_do_scanline() {
-   if (ppu_ly > 143) {
+void draw_scanline() {
+   if (ly > 143) {
       return;
    }
    bool bg_is_zero[160];
    bool window   = false;
-   int vram_addr = ppu_ly * 160 * 3;
+   int vram_addr = ly * 160 * 3;
    byte win_x    = mem_direct_read(WINX);
-   if (ppu_ly == 0) {
-      win_y = mem_direct_read(WINY);
+   if (ly == 0) {
+      win_ly = mem_direct_read(WINY);
    }
    bool bg_enabled   = mem_direct_read(LCDC) & 0x01;
    bool win_tile_map = mem_direct_read(LCDC) & 0x40;
@@ -442,22 +453,22 @@ void ppu_do_scanline() {
    byte scroll_y     = mem_direct_read(SCY);
    word bg_map_loc   = 0x9800 + (bg_tile_map ? 0x400 : 0);
    word win_map_loc  = 0x9800 + (win_tile_map ? 0x400 : 0);
-   word bg_map_off   = (((ppu_ly + scroll_y) & 0xFF) >> 3) * 32;
-   word win_map_off  = ((ppu_win_ly & 0xFF) >> 3) * 32;
+   word bg_map_off   = (((ly + scroll_y) & 0xFF) >> 3) * 32;
+   word win_map_off  = ((win_ly & 0xFF) >> 3) * 32;
    byte bg_x_off     = (scroll_x >> 3) & 0x1F;
    byte win_x_off    = 0; // What is this supposed to be set to?
    byte bg_tile      = mem_direct_read(bg_map_loc + bg_map_off + bg_x_off);
    byte win_tile     = mem_direct_read(win_map_loc + win_map_off + win_x_off);
    byte bg_xpx_off   = scroll_x & 0x07;
-   byte bg_ypx_off   = (scroll_y + ppu_ly) & 0x07;
-   byte win_ypx_off  = ppu_win_ly & 0x07;
+   byte bg_ypx_off   = (scroll_y + ly) & 0x07;
+   byte win_ypx_off  = win_ly & 0x07;
    byte start_x_off  = bg_xpx_off;
    byte win_xpx_off  = 0;
    byte win_x_px     = 0;
    byte outcol       = 0;
 
    for (int i = 0; i < 160; i++) {
-      if ((mem_direct_read(LCDC) & 0x20) && ppu_ly >= win_y && i >= win_x - 7
+      if ((mem_direct_read(LCDC) & 0x20) && ly >= win_ly && i >= win_x - 7
             && win_x < 166) {
          window = true;
       }
@@ -499,11 +510,11 @@ void ppu_do_scanline() {
 
       if (bg_enabled || window) {
          bg_is_zero[i] = col == 0;
-         outcol        = ppu_pick_color(col, mem_direct_read(BGPAL));
+         outcol        = get_color(col, mem_direct_read(BGPAL));
          if (vram_addr + 2 < 160 * 144 * 3) {
-            ppu_vram[vram_addr++] = outcol;
-            ppu_vram[vram_addr++] = outcol;
-            ppu_vram[vram_addr++] = outcol;
+            lcd_vram[vram_addr++] = outcol;
+            lcd_vram[vram_addr++] = outcol;
+            lcd_vram[vram_addr++] = outcol;
          }
 
          if (!window) {
@@ -526,14 +537,14 @@ void ppu_do_scanline() {
          }
       } else {
          bg_is_zero[i]         = true;
-         ppu_vram[vram_addr++] = LCD_WHITE;
-         ppu_vram[vram_addr++] = LCD_WHITE;
-         ppu_vram[vram_addr++] = LCD_WHITE;
+         lcd_vram[vram_addr++] = LCD_WHITE;
+         lcd_vram[vram_addr++] = LCD_WHITE;
+         lcd_vram[vram_addr++] = LCD_WHITE;
       }
    }
 
    if (window) {
-      ppu_win_ly++;
+      win_ly++;
    }
 
    // Check if sprites are enabled
@@ -560,14 +571,14 @@ void ppu_do_scanline() {
          continue;
       }
 
-      if (draw_y <= ppu_ly && draw_y + height > ppu_ly) {
+      if (draw_y <= ly && draw_y + height > ly) {
          byte spr_index = tile;
          // In 8x16 mode, the least significant bit is ignored
          if (big_sprites) {
             spr_index &= 0xFE;
          }
 
-         byte spr_line = ppu_ly - draw_y;
+         byte spr_line = ly - draw_y;
          if (yflip) {
             spr_line = height - 1 - spr_line;
          }
@@ -591,17 +602,17 @@ void ppu_do_scanline() {
             if (slo & smask) {
                scol++;
             }
-            outcol = ppu_pick_color(scol, mem_direct_read(OBJPAL + pal));
+            outcol = get_color(scol, mem_direct_read(OBJPAL + pal));
 
             if (draw_x + sx < 160 && draw_x + sx >= 0 && scol) {
                if (pri == 1 && !bg_is_zero[draw_x + sx]) {
                   continue;
                }
-               int output_addr = (ppu_ly * 160 + draw_x + sx) * 3;
+               int output_addr = (ly * 160 + draw_x + sx) * 3;
                if (output_addr + 2 < 160 * 144 * 3) {
-                  ppu_vram[output_addr++] = outcol;
-                  ppu_vram[output_addr++] = outcol;
-                  ppu_vram[output_addr++] = outcol;
+                  lcd_vram[output_addr++] = outcol;
+                  lcd_vram[output_addr++] = outcol;
+                  lcd_vram[output_addr++] = outcol;
                }
             }
          }
@@ -609,7 +620,7 @@ void ppu_do_scanline() {
    }
 }
 
-byte ppu_pick_color(byte col, byte pal) {
+byte get_color(byte col, byte pal) {
    byte temp = (pal >> (col * 2)) & 0x03;
    switch (temp) {
       case 3: return LCD_BLACK;

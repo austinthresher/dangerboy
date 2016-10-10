@@ -5,7 +5,7 @@
 
 #include "debugger.h"
 #include "memory.h"
-#include "ppu.h"
+#include "lcd.h"
 
 bool break_on_invalid = false; // true;
 word dma_src, dma_dst, dma_rst;
@@ -338,7 +338,7 @@ void wbyte(word addr, byte val) {
          return;
       case 0x8000: // VRAM
       case 0x9000:
-         if ((rbyte(STAT) & 3) != LCD_MODE_VRAM || lcd_disable) {
+         if ((rbyte(STAT) & 3) != LCD_MODE_VRAM || lcd_disabled()) {
             mem_ram[addr] = val;
          } else {
             if (break_on_invalid) {
@@ -383,7 +383,7 @@ void wbyte(word addr, byte val) {
             // and not during an OAM DMA transfer
             if ((rbyte(STAT) & 3) == LCD_MODE_HBLANK
                   || (rbyte(STAT) & 3) == LCD_MODE_VBLANK
-                  || lcd_disable) {
+                  || lcd_disabled()) {
                if (mem_oam_state == INACTIVE || mem_oam_state == STARTING) {
                   mem_ram[addr] = val;
                }
@@ -417,7 +417,7 @@ void wbyte(word addr, byte val) {
       case SCY:
       case SCX:
       case LY:
-      case LYC: ppu_update_register(addr, val); return;
+      case LYC: lcd_reg_write(addr, val); return;
       case DMASTART: mem_dma(val); return;
       case JOYP: mem_input_last_write = val & 0x30; return;
       default: break;
@@ -448,7 +448,7 @@ byte rbyte(word addr) {
                         + addr];
       case 0x8000: // VRAM
       case 0x9000:
-         if ((rbyte(STAT) & 3) != LCD_MODE_VRAM || lcd_disable) {
+         if ((rbyte(STAT) & 3) != LCD_MODE_VRAM || lcd_disabled()) {
             return mem_ram[addr];
          }
          return 0xFF;
@@ -477,7 +477,7 @@ byte rbyte(word addr) {
             // and not during an OAM DMA transfer
             if ((rbyte(STAT) & 3) == LCD_MODE_HBLANK
                   || (rbyte(STAT) & 3) == LCD_MODE_VBLANK
-                  || lcd_disable) {
+                  || lcd_disabled()) {
                if (mem_oam_state == INACTIVE || mem_oam_state == STARTING) {
                   return mem_ram[addr];
                }
@@ -516,7 +516,7 @@ byte rbyte(word addr) {
       case SCY:
       case SCX:
       case LY:
-      case LYC: return ppu_read_register(addr);
+      case LYC: return lcd_reg_read(addr);
       default: break;
    }
 
