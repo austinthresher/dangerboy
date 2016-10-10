@@ -229,7 +229,7 @@ void print_status_bar() {
    wprintw(status_bar, "\t[LCD:%d STAT:%02X LY:%02X LYC:%02X TIMER: %06d]",
          (mem_direct_read(0xFF40) & 0x80) ? 1 : 0,
          mem_rb(LCD_STATUS_ADDR),
-         mem_direct_read(LCD_LINE_Y_ADDR),
+         mem_rb(LCD_LINE_Y_ADDR),
          mem_direct_read(LCD_LINE_Y_C_ADDR),
          ppu_get_timer());
    wprintw(status_bar, "\t[RAM:%d ROM:%02X]",

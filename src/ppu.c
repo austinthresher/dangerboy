@@ -60,18 +60,23 @@ tick ppu_get_timer() {
 }
 
 void ppu_reset() {
-   mode       = PPU_MODE_VBLANK;
-   ppu_ly     = 1;
-   ppu_win_ly = 1;
+//   mode       = PPU_MODE_VBLANK;
+//   ppu_ly     = 1;
+//   ppu_win_ly = 1;
+   mode = PPU_MODE_SCAN_OAM;
+   ppu_ly = 0;
+   ppu_win_ly = 0;
    timer      = 0;
 }
 
 void try_fire_oam() {
    if (stat_oam_on) {
       if (ignore_oams == 0) {
-         if (ppu_ly != 0 || !stat_vblank_fired) {
-            fire_stat();
-         }
+      // STAT documentation indicates that the OAM after a STAT VBLANK
+      // should be skipped, but this causes mooneye intr_1_2_timing to
+      // fail, which is verified on real hardware.
+      //    if (!(ppu_ly == 0 && stat_vblank_fired)) {
+         fire_stat();
       }
    }
    if (ignore_oams) {
@@ -92,7 +97,6 @@ void try_fire_vblank() {
    if (stat_vblank_on) {
       if (fire_stat()) {
          stat_vblank_fired = true;
-         ignore_oams = 1;
       }
    } else if (ppu_ly == 144) {
       // OAM interrupt still fires on ly == 144,
@@ -105,7 +109,9 @@ void try_fire_lyc() {
    if (stat_lyc_on && check_lyc()) {
       if (!stat_vblank_fired) {
          if (fire_stat()) {
-            ignore_oams = 1;
+            if (ppu_ly < 0x90) {
+               ignore_oams = 1;
+            }
          }
       }
    } 
@@ -159,6 +165,7 @@ void ppu_update_register(word addr, byte val) {
       case LCD_LINE_Y_ADDR:
          ppu_ly     = 0;
          ppu_win_ly = 0;
+         debugger_notify_mem_write(LCD_LINE_Y_ADDR, 0);
          break;
       case LCD_CONTROL_ADDR:
          mem_direct_write(LCD_CONTROL_ADDR, val);
@@ -177,6 +184,7 @@ void ppu_update_register(word addr, byte val) {
                lcd_disable = true;
                ppu_ly = 0;
                ppu_win_ly = 0;
+               debugger_notify_mem_write(LCD_LINE_Y_ADDR, 0);
                update_stat_mode(PPU_MODE_HBLANK);
             }
          }
@@ -190,6 +198,7 @@ void ppu_update_register(word addr, byte val) {
       default: mem_direct_write(addr, val);
    }
 }
+
 // Based on Mooneye's implementation
 void update_scroll_mod() {
    byte scx = mem_direct_read(LCD_SCX_ADDR) % 8;
@@ -252,6 +261,7 @@ void ppu_advance_time(tick ticks) {
             timer -= 200 - scroll_tick_mod;
             x_pixel = 0;
             ppu_ly++;
+            debugger_notify_mem_write(LCD_LINE_Y_ADDR, ppu_ly);
             try_fire_lyc();
             if (ppu_ly >= 144) {
                fire_vblank();
@@ -283,6 +293,7 @@ void ppu_advance_time(tick ticks) {
                update_stat_mode(PPU_MODE_SCAN_OAM);
                try_fire_oam(); 
             }
+            // LY == 0 happens during VBLANK for LY == 153
             if (ppu_ly != 0) {
                try_fire_lyc();
             }
