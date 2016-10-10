@@ -34,6 +34,7 @@ typedef enum lcd_mode_ {
 // ------------------
 
 cycle timer;
+byte win_y;
 byte win_ly;
 byte ly;
 byte x_pixel;
@@ -154,6 +155,7 @@ void lcd_reset() {
    mode         = OAM;
    ly           = 0;
    win_ly       = 0;
+   win_y        = 0;
    timer        = 0;
    stat_hbl_on  = false;
    stat_vbl_on  = false;
@@ -241,7 +243,6 @@ void lcd_reg_write(word addr, byte val) {
    switch (addr) {
       case LY:
          ly     = 0;
-         win_ly = 0;
          debugger_notify_mem_write(LY, 0);
          break;
       case LCDC:
@@ -260,7 +261,6 @@ void lcd_reg_write(word addr, byte val) {
                ready = true;
                disabled = true;
                ly       = 0;
-               win_ly   = 0;
                debugger_notify_mem_write(LY, 0);
                set_mode(HBLANK);
             }
@@ -300,7 +300,6 @@ void lcd_advance_time(cycle cycles) {
 
    int vram_length = 172 + scroll_delay;
    cycle old_timer  = timer;
-   byte stat_reg   = dread(STAT);
 
    timer += cycles;
 
@@ -359,7 +358,6 @@ void lcd_advance_time(cycle cycles) {
          // which makes LY == 0 last for 856
          if (ly >= 153 && timer >= 56) {
             ly     = 0;
-            win_ly = 0;
             try_fire_lyc();
             // After LYC == 0 at 99, the next 2 OAMs are ignored
             if (ignore_oams == 1) {
@@ -461,8 +459,8 @@ void draw_pixel(int x, int y) {
    if (sp_enabled) {
       int sp_height = sp_size ? 16 : 8;
       for (int s = 0; s < 40; ++s) {
-         int sp_y = dread(OAM + s * 4) - 16;
-         int sp_x = dread(OAM + s * 4 + 1) - 8;
+         int sp_y = dread(OAMSTART + s * 4) - 16;
+         int sp_x = dread(OAMSTART + s * 4 + 1) - 8;
          if (sp_x == 0 || sp_y == 0) {
             continue;
          }
@@ -470,8 +468,8 @@ void draw_pixel(int x, int y) {
             continue;
          }
 
-         byte tile = dread(OAM + s * 4 + 2);
-         byte attr = dread(OAM + s * 4 + 3);
+         byte tile = dread(OAMSTART + s * 4 + 2);
+         byte attr = dread(OAMSTART + s * 4 + 3);
 
          if ((attr & 0x80) && bg_in_front) {
             continue;
@@ -513,12 +511,11 @@ void draw_scanline() {
    if (ly > 143) {
       return;
    }
+
    bool bg_is_zero[160];
-   bool window   = false;
-   byte win_x    = dread(WINX);
-   if (ly == 0) {
-      win_ly = dread(WINY);
-   }
+   bool window       = false;
+   byte win_x        = dread(WINX);
+   byte win_y        = dread(WINY);
    bool bg_enabled   = dread(LCDC) & 0x01;
    bool win_tile_map = dread(LCDC) & 0x40;
    bool bg_tile_map  = dread(LCDC) & 0x08;
@@ -530,20 +527,19 @@ void draw_scanline() {
    word bg_map_off   = (((ly + scroll_y) & 0xFF) >> 3) * 32;
    word win_map_off  = ((win_ly & 0xFF) >> 3) * 32;
    byte bg_x_off     = (scroll_x >> 3) & 0x1F;
-   byte win_x_off    = 0; // What is this supposed to be set to?
+   byte win_x_off    = 0;
    byte bg_tile      = dread(bg_map_loc + bg_map_off + bg_x_off);
-   byte win_tile     = dread(win_map_loc + win_map_off + win_x_off);
+   byte win_tile     = dread(win_map_loc + win_map_off);
    byte bg_xpx_off   = scroll_x & 0x07;
    byte bg_ypx_off   = (scroll_y + ly) & 0x07;
    byte win_ypx_off  = win_ly & 0x07;
    byte start_x_off  = bg_xpx_off;
    byte win_xpx_off  = 0;
    byte win_x_px     = 0;
-   byte outcol       = 0;
 
    for (int i = 0; i < 160; i++) {
-      if ((dread(LCDC) & 0x20) && ly >= win_ly && i >= win_x - 7
-            && win_x < 166) {
+      if ((dread(LCDC) & 0x20)
+       && ly >= win_y && i >= win_x - 7 && win_x < 166) {
          window = true;
       }
 
@@ -582,7 +578,7 @@ void draw_scanline() {
          col += 1;
       }
       
-      bg_is_zero[i]  = true;
+      bg_is_zero[i] = true;
       if (bg_enabled || window) {
          bg_is_zero[i] = col == 0;
          framebuffer[ly * 160 + i] = color(col, dread(BGPAL));
@@ -621,10 +617,10 @@ void draw_scanline() {
    // Begin sprite drawing
    bool big_sprites = dread(LCDC) & 0x04;
    for (int spr = 0; spr < 40; spr++) {
-      byte y     = dread(OAM + spr * 4);
-      byte x     = dread(OAM + spr * 4 + 1);
-      byte tile  = dread(OAM + spr * 4 + 2);
-      byte attr  = dread(OAM + spr * 4 + 3);
+      byte y     = dread(OAMSTART + spr * 4);
+      byte x     = dread(OAMSTART + spr * 4 + 1);
+      byte tile  = dread(OAMSTART + spr * 4 + 2);
+      byte attr  = dread(OAMSTART + spr * 4 + 3);
       bool pal   = attr & 0x10;
       bool xflip = attr & 0x20;
       bool yflip = attr & 0x40;
@@ -638,8 +634,9 @@ void draw_scanline() {
       }
 
       if (draw_y <= ly && draw_y + height > ly) {
-         byte spr_index = tile;
+
          // In 8x16 mode, the least significant bit is ignored
+         byte spr_index = tile;
          if (big_sprites) {
             spr_index &= 0xFE;
          }

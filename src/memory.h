@@ -28,8 +28,29 @@
 #define WINY 0xFF4A
 #define IE 0xFFFF
 
-byte mem_dpad;
-byte mem_buttons;
+// Joypad interface.
+// TODO: Move this to a different file,
+// maybe a gb.c / h to replace a lot of the
+// code in main.c?
+
+typedef enum button_ {
+   A = 1,
+   B = 2,
+   SELECT = 4,
+   START = 8
+} button;
+
+typedef enum dpad_ {
+   RIGHT = 1,
+   LEFT = 2,
+   UP = 4,
+   DOWN = 8
+} dpad;
+
+void press_button(button but);
+void press_dpad(dpad dir);
+void release_button(button but);
+void release_dpad(dpad dir);
 
 void mem_init();
 void mem_free();
@@ -38,7 +59,6 @@ void mem_load_image(char* fname);
 void mem_print_rom_info();
 void wbyte(word addr, byte val);
 void wword(word addr, word val);
-byte mem_get_current_rom_bank();
 byte rbyte(word addr);
 word rword(word addr);
 

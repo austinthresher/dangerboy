@@ -1,6 +1,7 @@
 #include <SDL/SDL.h>
 #include <stdio.h>
 
+#include "memory.h"
 #include "cpu.h"
 #include "debugger.h"
 #include "lcd.h"
@@ -69,30 +70,33 @@ int main(int argc, char* args[]) {
    if (debug_flag) {
       debugger_break();
    }
-   bool rand_press = false;
-   byte rand_mask  = 0;
-   int rand_timer  = 5;
+   bool rand_press  = false;
+   byte rand_button = 0;
+   int rand_timer   = 5;
    while (is_running) {
       int t = SDL_GetTicks();
       if (t - i_prev > INPUT_POLL_RATE) {
          if (rand_input) {
             if (rand_timer-- < 0) {
-               rand_timer = rand() % 10;
                if (!rand_press) {
                   if (rand() % 2 > 0) {
-                     rand_press = true;
-                     if (rand() % 2 > 0) {
-                        rand_mask = 1;
+                     rand_press  = true;
+                     rand_timer  = 3;
+                     rand_button = rand() % 2;
+                     if (rand_button) {
+                        press_button(A);
                      } else {
-                        rand_mask = 8;
+                        press_button(START);
                      }
-                     mem_buttons &= ~rand_mask;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
                   }
                } else {
-                  mem_buttons |= rand_mask;
+                  if (rand_button) {
+                     release_button(A);
+                  } else {
+                     release_button(START);
+                  }
                   rand_press = false;
-                  rand_mask  = 0;
+                  rand_timer = rand() % 20;
                }
             }
             turbo = true;
@@ -110,52 +114,28 @@ int main(int argc, char* args[]) {
                      turbo = false;
                   }
                   if (event.key.keysym.sym == SDLK_LEFT) {
-                     mem_dpad |= 0x02;
-                     if (break_next) {
-                        debugger_break();
-                     }
+                     release_dpad(LEFT);
                   }
                   if (event.key.keysym.sym == SDLK_UP) {
-                     mem_dpad |= 0x04;
-                     if (break_next) {
-                        debugger_break();
-                     }
+                     release_dpad(UP);
                   }
                   if (event.key.keysym.sym == SDLK_RIGHT) {
-                     mem_dpad |= 0x01;
-                     if (break_next) {
-                        debugger_break();
-                     }
+                     release_dpad(RIGHT);
                   }
                   if (event.key.keysym.sym == SDLK_DOWN) {
-                     mem_dpad |= 0x08;
-                     if (break_next) {
-                        debugger_break();
-                     }
+                     release_dpad(DOWN);
                   }
                   if (event.key.keysym.sym == SDLK_z) { // A
-                     mem_buttons |= 0x01;
-                     if (break_next) {
-                        debugger_break();
-                     }
+                     release_button(A);
                   }
                   if (event.key.keysym.sym == SDLK_x) { // B
-                     mem_buttons |= 0x2;
-                     if (break_next) {
-                        debugger_break();
-                     }
+                     release_button(B);
                   }
                   if (event.key.keysym.sym == SDLK_RETURN) { // Start
-                     mem_buttons |= 0x08;
-                     if (break_next) {
-                        debugger_break();
-                     }
+                     release_button(START);
                   }
                   if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
-                     mem_buttons |= 0x04;
-                     if (break_next) {
-                        debugger_break();
-                     }
+                     release_button(SELECT);
                   }
                   break;
 
@@ -170,36 +150,28 @@ int main(int argc, char* args[]) {
                      turbo = true;
                   }
                   if (event.key.keysym.sym == SDLK_LEFT) {
-                     mem_dpad &= 0xFD;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
+                     press_dpad(LEFT);
                   }
                   if (event.key.keysym.sym == SDLK_UP) {
-                     mem_dpad &= 0xFB;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
+                     press_dpad(UP);
                   }
                   if (event.key.keysym.sym == SDLK_RIGHT) {
-                     mem_dpad &= 0xFE;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
+                     press_dpad(RIGHT);
                   }
                   if (event.key.keysym.sym == SDLK_DOWN) {
-                     mem_dpad &= 0xF7;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
+                     press_dpad(DOWN);
                   }
                   if (event.key.keysym.sym == SDLK_z) { // A
-                     mem_buttons &= 0xFE;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
+                     press_button(A);
                   }
                   if (event.key.keysym.sym == SDLK_x) { // B
-                     mem_buttons &= 0xFD;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
+                     press_button(B);
                   }
                   if (event.key.keysym.sym == SDLK_RETURN) { // Start
-                     mem_buttons &= 0xF7;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
+                     press_button(START);
                   }
                   if (event.key.keysym.sym == SDLK_RSHIFT) { // Select
-                     mem_buttons &= 0xFB;
-                     wbyte(IF, rbyte(IF) | INT_INPUT);
+                     press_button(SELECT);
                   }
                   break;
                case SDL_QUIT: is_running = false; break;

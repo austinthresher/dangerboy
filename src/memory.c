@@ -39,44 +39,69 @@ byte rom_banks;
 byte ram_banks;
 byte rom_bank;
 byte ram_bank;
-byte mem_input_last_write;
 byte* ram;
 byte* rom;
 byte* banked_ram;
 char rom_name[16];
+byte joy_dpad;
+byte joy_buttons;
+byte joy_last_write;
 
 // ------------------
 // Internal functions
 // ------------------
 
 void start_dma(byte val);
+byte get_rom_bank();
 
 // --------------------
 // Function definitions
 // --------------------
 
-inline void dwrite(word addr, byte val) { ram[addr] = val; }
-inline byte dread(word addr) { return ram[addr]; }
+void dwrite(word addr, byte val) {
+   ram[addr] = val;
+}
 
+byte dread(word addr) {
+   return ram[addr];
+}
+
+void press_button(button but) {
+   joy_buttons &= ~but;
+   wbyte(IF, rbyte(IF) | INT_INPUT);
+}
+
+void press_dpad(dpad dir) {
+   joy_dpad &= ~dir;
+   wbyte(IF, rbyte(IF) | INT_INPUT);
+}
+
+void release_button(button but) {
+   joy_buttons |= but;
+}
+
+void release_dpad(dpad dir) {
+   joy_dpad |= dir;
+}
 
 void mem_init(void) {
    mem_free();
-   dma_dst              = 0;
-   dma_src              = 0;
-   dma_rst              = 0;
-   mbc         = NONE;
-   ram_banks   = 0;
-   rom_banks   = 2;
-   ram_bank = 1;
-   rom_bank = 0;
-   banking     = ROM16_RAM8;
-   ram_locked  = true;
-   mem_buttons          = 0x0F;
-   mem_dpad             = 0x0F;
-   mem_input_last_write = 0;
-   dma        = INACTIVE;
-   ram              = (byte*)calloc(0x10000, 1);
-   banked_ram         = (byte*)calloc(0x10000, 1);
+   dma_dst        = 0;
+   dma_src        = 0;
+   dma_rst        = 0;
+   mbc            = NONE;
+   ram_banks      = 0;
+   rom_banks      = 2;
+   ram_bank       = 1;
+   rom_bank       = 0;
+   banking        = ROM16_RAM8;
+   ram_locked     = true;
+   joy_buttons    = 0x0F;
+   joy_dpad       = 0x0F;
+   joy_last_write = 0;
+   dma            = INACTIVE;
+   ram            = (byte*)calloc(0x10000, 1);
+   banked_ram     = (byte*)calloc(0x10000, 1);
 }
 
 void mem_free() {
@@ -187,7 +212,6 @@ void mem_load_image(char* fname) {
                "Unknown banking mode: %X. Attempting to use MBC1.",
                ram[CARTTYPE]);
          mbc = MBC1;
-         // exit(1);
          break;
    }
 
@@ -203,8 +227,6 @@ void mem_load_image(char* fname) {
                "Unknown RAM bank count: %X. Attempting to use 16.",
                ram[RAMSIZE]);
          ram_banks = 16;
-         //         mem_free();
-         //         exit(1);
          break;
    }
 
@@ -247,8 +269,10 @@ void mem_advance_time(cycle ticks) {
             continue;
          }
 
-         dwrite(dma_dst++, rbyte(dma_src++));
+         dwrite(dma_dst, rbyte(dma_src));
 
+         dma_dst++;
+         dma_src++;
          if (dma_dst >= OAMEND + 1 && dma != RESTARTING) {
             dma_dst = 0;
             dma_src = 0;
@@ -268,7 +292,7 @@ void mem_advance_time(cycle ticks) {
    }
 }
 
-byte mem_get_current_rom_bank() {
+byte get_rom_bank() {
    if (mbc == MBC1) {
       // In ROM16_RAM8 mode, ram_bank
       // holds bits 5-6 of our ROM bank index.
@@ -440,7 +464,7 @@ void wbyte(word addr, byte val) {
       case LY:
       case LYC: lcd_reg_write(addr, val); return;
       case DMA: start_dma(val); return;
-      case JOYP: mem_input_last_write = val & 0x30; return;
+      case JOYP: joy_last_write = val & 0x30; return;
       default: break;
    }
 
@@ -465,9 +489,7 @@ byte rbyte(word addr) {
             return rom[addr];
          }
          addr -= 0x4000;
-         return rom[(mem_get_current_rom_bank() % rom_banks)
-                              * 0x4000
-                        + addr];
+         return rom[(get_rom_bank() % rom_banks) * 0x4000 + addr];
       case 0x8000: // VRAM
       case 0x9000:
          if (lcd_vram_accessible()) {
@@ -479,14 +501,12 @@ byte rbyte(word addr) {
          if (mbc == NONE) {
             return ram[addr];
          }
-         addr -= 0xA000;
-
          if (mbc == MBC3 || banking == ROM4_RAM32) {
-            return banked_ram[(addr + ram_bank * 2000) & 0xFFFF];
+            return banked_ram[(addr - 0xA000 + ram_bank * 2000) & 0xFFFF];
          }
-         return banked_ram[addr];
-      case 0xC000:
-      case 0xD000: // Work RAM
+         return banked_ram[addr - 0xA000];
+      case 0xC000: // Work RAM
+      case 0xD000:
          return ram[addr];
       case 0xE000: // Mirror of 0xC000
          return ram[addr - 0x2000];
@@ -519,14 +539,14 @@ byte rbyte(word addr) {
    // Hardware registers
    switch (addr) {
       case 0xFF00: // Input register
-         if (mem_input_last_write == 0x00) {
-            return 0xC0 | (mem_dpad & mem_buttons);
+         if (joy_last_write == 0x00) {
+            return 0xC0 | (joy_dpad & joy_buttons);
          }
-         if (mem_input_last_write == 0x10) {
-            return 0xC0 | mem_buttons;
+         if (joy_last_write == 0x10) {
+            return 0xC0 | joy_buttons;
          }
-         if (mem_input_last_write == 0x20) {
-            return 0xC0 | mem_dpad;
+         if (joy_last_write == 0x20) {
+            return 0xC0 | joy_dpad;
          }
          return 0xFF;
       case IE: return 0xE0 | (ram[IE] & 0x1F);
@@ -546,8 +566,8 @@ byte rbyte(word addr) {
 
 // Write word
 void wword(word addr, word val) {
-   wbyte(addr, val & 0x00FF);
-   wbyte(addr + 1, (val & 0xFF00) >> 8);
+   wbyte(addr, val & 0xFF);
+   wbyte(addr + 1, val >> 8);
 }
 
 // Read word
