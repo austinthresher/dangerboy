@@ -14,6 +14,7 @@ int main(int argc, char* args[]) {
       exit(0);
    }
 
+   bool rand_input = false;
    bool debug_flag = false;
    if (argc > 2) {
       for (int a = 0; a < argc - 2; ++a) {
@@ -30,6 +31,9 @@ int main(int argc, char* args[]) {
          }
          if (strcmp(args[a + 2], "-v") == 0) {
             printf("%s\n", args[1]);
+         }
+         if (strcmp(args[a + 2], "-r") == 0) {
+            rand_input = true;
          }
       }
    }
@@ -65,9 +69,34 @@ int main(int argc, char* args[]) {
    if (debug_flag) {
       debugger_break();
    }
+   bool rand_press = false;
+   byte rand_mask = 0;
+   int rand_timer = 5;
    while (is_running) {
       int t = SDL_GetTicks();
       if (t - i_prev > INPUT_POLL_RATE) {
+         if (rand_input) {
+            if (rand_timer-- < 0) {
+               rand_timer = rand() % 10;
+               if (!rand_press) {
+                  if (rand() % 2 > 0) {
+                     rand_press = true;
+                     if (rand() % 2 > 0) {
+                        rand_mask = 1;
+                     } else {
+                        rand_mask = 8;
+                     }
+                     mem_buttons &= ~rand_mask;
+                     mem_wb(INT_FLAG_ADDR, mem_rb(INT_FLAG_ADDR) | INT_INPUT);
+                  }
+               } else {
+                  mem_buttons |= rand_mask;
+                  rand_press = false;
+                  rand_mask = 0;
+               }
+            }
+            turbo = true;
+         }
          i_prev = t;
          SDL_Event event;
          while (SDL_PollEvent(&event)) {

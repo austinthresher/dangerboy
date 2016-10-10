@@ -135,8 +135,9 @@ void mem_load_image(char* fname) {
          break;
       // MBC5 currently unsupported
       default:
-         fprintf(stderr, "Unknown banking mode: %X", mem_ram[CART_TYPE_ADDR]);
-         exit(1);
+         fprintf(stderr, "Unknown banking mode: %X. Attempting to use MBC1.", mem_ram[CART_TYPE_ADDR]);
+         mem_mbc_type = MBC1;
+         //exit(1);
          break;
    }
 
@@ -148,9 +149,10 @@ void mem_load_image(char* fname) {
       case 3: mem_ram_bank_count = 4; break;
       case 4: mem_ram_bank_count = 16; break;
       default:
-         fprintf(stderr, "Unknown RAM bank count: %X", mem_ram[RAM_SIZE_ADDR]);
-         mem_free();
-         exit(1);
+         fprintf(stderr, "Unknown RAM bank count: %X. Attempting to use 16.", mem_ram[RAM_SIZE_ADDR]);
+         mem_ram_bank_count = 16;
+//         mem_free();
+//         exit(1);
          break;
    }
 
