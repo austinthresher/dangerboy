@@ -271,6 +271,9 @@ void lcd_reg_write(word addr, byte val) {
          stat_hbl_on = val & BIT_HBLANK;
          stat_oam_on = val & BIT_OAM;
          stat_lyc_on = val & BIT_LYC;
+         if (mode == HBLANK || mode == VBLANK) {
+            fire_stat();
+         }
          break;
       default: dwrite(addr, val);
    }

@@ -72,7 +72,7 @@ int main(int argc, char* args[]) {
    }
    bool rand_press  = false;
    byte rand_button = 0;
-   int rand_timer   = 5;
+   int rand_timer   = 1500 / INPUT_POLL_RATE; // Don't push anything for 1.5s
    while (is_running) {
       int t = SDL_GetTicks();
       if (t - i_prev > INPUT_POLL_RATE) {
