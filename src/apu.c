@@ -62,7 +62,48 @@ byte ch4_poly_clock;
 // Function definitions
 // --------------------
 
+// TODO: Should write-only bits return 1 or 0?
 byte apu_reg_read(word addr) {
+   switch (addr) {
+      case CH1SWEEP:
+         return ch1_sweep_val | (ch1_sweep_dir << 3) | (ch1_sweep_time << 4);
+      case CH1LENGTH: 
+         return ch1_len | (ch1_duty << 6);
+      case CH1VOLUME: // TODO: Envelope is a more accurate name
+         return ch1_env_len | (ch1_env_dir << 3) | (ch1_env_default << 4);
+      case CH1LOFREQ: 
+         return 0xFF; // Write only
+      case CH1HIFREQ: 
+         return ch1_continue << 6;
+      case CH2LENGTH: 
+         return ch2_duty << 6;
+      case CH2VOLUME: 
+         return ch2_env_len | (ch2_env_dir << 3) | (ch2_env_default << 4);
+      case CH2LOFREQ: 
+         return 0xFF;
+      case CH2HIFREQ: 
+         return ch2_continue << 6;
+      case CH3ENABLE: 
+         return ch3_on << 7;
+      case CH3LENGTH: 
+         return ch3_len;
+      case CH3VOLUME: 
+         return ch3_vol << 5;
+      case CH3LODATA: 
+         return 0xFF;
+      case CH3HIDATA:
+         return ch3_continue << 6;
+      case CH4LENGTH: 
+         return ch4_len;
+      case CH4VOLUME: 
+         return ch4_env_len | (ch4_env_dir << 3) | (ch4_env_default << 4);
+      case CH4POLY:
+         return ch4_poly_ratio | (ch4_poly_num << 3) | (ch4_poly_clock << 4);
+      case CH4CONSEC: 
+         return ch4_continue << 6;
+      default:
+         break;
+   }
    return dread(addr);
 }
 
@@ -129,7 +170,7 @@ void apu_reg_write(word addr, byte val) {
          ch3_freq |= (val & 0x03);
          return;
       case CH4LENGTH: 
-         ch4_len = val;
+         ch4_len = val & 0x3F;
          return;
       case CH4VOLUME: 
          ch4_env_len     = val & 0x03;
