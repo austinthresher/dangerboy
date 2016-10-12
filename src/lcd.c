@@ -89,26 +89,42 @@ bool lcd_ready() {
    return answer;
 }
 
-byte* lcd_get_framebuffer() { return framebuffer; }
+byte* lcd_get_framebuffer() {
+   return framebuffer;
+}
 
 // Exposes the internal timer for debugging
-cycle lcd_get_timer() { return timer; }
+cycle lcd_get_timer() {
+   return timer;
+}
 
-bool lcd_disabled() { return disabled; }
+bool lcd_disabled() {
+   return disabled;
+}
 
-bool lyc() { return ly == dread(LYC); }
+bool lyc() {
+   return ly == dread(LYC);
+}
 
-bool lcd_vram_accessible() { return disabled || mode != VRAM; }
+bool lcd_vram_accessible() {
+   return disabled || mode != VRAM;
+}
 
-bool lcd_oam_accessible() { return disabled || (mode != VRAM && mode != OAM); }
+bool lcd_oam_accessible() {
+   return disabled || (mode != VRAM && mode != OAM);
+}
 
 // Calculates the actual color value from the given palette and index
 byte color(byte col, byte pal) {
    switch ((pal >> (col * 2)) & 0x03) {
-      case 3: return C_BLACK;
-      case 2: return C_DARK;
-      case 1: return C_LITE;
-      case 0: return C_WHITE;
+      case 3:
+         return C_BLACK;
+      case 2:
+         return C_DARK;
+      case 1:
+         return C_LITE;
+      case 0:
+         return C_WHITE;
    }
    return C_WHITE;
 }
@@ -184,12 +200,10 @@ void try_fire_vblank() {
 }
 
 void try_fire_lyc() {
-   if (stat_lyc_on && lyc()) {
-      if (!vblank_fired) {
-         if (fire_stat()) {
-            if (ly < 0x90) {
-               ignore_oams = 1;
-            }
+   if (stat_lyc_on && lyc() && !vblank_fired) {
+      if (fire_stat()) {
+         if (ly < 0x90) {
+            ignore_oams = 1;
          }
       }
    }
@@ -200,10 +214,18 @@ void try_fire_lyc() {
 void set_mode(lcd_mode new_mode) {
    if (mode != new_mode) {
       switch (new_mode) {
-         case VBLANK: debugger_log("STAT mode switch: VBLANK"); break;
-         case HBLANK: debugger_log("STAT mode switch: HBLANK"); break;
-         case OAM: debugger_log("STAT mode switch: OAM"); break;
-         case VRAM: debugger_log("STAT mode switch: VRAM"); break;
+         case VBLANK:
+            dbg_log("STAT mode switch: VBLANK");
+            break;
+         case HBLANK:
+            dbg_log("STAT mode switch: HBLANK");
+            break;
+         case OAM:
+            dbg_log("STAT mode switch: OAM");
+            break;
+         case VRAM:
+            dbg_log("STAT mode switch: VRAM");
+            break;
       }
    }
    mode = new_mode;
@@ -213,12 +235,14 @@ void set_mode(lcd_mode new_mode) {
 // to represent their state with variables instead of bitflags.
 byte lcd_reg_read(word addr) {
    switch (addr) {
-      case LY: return ly;
+      case LY:
+         return ly;
       case STAT:
          return 0x80 | (stat_lyc_on << 6) | (stat_oam_on << 5)
                 | (stat_vbl_on << 4) | (stat_hbl_on << 3) | (lyc() << 2)
                 | (mode & 3);
-      default: break;
+      default:
+         break;
    }
    return dread(addr);
 }
@@ -227,7 +251,7 @@ void lcd_reg_write(word addr, byte val) {
    switch (addr) {
       case LY:
          ly = 0;
-         debugger_notify_mem_write(LY, 0);
+         dbg_notify_write(LY, 0);
          break;
       case LCDC:
          dwrite(LCDC, val);
@@ -245,7 +269,7 @@ void lcd_reg_write(word addr, byte val) {
                ready    = true;
                disabled = true;
                ly       = 0;
-               debugger_notify_mem_write(LY, 0);
+               dbg_notify_write(LY, 0);
                set_mode(HBLANK);
             }
          }
@@ -259,7 +283,8 @@ void lcd_reg_write(word addr, byte val) {
             fire_stat();
          }
          break;
-      default: dwrite(addr, val);
+      default:
+         dwrite(addr, val);
    }
 }
 
@@ -327,7 +352,7 @@ void lcd_advance_time(cycle cycles) {
             timer -= 200 - scroll_delay;
             x_pixel = 0;
             ly++;
-            debugger_notify_mem_write(LY, ly);
+            dbg_notify_write(LY, ly);
             try_fire_lyc();
             if (ly >= 144) {
                fire_vblank();

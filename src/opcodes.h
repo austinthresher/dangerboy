@@ -177,7 +177,9 @@ void jp() {
    cpu.pc = (hi << 8) | lo;
 }
 
-void cpu_nop() { TIME(1); }
+void cpu_nop() {
+   TIME(1);
+}
 
 void rlc(byte* inp) {
    byte t;
@@ -411,306 +413,382 @@ void cpu_lda_n() {
    TIME(2);
    LOAD(cpu.a, rbyte(cpu.pc++));
 }
+
 void cpu_ldb_n() {
    TIME(2);
    LOAD(cpu.b, rbyte(cpu.pc++));
 }
+
 void cpu_ldc_n() {
    TIME(2);
    LOAD(cpu.c, rbyte(cpu.pc++));
 }
+
 void cpu_ldd_n() {
    TIME(2);
    LOAD(cpu.d, rbyte(cpu.pc++));
 }
+
 void cpu_lde_n() {
    TIME(2);
    LOAD(cpu.e, rbyte(cpu.pc++));
 }
+
 void cpu_ldh_n() {
    TIME(2);
    LOAD(cpu.h, rbyte(cpu.pc++));
 }
+
 void cpu_ldl_n() {
    TIME(2);
    LOAD(cpu.l, rbyte(cpu.pc++));
 }
+
 void cpu_lda_a() {
    TIME(1);
    LOAD(cpu.a, cpu.a);
 }
+
 void cpu_lda_b() {
    TIME(1);
    LOAD(cpu.a, cpu.b);
 }
+
 void cpu_lda_c() {
    TIME(1);
    LOAD(cpu.a, cpu.c);
 }
+
 void cpu_lda_d() {
    TIME(1);
    LOAD(cpu.a, cpu.d);
 }
+
 void cpu_lda_e() {
    TIME(1);
    LOAD(cpu.a, cpu.e);
 }
+
 void cpu_lda_h() {
    TIME(1);
    LOAD(cpu.a, cpu.h);
 }
+
 void cpu_lda_l() {
    TIME(1);
    LOAD(cpu.a, cpu.l);
 }
+
 void cpu_ldb_a() {
    TIME(1);
    LOAD(cpu.b, cpu.a);
 }
+
 void cpu_ldb_b() {
    TIME(1);
    LOAD(cpu.b, cpu.b);
 }
+
 void cpu_ldb_c() {
    TIME(1);
    LOAD(cpu.b, cpu.c);
 }
+
 void cpu_ldb_d() {
    TIME(1);
    LOAD(cpu.b, cpu.d);
 }
+
 void cpu_ldb_e() {
    TIME(1);
    LOAD(cpu.b, cpu.e);
 }
+
 void cpu_ldb_h() {
    TIME(1);
    LOAD(cpu.b, cpu.h);
 }
+
 void cpu_ldb_l() {
    TIME(1);
    LOAD(cpu.b, cpu.l);
 }
+
 void cpu_ldc_a() {
    TIME(1);
    LOAD(cpu.c, cpu.a);
 }
+
 void cpu_ldc_b() {
    TIME(1);
    LOAD(cpu.c, cpu.b);
 }
+
 void cpu_ldc_c() {
    TIME(1);
    LOAD(cpu.c, cpu.c);
 }
+
 void cpu_ldc_d() {
    TIME(1);
    LOAD(cpu.c, cpu.d);
 }
+
 void cpu_ldc_e() {
    TIME(1);
    LOAD(cpu.c, cpu.e);
 }
+
 void cpu_ldc_h() {
    TIME(1);
    LOAD(cpu.c, cpu.h);
 }
+
 void cpu_ldc_l() {
    TIME(1);
    LOAD(cpu.c, cpu.l);
 }
+
 void cpu_ldd_a() {
    TIME(1);
    LOAD(cpu.d, cpu.a);
 }
+
 void cpu_ldd_b() {
    TIME(1);
    LOAD(cpu.d, cpu.b);
 }
+
 void cpu_ldd_c() {
    TIME(1);
    LOAD(cpu.d, cpu.c);
 }
+
 void cpu_ldd_d() {
    TIME(1);
    LOAD(cpu.d, cpu.d);
 }
+
 void cpu_ldd_e() {
    TIME(1);
    LOAD(cpu.d, cpu.e);
 }
+
 void cpu_ldd_h() {
    TIME(1);
    LOAD(cpu.d, cpu.h);
 }
+
 void cpu_ldd_l() {
    TIME(1);
    LOAD(cpu.d, cpu.l);
 }
+
 void cpu_lde_a() {
    TIME(1);
    LOAD(cpu.e, cpu.a);
 }
+
 void cpu_lde_b() {
    TIME(1);
    LOAD(cpu.e, cpu.b);
 }
+
 void cpu_lde_c() {
    TIME(1);
    LOAD(cpu.e, cpu.c);
 }
+
 void cpu_lde_d() {
    TIME(1);
    LOAD(cpu.e, cpu.d);
 }
+
 void cpu_lde_e() {
    TIME(1);
    LOAD(cpu.e, cpu.e);
 }
+
 void cpu_lde_h() {
    TIME(1);
    LOAD(cpu.e, cpu.h);
 }
+
 void cpu_lde_l() {
    TIME(1);
    LOAD(cpu.e, cpu.l);
 }
+
 void cpu_ldh_a() {
    TIME(1);
    LOAD(cpu.h, cpu.a);
 }
+
 void cpu_ldh_b() {
    TIME(1);
    LOAD(cpu.h, cpu.b);
 }
+
 void cpu_ldh_c() {
    TIME(1);
    LOAD(cpu.h, cpu.c);
 }
+
 void cpu_ldh_d() {
    TIME(1);
    LOAD(cpu.h, cpu.d);
 }
+
 void cpu_ldh_e() {
    TIME(1);
    LOAD(cpu.h, cpu.e);
 }
+
 void cpu_ldh_h() {
    TIME(1);
    LOAD(cpu.h, cpu.h);
 }
+
 void cpu_ldh_l() {
    TIME(1);
    LOAD(cpu.h, cpu.l);
 }
+
 void cpu_ldl_a() {
    TIME(1);
    LOAD(cpu.l, cpu.a);
 }
+
 void cpu_ldl_b() {
    TIME(1);
    LOAD(cpu.l, cpu.b);
 }
+
 void cpu_ldl_c() {
    TIME(1);
    LOAD(cpu.l, cpu.c);
 }
+
 void cpu_ldl_d() {
    TIME(1);
    LOAD(cpu.l, cpu.d);
 }
+
 void cpu_ldl_e() {
    TIME(1);
    LOAD(cpu.l, cpu.e);
 }
+
 void cpu_ldl_h() {
    TIME(1);
    LOAD(cpu.l, cpu.h);
 }
+
 void cpu_ldl_l() {
    TIME(1);
    LOAD(cpu.l, cpu.l);
 }
+
 void cpu_lda_at_hl() {
    TIME(2);
    LOAD(cpu.a, FETCH(cpu.h, cpu.l));
 }
+
 void cpu_ldb_at_hl() {
    TIME(2);
    LOAD(cpu.b, FETCH(cpu.h, cpu.l));
 }
+
 void cpu_ldc_at_hl() {
    TIME(2);
    LOAD(cpu.c, FETCH(cpu.h, cpu.l));
 }
+
 void cpu_ldd_at_hl() {
    TIME(2);
    LOAD(cpu.d, FETCH(cpu.h, cpu.l));
 }
+
 void cpu_lde_at_hl() {
    TIME(2);
    LOAD(cpu.e, FETCH(cpu.h, cpu.l));
 }
+
 void cpu_ldh_at_hl() {
    TIME(2);
    LOAD(cpu.h, FETCH(cpu.h, cpu.l));
 }
+
 void cpu_ldl_at_hl() {
    TIME(2);
    LOAD(cpu.l, FETCH(cpu.h, cpu.l));
 }
+
 void cpu_ld_at_hl_b() {
    TIME(2);
    STORE(cpu.h, cpu.l, cpu.b);
 }
+
 void cpu_ld_at_hl_c() {
    TIME(2);
    STORE(cpu.h, cpu.l, cpu.c);
 }
+
 void cpu_ld_at_hl_d() {
    TIME(2);
    STORE(cpu.h, cpu.l, cpu.d);
 }
+
 void cpu_ld_at_hl_e() {
    TIME(2);
    STORE(cpu.h, cpu.l, cpu.e);
 }
+
 void cpu_ld_at_hl_h() {
    TIME(2);
    STORE(cpu.h, cpu.l, cpu.h);
 }
+
 void cpu_ld_at_hl_l() {
    TIME(2);
    STORE(cpu.h, cpu.l, cpu.l);
 }
+
 void cpu_ld_at_hl_n() {
    TIME(3);
    STORE(cpu.h, cpu.l, rbyte(cpu.pc++));
 }
+
 void cpu_lda_at_bc() {
    TIME(2);
    LOAD(cpu.a, FETCH(cpu.b, cpu.c));
 }
+
 void cpu_lda_at_de() {
    TIME(2);
    LOAD(cpu.a, FETCH(cpu.d, cpu.e));
 }
+
 void cpu_ld_at_bc_a() {
    TIME(2);
    STORE(cpu.b, cpu.c, cpu.a);
 }
+
 void cpu_ld_at_de_a() {
    TIME(2);
    STORE(cpu.d, cpu.e, cpu.a);
 }
+
 void cpu_ld_at_hl_a() {
    TIME(2);
    STORE(cpu.h, cpu.l, cpu.a);
 }
+
 void cpu_lda_at_c() {
    TIME(2);
    LOAD(cpu.a, rbyte(0xFF00 + cpu.c));
 }
+
 void cpu_ld_at_c_a() {
    TIME(2);
    STORE(0xFF, cpu.c, cpu.a);
@@ -817,22 +895,27 @@ void cpu_pushbc() {
    TIME(2);
    PUSH(cpu.b, cpu.c);
 }
+
 void cpu_pushde() {
    TIME(2);
    PUSH(cpu.d, cpu.e);
 }
+
 void cpu_pushhl() {
    TIME(2);
    PUSH(cpu.h, cpu.l);
 }
+
 void cpu_popbc() {
    TIME(1);
    POP(cpu.b, cpu.c);
 }
+
 void cpu_popde() {
    TIME(1);
    POP(cpu.d, cpu.e);
 }
+
 void cpu_pophl() {
    TIME(1);
    POP(cpu.h, cpu.l);
@@ -871,106 +954,132 @@ void cpu_and_a() {
    TIME(1);
    AND(cpu.a);
 }
+
 void cpu_and_b() {
    TIME(1);
    AND(cpu.b);
 }
+
 void cpu_and_c() {
    TIME(1);
    AND(cpu.c);
 }
+
 void cpu_and_d() {
    TIME(1);
    AND(cpu.d);
 }
+
 void cpu_and_e() {
    TIME(1);
    AND(cpu.e);
 }
+
 void cpu_and_h() {
    TIME(1);
    AND(cpu.h);
 }
+
 void cpu_and_l() {
    TIME(1);
    AND(cpu.l);
 }
+
 void cpu_or_a() {
    TIME(1);
    OR(cpu.a);
 }
+
 void cpu_or_b() {
    TIME(1);
    OR(cpu.b);
 }
+
 void cpu_or_c() {
    TIME(1);
    OR(cpu.c);
 }
+
 void cpu_or_d() {
    TIME(1);
    OR(cpu.d);
 }
+
 void cpu_or_e() {
    TIME(1);
    OR(cpu.e);
 }
+
 void cpu_or_h() {
    TIME(1);
    OR(cpu.h);
 }
+
 void cpu_or_l() {
    TIME(1);
    OR(cpu.l);
 }
+
 void cpu_xor_a() {
    TIME(1);
    XOR(cpu.a);
 }
+
 void cpu_xor_b() {
    TIME(1);
    XOR(cpu.b);
 }
+
 void cpu_xor_c() {
    TIME(1);
    XOR(cpu.c);
 }
+
 void cpu_xor_d() {
    TIME(1);
    XOR(cpu.d);
 }
+
 void cpu_xor_e() {
    TIME(1);
    XOR(cpu.e);
 }
+
 void cpu_xor_h() {
    TIME(1);
    XOR(cpu.h);
 }
+
 void cpu_xor_l() {
    TIME(1);
    XOR(cpu.l);
 }
+
 void cpu_and_at_hl() {
    TIME(2);
    AND(FETCH(cpu.h, cpu.l));
 }
+
 void cpu_or_at_hl() {
    TIME(2);
    OR(FETCH(cpu.h, cpu.l));
 }
+
 void cpu_xor_at_hl() {
    TIME(2);
    XOR(FETCH(cpu.h, cpu.l));
 }
+
 void cpu_and_n() {
    TIME(2);
    AND(rbyte(cpu.pc++));
 }
+
 void cpu_or_n() {
    TIME(2);
    OR(rbyte(cpu.pc++));
 }
+
 void cpu_xor_n() {
    TIME(2);
    XOR(rbyte(cpu.pc++));
@@ -988,51 +1097,121 @@ void cpu_cb() {
    if (index >= 8) {
       index -= 8;
       switch (sub_op & 0xF0) {
-         case 0x00: rrc(regs[index]); break;
-         case 0x10: rr(regs[index]); break;
-         case 0x20: sra(regs[index]); break;
-         case 0x30: srl(regs[index]); break;
-         case 0x40: bit(regs[index], 1); break;
-         case 0x50: bit(regs[index], 3); break;
-         case 0x60: bit(regs[index], 5); break;
-         case 0x70: bit(regs[index], 7); break;
-         case 0x80: res(regs[index], 1); break;
-         case 0x90: res(regs[index], 3); break;
-         case 0xA0: res(regs[index], 5); break;
-         case 0xB0: res(regs[index], 7); break;
-         case 0xC0: set(regs[index], 1); break;
-         case 0xD0: set(regs[index], 3); break;
-         case 0xE0: set(regs[index], 5); break;
-         case 0xF0: set(regs[index], 7); break;
-         default: cpu_none(); break;
+         case 0x00:
+            rrc(regs[index]);
+            break;
+         case 0x10:
+            rr(regs[index]);
+            break;
+         case 0x20:
+            sra(regs[index]);
+            break;
+         case 0x30:
+            srl(regs[index]);
+            break;
+         case 0x40:
+            bit(regs[index], 1);
+            break;
+         case 0x50:
+            bit(regs[index], 3);
+            break;
+         case 0x60:
+            bit(regs[index], 5);
+            break;
+         case 0x70:
+            bit(regs[index], 7);
+            break;
+         case 0x80:
+            res(regs[index], 1);
+            break;
+         case 0x90:
+            res(regs[index], 3);
+            break;
+         case 0xA0:
+            res(regs[index], 5);
+            break;
+         case 0xB0:
+            res(regs[index], 7);
+            break;
+         case 0xC0:
+            set(regs[index], 1);
+            break;
+         case 0xD0:
+            set(regs[index], 3);
+            break;
+         case 0xE0:
+            set(regs[index], 5);
+            break;
+         case 0xF0:
+            set(regs[index], 7);
+            break;
+         default:
+            cpu_none();
+            break;
       }
 
    } else {
       switch (sub_op & 0xF0) {
-         case 0x00: rlc(regs[index]); break;
-         case 0x10: rl(regs[index]); break;
-         case 0x20: sla(regs[index]); break;
-         case 0x30: swap(regs[index]); break;
-         case 0x40: bit(regs[index], 0); break;
-         case 0x50: bit(regs[index], 2); break;
-         case 0x60: bit(regs[index], 4); break;
-         case 0x70: bit(regs[index], 6); break;
-         case 0x80: res(regs[index], 0); break;
-         case 0x90: res(regs[index], 2); break;
-         case 0xA0: res(regs[index], 4); break;
-         case 0xB0: res(regs[index], 6); break;
-         case 0xC0: set(regs[index], 0); break;
-         case 0xD0: set(regs[index], 2); break;
-         case 0xE0: set(regs[index], 4); break;
-         case 0xF0: set(regs[index], 6); break;
-         default: cpu_none(); break;
+         case 0x00:
+            rlc(regs[index]);
+            break;
+         case 0x10:
+            rl(regs[index]);
+            break;
+         case 0x20:
+            sla(regs[index]);
+            break;
+         case 0x30:
+            swap(regs[index]);
+            break;
+         case 0x40:
+            bit(regs[index], 0);
+            break;
+         case 0x50:
+            bit(regs[index], 2);
+            break;
+         case 0x60:
+            bit(regs[index], 4);
+            break;
+         case 0x70:
+            bit(regs[index], 6);
+            break;
+         case 0x80:
+            res(regs[index], 0);
+            break;
+         case 0x90:
+            res(regs[index], 2);
+            break;
+         case 0xA0:
+            res(regs[index], 4);
+            break;
+         case 0xB0:
+            res(regs[index], 6);
+            break;
+         case 0xC0:
+            set(regs[index], 0);
+            break;
+         case 0xD0:
+            set(regs[index], 2);
+            break;
+         case 0xE0:
+            set(regs[index], 4);
+            break;
+         case 0xF0:
+            set(regs[index], 6);
+            break;
+         default:
+            cpu_none();
+            break;
       }
    }
 }
 
 // JUMP / RETURN
 
-void cpu_jp_nn() { jp(); }
+void cpu_jp_nn() {
+   jp();
+}
 
 void cpu_jp_nz_nn() {
    if (!cpu.zf) {
@@ -1120,7 +1299,9 @@ void cpu_jr_c_n() {
    }
 }
 
-void cpu_call_nn() { call(); }
+void cpu_call_nn() {
+   call();
+}
 
 void cpu_call_nz_nn() {
    if (!cpu.zf) {
@@ -1226,7 +1407,9 @@ void cpu_rst_38h() {
 
 // Returns
 
-void cpu_ret() { ret(); }
+void cpu_ret() {
+   ret();
+}
 
 void cpu_ret_nz() {
    if (!cpu.zf) {
@@ -1391,142 +1574,177 @@ void cpu_add_a_a() {
    TIME(1);
    ADD(cpu.a);
 }
+
 void cpu_add_a_b() {
    TIME(1);
    ADD(cpu.b);
 }
+
 void cpu_add_a_c() {
    TIME(1);
    ADD(cpu.c);
 }
+
 void cpu_add_a_d() {
    TIME(1);
    ADD(cpu.d);
 }
+
 void cpu_add_a_e() {
    TIME(1);
    ADD(cpu.e);
 }
+
 void cpu_add_a_h() {
    TIME(1);
    ADD(cpu.h);
 }
+
 void cpu_add_a_l() {
    TIME(1);
    ADD(cpu.l);
 }
+
 void cpu_adc_a_a() {
    TIME(1);
    ADC(cpu.a);
 }
+
 void cpu_adc_a_b() {
    TIME(1);
    ADC(cpu.b);
 }
+
 void cpu_adc_a_c() {
    TIME(1);
    ADC(cpu.c);
 }
+
 void cpu_adc_a_d() {
    TIME(1);
    ADC(cpu.d);
 }
+
 void cpu_adc_a_e() {
    TIME(1);
    ADC(cpu.e);
 }
+
 void cpu_adc_a_h() {
    TIME(1);
    ADC(cpu.h);
 }
+
 void cpu_adc_a_l() {
    TIME(1);
    ADC(cpu.l);
 }
+
 void cpu_sub_a_a() {
    TIME(1);
    SUB(cpu.a);
 }
+
 void cpu_sub_a_b() {
    TIME(1);
    SUB(cpu.b);
 }
+
 void cpu_sub_a_c() {
    TIME(1);
    SUB(cpu.c);
 }
+
 void cpu_sub_a_d() {
    TIME(1);
    SUB(cpu.d);
 }
+
 void cpu_sub_a_e() {
    TIME(1);
    SUB(cpu.e);
 }
+
 void cpu_sub_a_h() {
    TIME(1);
    SUB(cpu.h);
 }
+
 void cpu_sub_a_l() {
    TIME(1);
    SUB(cpu.l);
 }
+
 void cpu_sbc_a_a() {
    TIME(1);
    SBC(cpu.a);
 }
+
 void cpu_sbc_a_b() {
    TIME(1);
    SBC(cpu.b);
 }
+
 void cpu_sbc_a_c() {
    TIME(1);
    SBC(cpu.c);
 }
+
 void cpu_sbc_a_d() {
    TIME(1);
    SBC(cpu.d);
 }
+
 void cpu_sbc_a_e() {
    TIME(1);
    SBC(cpu.e);
 }
+
 void cpu_sbc_a_h() {
    TIME(1);
    SBC(cpu.h);
 }
+
 void cpu_sbc_a_l() {
    TIME(1);
    SBC(cpu.l);
 }
+
 void cpu_add_a_n() {
    TIME(2);
    ADD(rbyte(cpu.pc++));
 }
+
 void cpu_adc_a_n() {
    TIME(2);
    ADC(rbyte(cpu.pc++));
 }
+
 void cpu_sub_a_n() {
    TIME(2);
    SUB(rbyte(cpu.pc++));
 }
+
 void cpu_sbc_a_n() {
    TIME(2);
    SBC(rbyte(cpu.pc++));
 }
+
 void cpu_add_a_at_hl() {
    TIME(2);
    ADD(FETCH(cpu.h, cpu.l));
 }
+
 void cpu_adc_a_at_hl() {
    TIME(2);
    ADC(FETCH(cpu.h, cpu.l));
 }
+
 void cpu_sub_a_at_hl() {
    TIME(2);
    SUB(FETCH(cpu.h, cpu.l));
 }
+
 void cpu_sbc_a_at_hl() {
    TIME(2);
    SBC(FETCH(cpu.h, cpu.l));
@@ -1537,54 +1755,67 @@ void cpu_inc_a() {
    INC(cpu.a);
    TIME(1);
 }
+
 void cpu_inc_b() {
    INC(cpu.b);
    TIME(1);
 }
+
 void cpu_inc_c() {
    INC(cpu.c);
    TIME(1);
 }
+
 void cpu_inc_d() {
    INC(cpu.d);
    TIME(1);
 }
+
 void cpu_inc_e() {
    INC(cpu.e);
    TIME(1);
 }
+
 void cpu_inc_h() {
    TIME(1);
    INC(cpu.h);
 }
+
 void cpu_inc_l() {
    INC(cpu.l);
    TIME(1);
 }
+
 void cpu_dec_a() {
    DEC(cpu.a);
    TIME(1);
 }
+
 void cpu_dec_b() {
    DEC(cpu.b);
    TIME(1);
 }
+
 void cpu_dec_c() {
    DEC(cpu.c);
    TIME(1);
 }
+
 void cpu_dec_d() {
    DEC(cpu.d);
    TIME(1);
 }
+
 void cpu_dec_e() {
    DEC(cpu.e);
    TIME(1);
 }
+
 void cpu_dec_h() {
    DEC(cpu.h);
    TIME(1);
 }
+
 void cpu_dec_l() {
    DEC(cpu.l);
    TIME(1);
@@ -1617,34 +1848,42 @@ void cpu_cp_a() {
    TIME(1);
    COMPARE(cpu.a);
 }
+
 void cpu_cp_b() {
    TIME(1);
    COMPARE(cpu.b);
 }
+
 void cpu_cp_c() {
    TIME(1);
    COMPARE(cpu.c);
 }
+
 void cpu_cp_d() {
    TIME(1);
    COMPARE(cpu.d);
 }
+
 void cpu_cp_e() {
    TIME(1);
    COMPARE(cpu.e);
 }
+
 void cpu_cp_h() {
    TIME(1);
    COMPARE(cpu.h);
 }
+
 void cpu_cp_l() {
    TIME(1);
    COMPARE(cpu.l);
 }
+
 void cpu_cp_at_hl() {
    TIME(2);
    COMPARE(FETCH(cpu.h, cpu.l));
 }
+
 void cpu_cp_a_n() {
    TIME(2);
    COMPARE(rbyte(cpu.pc++));

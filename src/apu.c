@@ -15,8 +15,13 @@
 TYPE buffer_left[BUFFER_SIZE];
 TYPE buffer_right[BUFFER_SIZE];
 
-byte apu_reg_read(word addr) { return dread(addr); }
+byte apu_reg_read(word addr) {
+   return dread(addr);
+}
 
-void apu_reg_write(word addr, byte val) { dwrite(addr, val); }
+void apu_reg_write(word addr, byte val) {
+   dwrite(addr, val);
+}
 
-void apu_advance_time(cycle cycles) {}
+void apu_advance_time(cycle cycles) {
+}

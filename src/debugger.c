@@ -33,7 +33,9 @@ struct BreakpointEntry breakpoints[0x10000];
 WINDOW *memory_map = NULL, *console_pane = NULL, *status_bar = NULL;
 
 bool handle_input(const char* string);
-bool sc(const char* strA, const char* strB) { return strcmp(strA, strB) == 0; }
+bool sc(const char* strA, const char* strB) {
+   return strcmp(strA, strB) == 0;
+}
 
 void init_curses() {
    initscr();
@@ -195,7 +197,7 @@ void print_memory_map(int x, word addr) {
    wrefresh(memory_map);
 }
 
-void debugger_log(const char* str) {
+void dbg_log(const char* str) {
    if (curses_on && console_pane != NULL) {
       wprintw(console_pane, "[%ld] ", cpu_ticks);
       wprintw(console_pane, "%s\n", str);
@@ -252,7 +254,7 @@ void print_status_bar() {
    wrefresh(status_bar);
 }
 
-void debugger_cli() {
+void dbg_cli() {
    char buff[256];
    if (!curses_on) {
       init_curses();
@@ -288,7 +290,7 @@ void debugger_cli() {
    store_regs();
 }
 
-void debugger_free() {
+void dbg_free() {
    if (curses_on) {
       delwin(console_pane);
       delwin(status_bar);
@@ -349,22 +351,22 @@ bool handle_input(const char* str) {
             return false;
          }
          if (sc(cmd_str, "read") || sc(cmd_str, "r")) {
-            debugger_break_on_read(addr);
+            dbg_break_on_read(addr);
             wprintw(console_pane, "Breaking on read of %04X\n", addr);
             return false;
          }
          if (sc(cmd_str, "write") || sc(cmd_str, "w")) {
-            debugger_break_on_write(addr);
+            dbg_break_on_write(addr);
             wprintw(console_pane, "Breaking on write of %04X\n", addr);
             return false;
          }
          if (sc(cmd_str, "exec") || sc(cmd_str, "x")) {
-            debugger_break_on_exec(addr);
+            dbg_break_on_exec(addr);
             wprintw(console_pane, "Breaking on exec of %04X\n", addr);
             return false;
          }
          if (sc(cmd_str, "clear") || sc(cmd_str, "c")) {
-            debugger_clear_breakpoint(addr);
+            dbg_clear_breakpoint(addr);
             wprintw(console_pane, "Breakpoints at %04X cleared.\n", addr);
             return false;
          }
@@ -378,7 +380,7 @@ bool handle_input(const char* str) {
                wprintw(console_pane, "invalid value (0 to 0xFF)\n");
                return false;
             }
-            debugger_break_on_equal(addr, (byte)eq_val);
+            dbg_break_on_equal(addr, (byte)eq_val);
             wprintw(
                   console_pane, "Breaking when (%04X) == %02X\n", addr, eq_val);
             return false;
@@ -428,7 +430,7 @@ bool handle_input(const char* str) {
    // Continue execution command
    if (sc(inp, "continue") || sc(inp, "c")) {
       strcpy(cmd, ""); // Clear last command
-      debugger_continue();
+      dbg_continue();
       return true;
    }
 
@@ -464,20 +466,24 @@ bool handle_input(const char* str) {
    return false;
 }
 
-bool debugger_should_break() { return need_break; }
+bool dbg_should_break() {
+   return need_break;
+}
 
-void debugger_break() { need_break = true; }
+void dbg_break() {
+   need_break = true;
+}
 
-void debugger_continue() {
+void dbg_continue() {
    wprintw(console_pane, "Continuing.\n");
    need_break = false;
 }
 
-void debugger_init() {
+void dbg_init() {
    store_regs();
    strcpy(cmd, "");
    for (int i = 0; i < 0x10000; ++i) {
-      debugger_clear_breakpoint(i);
+      dbg_clear_breakpoint(i);
    }
    for (int i = 0; i < 0x100; ++i) {
       break_on_op[i] = false;
@@ -489,7 +495,7 @@ void debugger_init() {
    memory_view_addr = 0;
 }
 
-void debugger_clear_breakpoint(word addr) {
+void dbg_clear_breakpoint(word addr) {
    breakpoints[addr].break_on_read  = false;
    breakpoints[addr].break_on_write = false;
    breakpoints[addr].break_on_exec  = false;
@@ -497,24 +503,24 @@ void debugger_clear_breakpoint(word addr) {
    breakpoints[addr].watch_value    = 0;
 }
 
-void debugger_break_on_read(word addr) {
+void dbg_break_on_read(word addr) {
    breakpoints[addr].break_on_read = true;
 }
 
-void debugger_break_on_write(word addr) {
+void dbg_break_on_write(word addr) {
    breakpoints[addr].break_on_write = true;
 }
 
-void debugger_break_on_exec(word addr) {
+void dbg_break_on_exec(word addr) {
    breakpoints[addr].break_on_exec = true;
 }
 
-void debugger_break_on_equal(word addr, byte value) {
+void dbg_break_on_equal(word addr, byte value) {
    breakpoints[addr].break_on_equal = true;
    breakpoints[addr].watch_value    = value;
 }
 
-void debugger_notify_mem_exec(word addr) {
+void dbg_notify_exec(word addr) {
    if (need_break) {
       return;
    }
@@ -533,7 +539,7 @@ void debugger_notify_mem_exec(word addr) {
    }
 }
 
-void debugger_notify_mem_write(word addr, byte val) {
+void dbg_notify_write(word addr, byte val) {
    if (need_break) {
       return;
    }
@@ -551,7 +557,7 @@ void debugger_notify_mem_write(word addr, byte val) {
    }
 }
 
-void debugger_notify_mem_read(word addr) {
+void dbg_notify_read(word addr) {
    if (need_break) {
       return;
    }

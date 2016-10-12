@@ -15,6 +15,7 @@ typedef struct cpu_state_ {
    bool ime_delay;
 } cpu_state;
 
+// This is used to track time in the debugger
 cycle cpu_ticks;
 
 cpu_state cpu_get_state();

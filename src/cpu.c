@@ -21,9 +21,11 @@
 cpu_state cpu;
 byte last_op;
 word last_pc;
-word internal_timer;
-bool prev_timer_bit;
-cycle last_tima_overflow;
+word system_timer;
+bool prev_timer;
+bool fire_tima;
+
+// Array of opcode function pointers
 void (*cpu_opcodes[0x100])();
 
 // All opcodes are defined in another file, but
@@ -42,9 +44,9 @@ void build_op_table();
 
 void cpu_init() {
    build_op_table();
-   last_tima_overflow = -1;
-   internal_timer     = 0;
-   prev_timer_bit     = false;
+   fire_tima    = false;
+   system_timer = 0;
+   prev_timer = false;
    cpu_reset();
 }
 
@@ -52,26 +54,26 @@ void cpu_reset() {
 
    // These startup values are based on
    // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
-   cpu.pc         = 0x0100;
-   cpu.cf         = true;
-   cpu.hf         = true;
-   cpu.zf         = true;
-   cpu.nf         = false;
-   cpu.a          = 0x01;
-   cpu.b          = 0x00;
-   cpu.c          = 0x13;
-   cpu.d          = 0x00;
-   cpu.e          = 0xD8;
-   cpu.h          = 0x01;
-   cpu.l          = 0x4D;
-   cpu.sp         = 0xFFFE;
-   cpu.ime        = false;
-   cpu.ime_delay  = false;
-   cpu.halted     = false;
-   cpu.stopped    = false;
-   cpu_ticks      = 0;
-   internal_timer = 0;
-   prev_timer_bit = false;
+   cpu.pc        = 0x0100;
+   cpu.cf        = true;
+   cpu.hf        = true;
+   cpu.zf        = true;
+   cpu.nf        = false;
+   cpu.a         = 0x01;
+   cpu.b         = 0x00;
+   cpu.c         = 0x13;
+   cpu.d         = 0x00;
+   cpu.e         = 0xD8;
+   cpu.h         = 0x01;
+   cpu.l         = 0x4D;
+   cpu.sp        = 0xFFFE;
+   cpu.ime       = false;
+   cpu.ime_delay = false;
+   cpu.halted    = false;
+   cpu.stopped   = false;
+   cpu_ticks     = 0;
+   system_timer  = 0;
+   prev_timer    = false;
 
    // Setup our in-memory registers
    wbyte(0xFF02, 0x7E); // Serial Transfer Control
@@ -105,12 +107,16 @@ void cpu_reset() {
    wbyte(0xFF49, 0xFF); // OBJ1 PAL
    wbyte(0xFF4A, 0x00); // WINX
    wbyte(0xFF4B, 0x00); // WINY
-   wbyte(0xFFFF, 0x00); // IE
+   wbyte(0xFFFF, 0x00); // IE 
 }
 
-cpu_state cpu_get_state() { return cpu; }
+cpu_state cpu_get_state() {
+   return cpu;
+}
 
-void cpu_reset_timer() { internal_timer = 0; }
+void cpu_reset_timer() {
+   system_timer = 0;
+}
 
 void cpu_advance_time(cycle dt) {
    lcd_advance_time(dt);
@@ -121,46 +127,54 @@ void cpu_advance_time(cycle dt) {
    byte tac_speed = dread(TAC) & 3;
    word timer_bit = 1;
    switch (tac_speed) {
-      case 0: timer_bit <<= 9; break;
-      case 1: timer_bit <<= 3; break;
-      case 2: timer_bit <<= 5; break;
-      case 3: timer_bit <<= 7; break;
+      case 0:
+         timer_bit <<= 9;
+         break;
+      case 1:
+         timer_bit <<= 3;
+         break;
+      case 2:
+         timer_bit <<= 5;
+         break;
+      case 3:
+         timer_bit <<= 7;
+         break;
    }
    for (int i = 0; i < dt / 4; ++i) {
-      internal_timer += 4;
+      system_timer += 4;
       cpu_ticks++;
-      if (last_tima_overflow != -1 && cpu_ticks >= last_tima_overflow + 1) {
+      if (fire_tima) {
          dwrite(IF, dread(IF) | INT_TIMA);
          dwrite(TIMA, dread(TMA));
-         last_tima_overflow = -1;
+         fire_tima = false;
       }
 
       // The internal timer is based on a falling edge detector.
       // Which bit affects TIMA depends on the speed in TAC.
-      word test_val = internal_timer & timer_bit;
+      word test_val = system_timer & timer_bit;
       if (!timer_on) {
          test_val = 0;
       }
 
-      if (prev_timer_bit && !test_val) {
+      if (prev_timer && !test_val) {
          dwrite(TIMA, (dread(TIMA) + 1) & 0xFF);
          if (dread(TIMA) == 0) {
             // TIMA interrupt happens 4 cycles after
             // the overflow. It holds 0 until then.
-            last_tima_overflow = cpu_ticks;
+            fire_tima = true;
          }
       }
-      prev_timer_bit = test_val != 0;
+      prev_timer = test_val != 0;
    }
-   dwrite(DIV, internal_timer >> 8);
+   dwrite(DIV, system_timer >> 8);
 }
 
 void cpu_execute_step() {
    // Check interrupts
    bool raised = false;
-   byte int_IE = dread(IE);
-   byte int_IF = dread(IF);
-   byte irq    = int_IE & int_IF & INT_MASK;
+   byte inte   = dread(IE);
+   byte intf   = dread(IF);
+   byte irq    = inte & intf & INT_MASK;
 
    if (irq && cpu.halted) {
       cpu.halted = false;
@@ -169,7 +183,7 @@ void cpu_execute_step() {
       }
    }
 
-   if ((int_IF & INT_INPUT) && cpu.stopped) {
+   if ((intf & INT_INPUT) && cpu.stopped) {
       cpu.stopped = false;
    }
 
@@ -178,29 +192,29 @@ void cpu_execute_step() {
          byte target = 0x00;
          if (irq & INT_VBLANK) {
             target = 0x40;
-            dwrite(IF, int_IF & ~INT_VBLANK);
-            debugger_log("VBLANK Interrupt");
-            debugger_notify_mem_write(IF, dread(IF));
+            dwrite(IF, intf & ~INT_VBLANK);
+            dbg_log("VBLANK Interrupt");
+            dbg_notify_write(IF, dread(IF));
          } else if (irq & INT_STAT) {
             target = 0x48;
-            dwrite(IF, int_IF & ~INT_STAT);
-            debugger_log("STAT Interrupt");
-            debugger_notify_mem_write(IF, dread(IF));
+            dwrite(IF, intf & ~INT_STAT);
+            dbg_log("STAT Interrupt");
+            dbg_notify_write(IF, dread(IF));
          } else if (irq & INT_TIMA) {
             target = 0x50;
-            dwrite(IF, int_IF & ~INT_TIMA);
-            debugger_log("TIMA Interrupt");
-            debugger_notify_mem_write(IF, dread(IF));
+            dwrite(IF, intf & ~INT_TIMA);
+            dbg_log("TIMA Interrupt");
+            dbg_notify_write(IF, dread(IF));
          } else if (irq & INT_SERIAL) {
             target = 0x58;
-            dwrite(IF, int_IF & ~INT_SERIAL);
-            debugger_log("Serial interrupt");
-            debugger_notify_mem_write(IF, dread(IF));
+            dwrite(IF, intf & ~INT_SERIAL);
+            dbg_log("Serial interrupt");
+            dbg_notify_write(IF, dread(IF));
          } else if (irq & INT_INPUT) {
             target = 0x60;
-            dwrite(IF, int_IF & ~INT_INPUT);
-            debugger_log("Input Interrupt");
-            debugger_notify_mem_write(IF, dread(IF));
+            dwrite(IF, intf & ~INT_INPUT);
+            dbg_log("Input Interrupt");
+            dbg_notify_write(IF, dread(IF));
          }
          if (target != 0x00) {
             raised  = true;
@@ -220,7 +234,7 @@ void cpu_execute_step() {
          last_pc = cpu.pc;
          last_op = rbyte(cpu.pc++);
          (*cpu_opcodes[last_op])();
-         debugger_notify_mem_exec(cpu.pc);
+         dbg_notify_exec(cpu.pc);
       } else {
          cpu_nop();
       }

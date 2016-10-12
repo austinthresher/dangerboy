@@ -51,9 +51,13 @@ byte get_rom_bank();
 // Function definitions
 // --------------------
 
-void dwrite(word addr, byte val) { ram[addr] = val; }
+void dwrite(word addr, byte val) {
+   ram[addr] = val;
+}
 
-byte dread(word addr) { return ram[addr]; }
+byte dread(word addr) {
+   return ram[addr];
+}
 
 void press_button(button but) {
    joy_buttons &= ~but;
@@ -65,9 +69,13 @@ void press_dpad(dpad dir) {
    wbyte(IF, rbyte(IF) | INT_INPUT);
 }
 
-void release_button(button but) { joy_buttons |= but; }
+void release_button(button but) {
+   joy_buttons |= but;
+}
 
-void release_dpad(dpad dir) { joy_dpad |= dir; }
+void release_dpad(dpad dir) {
+   joy_dpad |= dir;
+}
 
 void mem_init(void) {
    mem_free();
@@ -202,11 +210,19 @@ void mem_load_image(char* fname) {
 
    // RAM Size
    switch (ram[RAMSIZE]) {
-      case 0: ram_banks = 0; break;
+      case 0:
+         ram_banks = 0;
+         break;
       case 1:
-      case 2: ram_banks = 1; break;
-      case 3: ram_banks = 4; break;
-      case 4: ram_banks = 16; break;
+      case 2:
+         ram_banks = 1;
+         break;
+      case 3:
+         ram_banks = 4;
+         break;
+      case 4:
+         ram_banks = 16;
+         break;
       default:
          fprintf(stderr,
                "Unknown RAM bank count: %X. Attempting to use 16.",
@@ -232,13 +248,13 @@ void mem_print_rom_info() {
 
 void start_dma(byte val) {
    if (dma == INACTIVE) {
-      debugger_log("OAM DMA Starting");
+      dbg_log("OAM DMA Starting");
       dma     = STARTING;
       dma_src = val << 8;
       dma_dst = OAMSTART;
       ;
    } else {
-      debugger_log("OAM DMA Restarting");
+      dbg_log("OAM DMA Restarting");
       dma     = RESTARTING;
       dma_rst = val << 8;
    }
@@ -249,7 +265,7 @@ void mem_advance_time(cycle ticks) {
       while (ticks > 0) {
          ticks -= 4;
          if (dma == STARTING) {
-            debugger_log("OAM DMA Started");
+            dbg_log("OAM DMA Started");
             dma = ACTIVE;
             continue;
          }
@@ -261,13 +277,13 @@ void mem_advance_time(cycle ticks) {
          if (dma_dst >= OAMEND + 1 && dma != RESTARTING) {
             dma_dst = 0;
             dma_src = 0;
-            debugger_log("OAM DMA Finish");
+            dbg_log("OAM DMA Finish");
             dma = INACTIVE;
             break;
          }
 
          if (dma == RESTARTING) {
-            debugger_log("OAM DMA Restarted");
+            dbg_log("OAM DMA Restarted");
             dma     = ACTIVE;
             dma_src = dma_rst;
             dma_dst = OAMSTART;
@@ -299,7 +315,7 @@ byte get_rom_bank() {
 
 // Write byte
 void wbyte(word addr, byte val) {
-   debugger_notify_mem_write(addr, val);
+   dbg_notify_write(addr, val);
 
    switch (addr & 0xF000) {
       case 0x0000: // External ram enable / disable
@@ -403,7 +419,9 @@ void wbyte(word addr, byte val) {
          }
          return;
       case 0xC000: // Work RAM
-      case 0xD000: ram[addr] = val; return;
+      case 0xD000:
+         ram[addr] = val;
+         return;
       case 0xE000: // 0xC000 mirror
          ram[addr - 0x2000] = val;
          return;
@@ -423,7 +441,8 @@ void wbyte(word addr, byte val) {
             return;
          }
          break;
-      default: break;
+      default:
+         break;
    }
    // We will only reach here if our address wasn't handled
    // in the 0xF000 case. We can assume we're dealing with
@@ -440,7 +459,9 @@ void wbyte(word addr, byte val) {
          cpu_reset_timer();
          ram[DIV] = 0;
          return;
-      case DMA: start_dma(val); return;
+      case DMA:
+         start_dma(val);
+         return;
       case JOYP:
          joy_last_write = val & 0x30;
          return;
@@ -474,9 +495,12 @@ void wbyte(word addr, byte val) {
       case CH4VOLUME:
       case CH4POLY:
       case CH4CONSEC:
-      case WAVETABLE: apu_reg_write(addr, val); return;
+      case WAVETABLE:
+         apu_reg_write(addr, val);
+         return;
 
-      default: break;
+      default:
+         break;
    }
 
    // 0xFF00 to 0xFFFF
@@ -485,13 +509,14 @@ void wbyte(word addr, byte val) {
 
 // Read byte
 byte rbyte(word addr) {
-   debugger_notify_mem_read(addr);
+   dbg_notify_read(addr);
 
    switch (addr & 0xF000) {
       case 0x0000: // ROM bank 0
       case 0x1000:
       case 0x2000:
-      case 0x3000: return rom[addr];
+      case 0x3000:
+         return rom[addr];
       case 0x4000: // Rom banks 1-X
       case 0x5000:
       case 0x6000:
@@ -517,7 +542,8 @@ byte rbyte(word addr) {
          }
          return banked_ram[addr - 0xA000];
       case 0xC000: // Work RAM
-      case 0xD000: return ram[addr];
+      case 0xD000:
+         return ram[addr];
       case 0xE000: // Mirror of 0xC000
          return ram[addr - 0x2000];
       case 0xF000:
@@ -535,7 +561,8 @@ byte rbyte(word addr) {
             return 0xFF;
          }
          break;
-      default: break;
+      default:
+         break;
    }
 
    // We will only reach here if our address wasn't handled
@@ -559,7 +586,8 @@ byte rbyte(word addr) {
             return 0xC0 | joy_dpad;
          }
          return 0xFF;
-      case IE: return 0xE0 | (ram[IE] & 0x1F);
+      case IE:
+         return 0xE0 | (ram[IE] & 0x1F);
       case IF:
          return 0xE0 | (ram[IF] & 0x1F);
 
@@ -591,9 +619,11 @@ byte rbyte(word addr) {
       case CH4VOLUME:
       case CH4POLY:
       case CH4CONSEC:
-      case WAVETABLE: return apu_reg_read(addr);
+      case WAVETABLE:
+         return apu_reg_read(addr);
 
-      default: break;
+      default:
+         break;
    }
 
    // HRAM and other registers
@@ -607,4 +637,6 @@ void wword(word addr, word val) {
 }
 
 // Read word
-word rword(word addr) { return rbyte(addr) | (rbyte(addr + 1) << 8); }
+word rword(word addr) {
+   return rbyte(addr) | (rbyte(addr + 1) << 8);
+}

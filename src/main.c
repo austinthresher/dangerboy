@@ -64,11 +64,11 @@ int main(int argc, char* args[]) {
 
    mem_init();
    mem_load_image(file);
-   debugger_init();
+   dbg_init();
    cpu_init();
    lcd_reset();
    if (debug_flag) {
-      debugger_break();
+      dbg_break();
    }
    bool rand_press  = false;
    byte rand_button = 0;
@@ -141,7 +141,7 @@ int main(int argc, char* args[]) {
 
                case SDL_KEYDOWN:
                   if (event.key.keysym.sym == SDLK_d) {
-                     debugger_break();
+                     dbg_break();
                   }
                   if (event.key.keysym.sym == SDLK_n) {
                      break_next = true; // Break after the next input is given
@@ -174,8 +174,11 @@ int main(int argc, char* args[]) {
                      press_button(SELECT);
                   }
                   break;
-               case SDL_QUIT: is_running = false; break;
-               default: break;
+               case SDL_QUIT:
+                  is_running = false;
+                  break;
+               default:
+                  break;
             }
          }
       }
@@ -185,8 +188,8 @@ int main(int argc, char* args[]) {
          // If we aren't ready to render, check if the debugger
          // wants to break. Otherwise, execute an opcode and
          // advance time.
-         if (debugger_should_break()) {
-            debugger_cli();
+         if (dbg_should_break()) {
+            dbg_cli();
          }
          cpu_execute_step();
       } else {
@@ -242,7 +245,7 @@ int main(int argc, char* args[]) {
    }
 
    SDL_Quit();
-   debugger_free();
+   dbg_free();
    mem_free();
    return 0;
 }

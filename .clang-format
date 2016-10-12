@@ -7,10 +7,10 @@ AlignConsecutiveDeclarations: false
 AlignEscapedNewlinesLeft: true
 AlignOperands:   true
 AlignTrailingComments: true
-AllowAllParametersOfDeclarationOnNextLine: true
-AllowShortBlocksOnASingleLine: true 
-AllowShortCaseLabelsOnASingleLine: true 
-AllowShortFunctionsOnASingleLine: All 
+AllowAllParametersOfDeclarationOnNextLine: false 
+AllowShortBlocksOnASingleLine: false 
+AllowShortCaseLabelsOnASingleLine: false 
+AllowShortFunctionsOnASingleLine: None 
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AlwaysBreakAfterDefinitionReturnType: None
