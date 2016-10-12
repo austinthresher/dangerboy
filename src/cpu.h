@@ -1,44 +1,32 @@
 #ifndef __CPU_H__
 #define __CPU_H__
 
-#include "datatypes.h"
+#include "defines.h"
 #include "memory.h"
 
-#define BITMASK_C 0x10
-#define BITMASK_H 0x20
-#define BITMASK_N 0x40
-#define BITMASK_Z 0x80
-#define INT_VBLANK 0x01
-#define INT_STAT 0x02
-#define INT_TIMA 0x04
-#define INT_INPUT 0x10
+typedef struct cpu_state_ {
+   word pc;                  // Program Counter
+   word sp;                  // Stack Pointer
+   byte a, b, c, d, e, h, l; // Registers
+   bool hf, cf, zf, nf;      // Flags
+   bool halted;
+   bool stopped;
+   bool ime;
+   bool ime_delay;
+} cpu_state;
 
-// For debugging
-byte cpu_last_op;
-word cpu_last_pc;
+// This is used to track time in the debugger
+cycle cpu_ticks;
 
-// Registers
-byte cpu_A;
-byte cpu_B;
-byte cpu_C;
-byte cpu_D;
-byte cpu_E;
-byte cpu_H;
-byte cpu_L;
-word cpu_PC; // Program Counter
-word cpu_SP; // Stack Pointer
-bool cpu_ime_delay;
-bool cpu_ime;
-bool cpu_halted;
-bool cpu_stopped;
-tick cpu_ticks;
-tick cpu_div;
-tick cpu_tima;
-void (*cpu_opcodes[0x100])();
-
+cpu_state cpu_get_state();
 void cpu_execute_step();
 void cpu_init();
 void cpu_reset();
-void cpu_advance_time(tick dt);
+void cpu_advance_time(cycle dt);
+void cpu_reset_timer();
+
+// For debugging
+byte get_last_op();
+word get_last_pc();
 
 #endif
