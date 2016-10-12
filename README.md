@@ -2,9 +2,10 @@
 
 Game Boy emulator written in C. Danger Boy focuses on emulating the original DMG with cycle accurate timing. Compatibility is fairly high.
 
-The current features are currently missing but planned:
+The following features are currently missing but planned:
 
  - Sound
+ - Window support in per-pixel mode
  - SRAM saving
  - Save states
  - Configurable controls
@@ -28,6 +29,14 @@ Danger Boy requires:
  - libncurses5-dev
 ```
 
+To build:
+
+```
+git clone https://github.com/austinthresher/dangerboy
+cd dangerboy
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
+```
 
 ### Usage
 
