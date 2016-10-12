@@ -23,7 +23,6 @@ int main(int argc, char* args[]) {
             mem_init();
             mem_load_image(args[1]);
             mem_print_rom_info();
-            mem_free();
             fflush(stdout);
             exit(0);
          }
@@ -246,6 +245,5 @@ int main(int argc, char* args[]) {
 
    SDL_Quit();
    dbg_free();
-   mem_free();
    return 0;
 }

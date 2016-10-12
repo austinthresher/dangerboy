@@ -32,9 +32,9 @@ byte rom_banks;
 byte ram_banks;
 byte rom_bank;
 byte ram_bank;
-byte* ram;
-byte* rom;
-byte* banked_ram;
+byte ram[0x10000];
+byte rom[0x400000];
+byte banked_ram[0x10000];
 char rom_name[16];
 byte joy_dpad;
 byte joy_buttons;
@@ -78,7 +78,6 @@ void release_dpad(dpad dir) {
 }
 
 void mem_init(void) {
-   mem_free();
    dma_dst        = 0;
    dma_src        = 0;
    dma_rst        = 0;
@@ -93,25 +92,6 @@ void mem_init(void) {
    joy_dpad       = 0x0F;
    joy_last_write = 0;
    dma            = INACTIVE;
-   ram            = (byte*)calloc(0x10000, 1);
-   banked_ram     = (byte*)calloc(0x10000, 1);
-}
-
-void mem_free() {
-   if (ram != NULL) {
-      free(ram);
-   }
-   ram = NULL;
-
-   if (banked_ram != NULL) {
-      free(banked_ram);
-   }
-   banked_ram = NULL;
-
-   if (rom != NULL) {
-      free(rom);
-   }
-   rom = NULL;
 }
 
 void mem_load_image(char* fname) {
@@ -119,7 +99,6 @@ void mem_load_image(char* fname) {
    FILE* fin = fopen(fname, "rb");
    if (fin == NULL) {
       fprintf(stderr, "Could not open file %s\n", fname);
-      mem_free();
       exit(1);
    }
 
@@ -131,7 +110,6 @@ void mem_load_image(char* fname) {
       if (bytes_read != 1) {
          fprintf(stderr, "Error reading %s\n", fname);
          fclose(fin);
-         mem_free();
          exit(1);
       }
       ram[i] = data;
@@ -142,10 +120,8 @@ void mem_load_image(char* fname) {
    if (rom_size < 8) {
       rom_banks = pow(2, rom_size + 1);
       rom_size  = rom_banks * 0x4000;
-      rom       = calloc(rom_size, 1);
    } else {
       fprintf(stderr, "Unsupported bank configuration: %02X\n", rom_size);
-      mem_free();
       exit(1);
    }
 
@@ -158,7 +134,6 @@ void mem_load_image(char* fname) {
       if (bytes_read != 1) {
          fprintf(stderr, "Error reading %s\n", fname);
          fclose(fin);
-         mem_free();
          exit(1);
       }
       rom[i] = data;

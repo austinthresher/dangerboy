@@ -18,7 +18,6 @@ void release_button(button but);
 void release_dpad(dpad dir);
 
 void mem_init();
-void mem_free();
 void mem_advance_time(cycle ticks);
 void mem_load_image(char* fname);
 void mem_print_rom_info();
