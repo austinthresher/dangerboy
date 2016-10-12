@@ -10,6 +10,14 @@ The current features are currently missing but planned:
  - Configurable controls
  - Different rendering modes
 
+
+### Screenshots
+
+![Prehistorik Man](https://imgur.com/C15onj1.gif) ![Stunt Race 3D Demo](https://imgur.com/pg5gY8x.gif)
+
+![Debugger](http://i.imgur.com/GrMGTcf.png)
+
+
 ### Building
 
 Danger Boy requires:
@@ -33,12 +41,12 @@ The `-d` flag starts the debugger.
 ### Controls
 
 ```
-  A Button  -  **Z**
-  B Button  -  **X**
-  Start     -  **Enter**
-  Select    -  **Right Shift**
-  Turbo     -  **Space**
-  Debugger  -  **D**
+  A Button  -  Z
+  B Button  -  X
+  Start     -  Enter
+  Select    -  Right Shift
+  Turbo     -  Space
+  Debugger  -  D
 ```
 
 
