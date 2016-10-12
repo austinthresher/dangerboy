@@ -3,9 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "memory.h"
 #include "debugger.h"
 #include "lcd.h"
-#include "memory.h"
+#include "apu.h"
 
 typedef enum mbc_type_ {
    NONE = 0,
@@ -457,14 +458,38 @@ void wbyte(word addr, byte val) {
          cpu_reset_timer();
          ram[DIV] = 0;
          return;
+      case DMA: start_dma(val); return;
+      case JOYP: joy_last_write = val & 0x30; return;
+
+      // LCD HW Registers
       case LCDC:
       case STAT:
       case SCY:
       case SCX:
       case LY:
       case LYC: lcd_reg_write(addr, val); return;
-      case DMA: start_dma(val); return;
-      case JOYP: joy_last_write = val & 0x30; return;
+
+      // Audio HW Registers
+      case CH1SWEEP:
+      case CH1LENGTH:
+      case CH1VOLUME:
+      case CH1LOFREQ:
+      case CH1HIFREQ:
+      case CH2LENGTH:
+      case CH2VOLUME:
+      case CH2LOFREQ:
+      case CH2HIFREQ:
+      case CH3ENABLE:
+      case CH3LENGTH:
+      case CH3VOLUME:
+      case CH3LODATA:
+      case CH3HIDATA:
+      case CH4LENGTH:
+      case CH4VOLUME:
+      case CH4POLY:
+      case CH4CONSEC:
+      case WAVETABLE: apu_reg_write(addr, val); return;
+
       default: break;
    }
 
@@ -551,12 +576,36 @@ byte rbyte(word addr) {
          return 0xFF;
       case IE: return 0xE0 | (ram[IE] & 0x1F);
       case IF: return 0xE0 | (ram[IF] & 0x1F);
+
+      // LCD HW Registers
       case LCDC:
       case STAT:
       case SCY:
       case SCX:
       case LY:
       case LYC: return lcd_reg_read(addr);
+
+      // Audio HW Registers
+      case CH1SWEEP:
+      case CH1LENGTH:
+      case CH1VOLUME:
+      case CH1LOFREQ:
+      case CH1HIFREQ:
+      case CH2LENGTH:
+      case CH2VOLUME:
+      case CH2LOFREQ:
+      case CH2HIFREQ:
+      case CH3ENABLE:
+      case CH3LENGTH:
+      case CH3VOLUME:
+      case CH3LODATA:
+      case CH3HIDATA:
+      case CH4LENGTH:
+      case CH4VOLUME:
+      case CH4POLY:
+      case CH4CONSEC:
+      case WAVETABLE: return apu_reg_read(addr); 
+
       default: break;
    }
 

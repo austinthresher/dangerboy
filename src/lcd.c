@@ -242,7 +242,7 @@ byte lcd_reg_read(word addr) {
 void lcd_reg_write(word addr, byte val) {
    switch (addr) {
       case LY:
-         ly     = 0;
+         ly = 0;
          debugger_notify_mem_write(LY, 0);
          break;
       case LCDC:

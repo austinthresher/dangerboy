@@ -1,6 +1,7 @@
 #include "debugger.h"
 #include "disas.h"
 #include "lcd.h"
+#include "cpu.h"
 #include "memory.h"
 
 #include <ncurses.h>
@@ -16,6 +17,7 @@ struct BreakpointEntry {
    byte watch_value;
 };
 
+cpu_state cpu;
 word memory_view_addr;
 char cmd[256];
 byte a, b, c, d, e, h, l;
@@ -63,51 +65,52 @@ void init_curses() {
 }
 
 void store_regs() {
-
+   cpu = cpu_get_state();
    // Save the state of CPU registers after each
    // step so that we can view what each operation
    // changed.
-   a  = cpu_a;
-   b  = cpu_b;
-   c  = cpu_c;
-   d  = cpu_d;
-   e  = cpu_e;
-   h  = cpu_h;
-   l  = cpu_l;
-   sp = cpu_sp;
-   ei = cpu_ime;
+   a  = cpu.a;
+   b  = cpu.b;
+   c  = cpu.c;
+   d  = cpu.d;
+   e  = cpu.e;
+   h  = cpu.h;
+   l  = cpu.l;
+   sp = cpu.sp;
+   ei = cpu.ime;
 }
 
 void print_reg_diff() {
 
    // Print any registers whose values changed
    // since they were last recorded.
+
    COLOR(console_pane, COL_VALUES);
-   if (a != cpu_a) {
-      wprintw(console_pane, "A: %02X => %02X\n", a, cpu_a);
+   if (a != cpu.a) {
+      wprintw(console_pane, "A: %02X => %02X\n", a, cpu.a);
    }
-   if (b != cpu_b) {
-      wprintw(console_pane, "B: %02X => %02X\n", b, cpu_b);
+   if (b != cpu.b) {
+      wprintw(console_pane, "B: %02X => %02X\n", b, cpu.b);
    }
-   if (c != cpu_c) {
-      wprintw(console_pane, "C: %02X => %02X\n", c, cpu_c);
+   if (c != cpu.c) {
+      wprintw(console_pane, "C: %02X => %02X\n", c, cpu.c);
    }
-   if (d != cpu_d) {
-      wprintw(console_pane, "D: %02X => %02X\n", d, cpu_d);
+   if (d != cpu.d) {
+      wprintw(console_pane, "D: %02X => %02X\n", d, cpu.d);
    }
-   if (e != cpu_e) {
-      wprintw(console_pane, "E: %02X => %02X\n", e, cpu_e);
+   if (e != cpu.e) {
+      wprintw(console_pane, "E: %02X => %02X\n", e, cpu.e);
    }
-   if (h != cpu_h) {
-      wprintw(console_pane, "H: %02X => %02X\n", h, cpu_h);
+   if (h != cpu.h) {
+      wprintw(console_pane, "H: %02X => %02X\n", h, cpu.h);
    }
-   if (l != cpu_l) {
-      wprintw(console_pane, "L: %02X => %02X\n", l, cpu_l);
+   if (l != cpu.l) {
+      wprintw(console_pane, "L: %02X => %02X\n", l, cpu.l);
    }
-   if (sp != cpu_sp) {
-      wprintw(console_pane, "SP: %04X => %04X\n", sp, cpu_sp);
+   if (sp != cpu.sp) {
+      wprintw(console_pane, "SP: %04X => %04X\n", sp, cpu.sp);
    }
-   if (ei != cpu_ime) {
+   if (ei != cpu.ime) {
       if (ei) {
          wprintw(console_pane, "IME: true => false\n");
       } else {
@@ -163,7 +166,7 @@ void print_memory_map(int x, word addr) {
                // Check if the value we're printing needs hilighting
                // (breakpoint, program counter, etc)
                bool hilite = false;
-               if (cur_addr == cpu_pc) {
+               if (cur_addr == cpu.pc) {
                   COLOR(memory_map, COL_OPCODE);
                   hilite = true;
                } else if (breakpoints[cur_addr].break_on_read
@@ -225,7 +228,7 @@ void print_status_bar() {
          rbyte(IE),
          rbyte(IF),
          cpu_ticks);
-   wprintw(status_bar, "\t[IME:%d]", cpu_ime ? 1 : 0);
+   wprintw(status_bar, "\t[IME:%d]", cpu.ime ? 1 : 0);
    wprintw(status_bar,
          "\t[LCD:%d STAT:%02X LY:%02X LYC:%02X TIMER: %06d]",
          (dread(0xFF40) & 0x80) ? 1 : 0,
@@ -237,15 +240,15 @@ void print_status_bar() {
    wprintw(status_bar,
          "[PC:%04X SP:%04X]\t"
          "[A:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X]",
-         cpu_pc,
-         cpu_sp,
-         cpu_a,
-         cpu_b,
-         cpu_c,
-         cpu_d,
-         cpu_e,
-         cpu_h,
-         cpu_l);
+         cpu.pc,
+         cpu.sp,
+         cpu.a,
+         cpu.b,
+         cpu.c,
+         cpu.d,
+         cpu.e,
+         cpu.h,
+         cpu.l);
    wrefresh(status_bar);
 }
 
@@ -261,10 +264,10 @@ void debugger_cli() {
    wmove(console_pane, console_height - 1, 0);
    if (show_pc) {
       COLOR(console_pane, COL_MEMADD);
-      wprintw(console_pane, "[%04X] ", cpu_pc);
+      wprintw(console_pane, "[%04X] ", cpu.pc);
       COLOR(console_pane, COL_NORMAL);
    }
-   disas_at(cpu_pc, console_pane);
+   disas_at(cpu.pc, console_pane);
    do {
       print_status_bar();
       print_memory_map(console_width, memory_view_addr);

@@ -1,13 +1,44 @@
 #include "cpu.h"
 #include "debugger.h"
 #include "lcd.h"
+#include "apu.h"
 #include "memory.h"
-#include "opcodes.h"
 
-cycle last_tima_overflow;
+// ----------------
+// Internal defines
+// ----------------
+
+#define BITMASK_C 0x10
+#define BITMASK_H 0x20
+#define BITMASK_N 0x40
+#define BITMASK_Z 0x80
+#define INT_MASK (INT_VBLANK | INT_STAT | INT_TIMA | INT_SERIAL | INT_INPUT)
+
+// ------------------
+// Internal variables
+// ------------------
+
+cpu_state cpu;
+byte last_op;
+word last_pc;
 word internal_timer;
 bool prev_timer_bit;
+cycle last_tima_overflow;
+void (*cpu_opcodes[0x100])();
+
+// All opcodes are defined in another file, but
+// they require the above variable declarations
+#include "opcodes.h"
+
+// ------------------
+// Internal functions
+// ------------------
+
 void build_op_table();
+
+// --------------------
+// Function definitions
+// --------------------
 
 void cpu_init() {
    build_op_table();
@@ -21,27 +52,26 @@ void cpu_reset() {
 
    // These startup values are based on
    // http://gbdev.gg8.se/wiki/articles/Power_Up_Sequence
-   cpu_pc         = 0x0100;
-   cpu_a          = 0x01;
-   cpu_b          = 0x00;
-   cpu_c          = 0x13;
-   cpu_d          = 0x00;
-   cpu_e          = 0xD8;
-   cpu_sp         = 0xFFFE;
-   cpu_h          = 0x01;
-   cpu_l          = 0x4D;
-   cpu_ime        = false;
-   cpu_ime_delay  = false;
+   cpu.pc         = 0x0100;
+   cpu.cf         = true;
+   cpu.hf         = true;
+   cpu.zf         = true;
+   cpu.nf         = false;
+   cpu.a          = 0x01;
+   cpu.b          = 0x00;
+   cpu.c          = 0x13;
+   cpu.d          = 0x00;
+   cpu.e          = 0xD8;
+   cpu.h          = 0x01;
+   cpu.l          = 0x4D;
+   cpu.sp         = 0xFFFE;
+   cpu.ime        = false;
+   cpu.ime_delay  = false;
+   cpu.halted     = false;
+   cpu.stopped    = false;
    cpu_ticks      = 0;
-   cpu_halted     = false;
-   cpu_stopped    = false;
    internal_timer = 0;
    prev_timer_bit = false;
-
-   FLAG_C = true;
-   FLAG_H = true;
-   FLAG_Z = true;
-   FLAG_N = false;
 
    // Setup our in-memory registers
    wbyte(0xFF02, 0x7E); // Serial Transfer Control
@@ -78,11 +108,18 @@ void cpu_reset() {
    wbyte(0xFFFF, 0x00); // IE
 }
 
-void cpu_reset_timer() { internal_timer = 0; }
+cpu_state cpu_get_state() {
+   return cpu;
+}
+
+void cpu_reset_timer() {
+   internal_timer = 0;
+}
 
 void cpu_advance_time(cycle dt) {
    lcd_advance_time(dt);
    mem_advance_time(dt);
+   apu_advance_time(dt);
 
    bool timer_on  = dread(TAC) & 4;
    byte tac_speed = dread(TAC) & 3;
@@ -129,19 +166,19 @@ void cpu_execute_step() {
    byte int_IF = dread(IF);
    byte irq    = int_IE & int_IF & INT_MASK;
 
-   if (irq && cpu_halted) {
-      cpu_halted = false;
-      if (cpu_ime) {
-         cpu_ime_delay = false;
+   if (irq && cpu.halted) {
+      cpu.halted = false;
+      if (cpu.ime) {
+         cpu.ime_delay = false;
       }
    }
 
-   if ((int_IF & INT_INPUT) && cpu_stopped) {
-      cpu_stopped = false;
+   if ((int_IF & INT_INPUT) && cpu.stopped) {
+      cpu.stopped = false;
    }
 
-   if (cpu_ime) {
-      if (!cpu_ime_delay) {
+   if (cpu.ime) {
+      if (!cpu.ime_delay) {
          byte target = 0x00;
          if (irq & INT_VBLANK) {
             target = 0x40;
@@ -171,23 +208,23 @@ void cpu_execute_step() {
          }
          if (target != 0x00) {
             raised  = true;
-            cpu_ime = false;
-            PUSHW(cpu_pc);
+            cpu.ime = false;
+            PUSHW(cpu.pc);
             TIME(2);
-            cpu_pc = target;
+            cpu.pc = target;
             TIME(1);
          }
       } else {
-         cpu_ime_delay = false;
+         cpu.ime_delay = false;
       }
    }
 
    if (!raised) {
-      if (!cpu_halted && !cpu_stopped) {
-         cpu_last_pc = cpu_pc;
-         cpu_last_op = rbyte(cpu_pc++);
-         (*cpu_opcodes[cpu_last_op])();
-         debugger_notify_mem_exec(cpu_pc);
+      if (!cpu.halted && !cpu.stopped) {
+         last_pc = cpu.pc;
+         last_op = rbyte(cpu.pc++);
+         (*cpu_opcodes[last_op])();
+         debugger_notify_mem_exec(cpu.pc);
       } else {
          cpu_nop();
       }

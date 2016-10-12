@@ -2,7 +2,7 @@
 #define __DISAS_H__
 
 #include "cpu.h"
-#include "datatypes.h"
+#include "defines.h"
 #include "memory.h"
 
 #include <ncurses.h>

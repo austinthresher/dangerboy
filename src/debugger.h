@@ -1,7 +1,7 @@
 #ifndef __DEBUGGER_H__
 #define __DEBUGGER_H__
 
-#include "datatypes.h"
+#include "defines.h"
 
 // ncurses utility defines
 // TODO: Move shared ncurses stuff to its own .h

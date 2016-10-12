@@ -2,7 +2,7 @@
 #define __LCD_H__
 
 #include "cpu.h"
-#include "datatypes.h"
+#include "defines.h"
 
 void lcd_reset();
 void lcd_advance_time(cycle cycles);

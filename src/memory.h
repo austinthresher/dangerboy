@@ -1,32 +1,7 @@
 #ifndef __MEMORY_H__
 #define __MEMORY_H__
 
-#include "datatypes.h"
-
-#define ROMNAME 0x0134
-#define CARTTYPE 0x0147
-#define ROMSIZE 0x0148
-#define RAMSIZE 0x0149
-#define OAMSTART 0xFE00
-#define OAMEND 0xFEA0
-#define JOYP 0xFF00
-#define DIV 0xFF04
-#define TIMA 0xFF05
-#define TMA 0xFF06
-#define TAC 0xFF07
-#define IF 0xFF0F
-#define LCDC 0xFF40
-#define STAT 0xFF41
-#define SCY 0xFF42
-#define SCX 0xFF43
-#define LY 0xFF44
-#define LYC 0xFF45
-#define DMA 0xFF46
-#define BGPAL 0xFF47
-#define OBJPAL 0xFF48
-#define WINX 0xFF4B
-#define WINY 0xFF4A
-#define IE 0xFFFF
+#include "defines.h"
 
 // Joypad interface.
 // TODO: Move this to a different file,
