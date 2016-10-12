@@ -10,6 +10,16 @@ The current features are currently missing but planned:
  - Configurable controls
  - Different rendering modes
 
+### Building
+
+Danger Boy requires:
+
+```
+ - cmake
+ - libsdl1.2-dev
+ - libncurses5-dev
+```
+
 
 ### Usage
 
@@ -22,12 +32,14 @@ The `-d` flag starts the debugger.
 
 ### Controls
 
+```
   A Button  -  **Z**
   B Button  -  **X**
   Start     -  **Enter**
   Select    -  **Right Shift**
   Turbo     -  **Space**
   Debugger  -  **D**
+```
 
 
 #### Danger Boy currently passes the following tests:
