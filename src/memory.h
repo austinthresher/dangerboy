@@ -8,19 +8,9 @@
 // maybe a gb.c / h to replace a lot of the
 // code in main.c?
 
-typedef enum button_ {
-   A = 1,
-   B = 2,
-   SELECT = 4,
-   START = 8
-} button;
+typedef enum button_ { A = 1, B = 2, SELECT = 4, START = 8 } button;
 
-typedef enum dpad_ {
-   RIGHT = 1,
-   LEFT = 2,
-   UP = 4,
-   DOWN = 8
-} dpad;
+typedef enum dpad_ { RIGHT = 1, LEFT = 2, UP = 4, DOWN = 8 } dpad;
 
 void press_button(button but);
 void press_dpad(dpad dir);

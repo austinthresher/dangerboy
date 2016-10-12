@@ -1,7 +1,7 @@
 #include "cpu.h"
+#include "apu.h"
 #include "debugger.h"
 #include "lcd.h"
-#include "apu.h"
 #include "memory.h"
 
 // ----------------
@@ -108,13 +108,9 @@ void cpu_reset() {
    wbyte(0xFFFF, 0x00); // IE
 }
 
-cpu_state cpu_get_state() {
-   return cpu;
-}
+cpu_state cpu_get_state() { return cpu; }
 
-void cpu_reset_timer() {
-   internal_timer = 0;
-}
+void cpu_reset_timer() { internal_timer = 0; }
 
 void cpu_advance_time(cycle dt) {
    lcd_advance_time(dt);

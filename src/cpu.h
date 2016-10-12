@@ -5,10 +5,10 @@
 #include "memory.h"
 
 typedef struct cpu_state_ {
-   word pc; // Program Counter
-   word sp; // Stack Pointer
-   byte a, b, c, d, e, h, l; // Registers  
-   bool hf, cf, zf, nf; // Flags
+   word pc;                  // Program Counter
+   word sp;                  // Stack Pointer
+   byte a, b, c, d, e, h, l; // Registers
+   bool hf, cf, zf, nf;      // Flags
    bool halted;
    bool stopped;
    bool ime;

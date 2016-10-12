@@ -1,10 +1,10 @@
 #include <SDL/SDL.h>
 #include <stdio.h>
 
-#include "memory.h"
 #include "cpu.h"
 #include "debugger.h"
 #include "lcd.h"
+#include "memory.h"
 
 #define INPUT_POLL_RATE 12 // Poll for input every 12 ms
 #define SCALE_FACTOR 2
@@ -218,8 +218,8 @@ int main(int argc, char* args[]) {
          // to RGB here.
          SDL_LockSurface(gb_screen);
 
-         uint8_t *framebuffer = lcd_get_framebuffer();
-         uint8_t *display     = gb_screen->pixels;
+         uint8_t* framebuffer = lcd_get_framebuffer();
+         uint8_t* display     = gb_screen->pixels;
          int pitch            = gb_screen->pitch;
          int bpp              = gb_screen->format->BytesPerPixel;
          for (int y = 0; y < gb_screen->h; ++y) {
@@ -230,7 +230,7 @@ int main(int argc, char* args[]) {
                   int small_x = x / SCALE_FACTOR;
                   int small_y = y / SCALE_FACTOR;
                   display[y * pitch + x * bpp + c] =
-                     framebuffer[small_y * 160 + small_x];
+                        framebuffer[small_y * 160 + small_x];
                }
             }
          }

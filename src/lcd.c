@@ -61,7 +61,6 @@ int ignore_oams;
 // the length of the VRAM and HBLANK modes.
 int scroll_delay;
 
-
 // ------------------
 // Internal functions
 // ------------------
@@ -86,37 +85,22 @@ byte color(byte col, byte pal);
 // must be drawn when this returns true.
 bool lcd_ready() {
    bool answer = ready;
-   ready = false;
+   ready       = false;
    return answer;
 }
 
-byte* lcd_get_framebuffer() {
-   return framebuffer;
-}
+byte* lcd_get_framebuffer() { return framebuffer; }
 
 // Exposes the internal timer for debugging
-cycle lcd_get_timer() {
-   return timer;
-}
+cycle lcd_get_timer() { return timer; }
 
-bool lcd_disabled() {
-   return disabled;
-}
+bool lcd_disabled() { return disabled; }
 
-bool lyc() {
-   return ly == dread(LYC);
-}
+bool lyc() { return ly == dread(LYC); }
 
-bool lcd_vram_accessible() {
-   return disabled
-      ||  mode != VRAM;
-}
+bool lcd_vram_accessible() { return disabled || mode != VRAM; }
 
-bool lcd_oam_accessible() {
-   return disabled
-      || (mode != VRAM
-       && mode != OAM);
-}
+bool lcd_oam_accessible() { return disabled || (mode != VRAM && mode != OAM); }
 
 // Calculates the actual color value from the given palette and index
 byte color(byte col, byte pal) {
@@ -258,7 +242,7 @@ void lcd_reg_write(word addr, byte val) {
             disabled = false;
          } else {
             if (!disabled) {
-               ready = true;
+               ready    = true;
                disabled = true;
                ly       = 0;
                debugger_notify_mem_write(LY, 0);
@@ -302,7 +286,7 @@ void lcd_advance_time(cycle cycles) {
    }
 
    int vram_length = 172 + scroll_delay;
-   cycle old_timer  = timer;
+   cycle old_timer = timer;
 
    timer += cycles;
 
@@ -360,7 +344,7 @@ void lcd_advance_time(cycle cycles) {
          // LY = 99 only lasts for 56 cycles,
          // which makes LY == 0 last for 856
          if (ly >= 153 && timer >= 56) {
-            ly     = 0;
+            ly = 0;
             try_fire_lyc();
             // After LYC == 0 at 99, the next 2 OAMs are ignored
             if (ignore_oams == 1) {
@@ -425,8 +409,7 @@ void draw_pixel(int x, int y) {
       // of the tile we're drawing.
       int tile_index = tilemap_tile_y * 32 + tilemap_tile_x;
 
-      tile_index =
-            dread(0x9800 + (bg_tilemap ? 0x400 : 0) + tile_index);
+      tile_index = dread(0x9800 + (bg_tilemap ? 0x400 : 0) + tile_index);
 
       int tile_addr = 0x8000;
       if (tile_index < 128) {
@@ -445,9 +428,8 @@ void draw_pixel(int x, int y) {
       int tile_px_x = tilemap_x & 7;
       int tile_px_y = tilemap_y & 7;
       int row_byte  = tile_addr + tile_px_y * 2;
-      int palette =
-            (!!(dread(row_byte) & (0x80 >> tile_px_x)))
-            | (!!(dread(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
+      int palette   = (!!(dread(row_byte) & (0x80 >> tile_px_x)))
+                    | (!!(dread(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
 
       if (palette == 0) {
          bg_in_front = false;
@@ -496,16 +478,15 @@ void draw_pixel(int x, int y) {
          byte tile_index_mask = sp_height - 1;
 
          int row_byte = 0x8000 + tile * 16 + (sp_row & tile_index_mask) * 2;
-         int palette =
-               (!!(dread(row_byte) & (0x80 >> tile_px_x)))
-               | (!!(dread(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
+         int palette  = (!!(dread(row_byte) & (0x80 >> tile_px_x)))
+                       | (!!(dread(row_byte + 1) & (0x80 >> tile_px_x)) << 1);
 
          if (palette == 0) {
             continue;
          }
 
          framebuffer[y * 160 + x] =
-            color(palette, dread(OBJPAL + !!(attr & 0x10)));
+               color(palette, dread(OBJPAL + !!(attr & 0x10)));
       }
    }
 }
@@ -541,8 +522,8 @@ void draw_scanline() {
    byte win_x_px     = 0;
 
    for (int i = 0; i < 160; i++) {
-      if ((dread(LCDC) & 0x20)
-       && ly >= win_y && i >= win_x - 7 && win_x < 166) {
+      if ((dread(LCDC) & 0x20) && ly >= win_y && i >= win_x - 7
+            && win_x < 166) {
          window = true;
       }
 
@@ -580,10 +561,10 @@ void draw_scanline() {
       if (lo & mask) {
          col += 1;
       }
-      
+
       bg_is_zero[i] = true;
       if (bg_enabled || window) {
-         bg_is_zero[i] = col == 0;
+         bg_is_zero[i]             = col == 0;
          framebuffer[ly * 160 + i] = color(col, dread(BGPAL));
 
          if (!window) {
@@ -674,11 +655,9 @@ void draw_scanline() {
                   continue;
                }
                framebuffer[ly * 160 + draw_x + sx] =
-                  color(scol, dread(OBJPAL + pal));
+                     color(scol, dread(OBJPAL + pal));
             }
          }
       }
    }
 }
-
-

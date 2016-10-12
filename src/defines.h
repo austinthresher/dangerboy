@@ -59,7 +59,7 @@
 #define CH3HIDATA 0xFF1E
 #define CH4LENGTH 0xFF20
 #define CH4VOLUME 0xFF21
-#define CH4POLY   0xFF22
+#define CH4POLY 0xFF22
 #define CH4CONSEC 0xFF23
 #define WAVETABLE 0xFF30
 
@@ -72,6 +72,5 @@
 #define INT_TIMA 0x04
 #define INT_SERIAL 0x08
 #define INT_INPUT 0x10
-
 
 #endif

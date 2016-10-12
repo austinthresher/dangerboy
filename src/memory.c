@@ -3,22 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "memory.h"
+#include "apu.h"
 #include "debugger.h"
 #include "lcd.h"
-#include "apu.h"
+#include "memory.h"
 
-typedef enum mbc_type_ {
-   NONE = 0,
-   MBC1 = 1,
-   MBC2 = 2,
-   MBC3 = 3
-} mbc_type;
+typedef enum mbc_type_ { NONE = 0, MBC1 = 1, MBC2 = 2, MBC3 = 3 } mbc_type;
 
-typedef enum mbc_bankmode_ {
-   ROM16_RAM8 = 0,
-   ROM4_RAM32 = 1
-} mbc_bankmode;
+typedef enum mbc_bankmode_ { ROM16_RAM8 = 0, ROM4_RAM32 = 1 } mbc_bankmode;
 
 typedef enum dma_state_ {
    INACTIVE,
@@ -59,13 +51,9 @@ byte get_rom_bank();
 // Function definitions
 // --------------------
 
-void dwrite(word addr, byte val) {
-   ram[addr] = val;
-}
+void dwrite(word addr, byte val) { ram[addr] = val; }
 
-byte dread(word addr) {
-   return ram[addr];
-}
+byte dread(word addr) { return ram[addr]; }
 
 void press_button(button but) {
    joy_buttons &= ~but;
@@ -77,13 +65,9 @@ void press_dpad(dpad dir) {
    wbyte(IF, rbyte(IF) | INT_INPUT);
 }
 
-void release_button(button but) {
-   joy_buttons |= but;
-}
+void release_button(button but) { joy_buttons |= but; }
 
-void release_dpad(dpad dir) {
-   joy_dpad |= dir;
-}
+void release_dpad(dpad dir) { joy_dpad |= dir; }
 
 void mem_init(void) {
    mem_free();
@@ -149,8 +133,8 @@ void mem_load_image(char* fname) {
    int rom_size = dread(ROMSIZE);
    if (rom_size < 8) {
       rom_banks = pow(2, rom_size + 1);
-      rom_size           = rom_banks * 0x4000;
-      rom            = calloc(rom_size, 1);
+      rom_size  = rom_banks * 0x4000;
+      rom       = calloc(rom_size, 1);
    } else {
       fprintf(stderr, "Unsupported bank configuration: %02X\n", rom_size);
       mem_free();
@@ -249,14 +233,14 @@ void mem_print_rom_info() {
 void start_dma(byte val) {
    if (dma == INACTIVE) {
       debugger_log("OAM DMA Starting");
-      dma = STARTING;
-      dma_src       = val << 8;
-      dma_dst       = OAMSTART;
+      dma     = STARTING;
+      dma_src = val << 8;
+      dma_dst = OAMSTART;
       ;
    } else {
       debugger_log("OAM DMA Restarting");
-      dma = RESTARTING;
-      dma_rst       = val << 8;
+      dma     = RESTARTING;
+      dma_rst = val << 8;
    }
 }
 
@@ -284,9 +268,9 @@ void mem_advance_time(cycle ticks) {
 
          if (dma == RESTARTING) {
             debugger_log("OAM DMA Restarted");
-            dma = ACTIVE;
-            dma_src       = dma_rst;
-            dma_dst       = OAMSTART;
+            dma     = ACTIVE;
+            dma_src = dma_rst;
+            dma_dst = OAMSTART;
             continue;
          }
       }
@@ -298,8 +282,7 @@ byte get_rom_bank() {
       // In ROM16_RAM8 mode, ram_bank
       // holds bits 5-6 of our ROM bank index.
       if (banking == ROM16_RAM8) {
-         byte bank = (rom_bank & 0x1F)
-                     | ((ram_bank & 0x3) << 5);
+         byte bank = (rom_bank & 0x1F) | ((ram_bank & 0x3) << 5);
          return bank;
       } else {
          byte bank = rom_bank & 0x1F;
@@ -413,8 +396,7 @@ void wbyte(word addr, byte val) {
          if (ram_locked == false) {
             addr -= 0xA000;
             if (mbc == MBC3 || banking == ROM4_RAM32) {
-               banked_ram[(addr + ram_bank * 0x2000) & 0xFFFF] =
-                     val;
+               banked_ram[(addr + ram_bank * 0x2000) & 0xFFFF] = val;
                return;
             }
             banked_ram[addr] = val;
@@ -459,7 +441,9 @@ void wbyte(word addr, byte val) {
          ram[DIV] = 0;
          return;
       case DMA: start_dma(val); return;
-      case JOYP: joy_last_write = val & 0x30; return;
+      case JOYP:
+         joy_last_write = val & 0x30;
+         return;
 
       // LCD HW Registers
       case LCDC:
@@ -467,7 +451,9 @@ void wbyte(word addr, byte val) {
       case SCY:
       case SCX:
       case LY:
-      case LYC: lcd_reg_write(addr, val); return;
+      case LYC:
+         lcd_reg_write(addr, val);
+         return;
 
       // Audio HW Registers
       case CH1SWEEP:
@@ -531,8 +517,7 @@ byte rbyte(word addr) {
          }
          return banked_ram[addr - 0xA000];
       case 0xC000: // Work RAM
-      case 0xD000:
-         return ram[addr];
+      case 0xD000: return ram[addr];
       case 0xE000: // Mirror of 0xC000
          return ram[addr - 0x2000];
       case 0xF000:
@@ -575,7 +560,8 @@ byte rbyte(word addr) {
          }
          return 0xFF;
       case IE: return 0xE0 | (ram[IE] & 0x1F);
-      case IF: return 0xE0 | (ram[IF] & 0x1F);
+      case IF:
+         return 0xE0 | (ram[IF] & 0x1F);
 
       // LCD HW Registers
       case LCDC:
@@ -583,7 +569,8 @@ byte rbyte(word addr) {
       case SCY:
       case SCX:
       case LY:
-      case LYC: return lcd_reg_read(addr);
+      case LYC:
+         return lcd_reg_read(addr);
 
       // Audio HW Registers
       case CH1SWEEP:
@@ -604,7 +591,7 @@ byte rbyte(word addr) {
       case CH4VOLUME:
       case CH4POLY:
       case CH4CONSEC:
-      case WAVETABLE: return apu_reg_read(addr); 
+      case WAVETABLE: return apu_reg_read(addr);
 
       default: break;
    }
@@ -620,6 +607,4 @@ void wword(word addr, word val) {
 }
 
 // Read word
-word rword(word addr) {
-   return rbyte(addr) | (rbyte(addr + 1) << 8);
-}
+word rword(word addr) { return rbyte(addr) | (rbyte(addr + 1) << 8); }
