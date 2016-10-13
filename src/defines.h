@@ -45,11 +45,11 @@
 #define IE 0xFFFF
 #define CH1SWEEP 0xFF10
 #define CH1LENGTH 0xFF11
-#define CH1VOLUME 0xFF12
+#define CH1ENV    0xFF12
 #define CH1LOFREQ 0xFF13
 #define CH1HIFREQ 0xFF14
 #define CH2LENGTH 0xFF16
-#define CH2VOLUME 0xFF17
+#define CH2ENV    0xFF17
 #define CH2LOFREQ 0xFF18
 #define CH2HIFREQ 0xFF19
 #define CH3ENABLE 0xFF1A
@@ -58,8 +58,8 @@
 #define CH3LODATA 0xFF1D
 #define CH3HIDATA 0xFF1E
 #define CH4LENGTH 0xFF20
-#define CH4VOLUME 0xFF21
-#define CH4POLY 0xFF22
+#define CH4ENV    0xFF21
+#define CH4POLY   0xFF22
 #define CH4CONSEC 0xFF23
 #define WAVETABLE 0xFF30
 

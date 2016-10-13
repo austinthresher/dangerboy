@@ -92,6 +92,9 @@ void mem_init(void) {
    joy_dpad       = 0x0F;
    joy_last_write = 0;
    dma            = INACTIVE;
+   for (int i = 0; i < 0xFF; ++i) {
+      ram[0xFF00 + i] = 0xFF;
+   }
 }
 
 void mem_load_image(char* fname) {
@@ -454,11 +457,11 @@ void wbyte(word addr, byte val) {
       // Audio HW Registers
       case CH1SWEEP:
       case CH1LENGTH:
-      case CH1VOLUME:
+      case CH1ENV:
       case CH1LOFREQ:
       case CH1HIFREQ:
       case CH2LENGTH:
-      case CH2VOLUME:
+      case CH2ENV:
       case CH2LOFREQ:
       case CH2HIFREQ:
       case CH3ENABLE:
@@ -467,7 +470,7 @@ void wbyte(word addr, byte val) {
       case CH3LODATA:
       case CH3HIDATA:
       case CH4LENGTH:
-      case CH4VOLUME:
+      case CH4ENV:
       case CH4POLY:
       case CH4CONSEC:
       case WAVETABLE:
@@ -578,11 +581,11 @@ byte rbyte(word addr) {
       // Audio HW Registers
       case CH1SWEEP:
       case CH1LENGTH:
-      case CH1VOLUME:
+      case CH1ENV:
       case CH1LOFREQ:
       case CH1HIFREQ:
       case CH2LENGTH:
-      case CH2VOLUME:
+      case CH2ENV:
       case CH2LOFREQ:
       case CH2HIFREQ:
       case CH3ENABLE:
@@ -591,7 +594,7 @@ byte rbyte(word addr) {
       case CH3LODATA:
       case CH3HIDATA:
       case CH4LENGTH:
-      case CH4VOLUME:
+      case CH4ENV:
       case CH4POLY:
       case CH4CONSEC:
       case WAVETABLE:

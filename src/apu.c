@@ -66,41 +66,41 @@ byte ch4_poly_clock;
 byte apu_reg_read(word addr) {
    switch (addr) {
       case CH1SWEEP:
-         return ch1_sweep_val | (ch1_sweep_dir << 3) | (ch1_sweep_time << 4);
+         return ch1_sweep_val | (ch1_sweep_dir << 3) | (ch1_sweep_time << 4) | 0x80;
       case CH1LENGTH: 
          return ch1_len | (ch1_duty << 6);
-      case CH1VOLUME: // TODO: Envelope is a more accurate name
+      case CH1ENV: // TODO: Envelope is a more accurate name
          return ch1_env_len | (ch1_env_dir << 3) | (ch1_env_default << 4);
       case CH1LOFREQ: 
          return 0xFF; // Write only
       case CH1HIFREQ: 
-         return ch1_continue << 6;
+         return (ch1_continue << 6) | 0xBF;
       case CH2LENGTH: 
-         return ch2_duty << 6;
-      case CH2VOLUME: 
+         return (ch2_duty << 6) | 0x3F;
+      case CH2ENV: 
          return ch2_env_len | (ch2_env_dir << 3) | (ch2_env_default << 4);
       case CH2LOFREQ: 
          return 0xFF;
       case CH2HIFREQ: 
-         return ch2_continue << 6;
+         return (ch2_continue << 6) | 0xBF;
       case CH3ENABLE: 
-         return ch3_on << 7;
+         return (ch3_on << 7) | 0x7F;
       case CH3LENGTH: 
          return ch3_len;
       case CH3VOLUME: 
-         return ch3_vol << 5;
+         return (ch3_vol << 5) | 0x9F;
       case CH3LODATA: 
          return 0xFF;
       case CH3HIDATA:
-         return ch3_continue << 6;
+         return (ch3_continue << 6) | 0xBF;
       case CH4LENGTH: 
-         return ch4_len;
-      case CH4VOLUME: 
+         return ch4_len | 0xC0;
+      case CH4ENV: 
          return ch4_env_len | (ch4_env_dir << 3) | (ch4_env_default << 4);
       case CH4POLY:
          return ch4_poly_ratio | (ch4_poly_num << 3) | (ch4_poly_clock << 4);
       case CH4CONSEC: 
-         return ch4_continue << 6;
+         return (ch4_continue << 6) | 0xBF;
       default:
          break;
    }
@@ -118,7 +118,7 @@ void apu_reg_write(word addr, byte val) {
          ch1_len  = val & 0x3F;
          ch1_duty = (val & 0xC0) >> 6;
          return;
-      case CH1VOLUME: // TODO: Envelope is a more accurate name
+      case CH1ENV: // TODO: Envelope is a more accurate name
          ch1_env_len     = val & 0x03;
          ch1_env_dir     = val & 0x04;
          ch1_env_default = (val & 0xF0) >> 4;
@@ -136,7 +136,7 @@ void apu_reg_write(word addr, byte val) {
          ch2_len  = val & 0x3F;
          ch2_duty = (val & 0xC0) >> 6;
          return;
-      case CH2VOLUME: 
+      case CH2ENV: 
          ch2_env_len     = val & 0x03;
          ch2_env_dir     = val & 0x04;
          ch2_env_default = (val & 0xF0) >> 4;
@@ -172,7 +172,7 @@ void apu_reg_write(word addr, byte val) {
       case CH4LENGTH: 
          ch4_len = val & 0x3F;
          return;
-      case CH4VOLUME: 
+      case CH4ENV: 
          ch4_env_len     = val & 0x03;
          ch4_env_dir     = val & 0x04;
          ch4_env_default = (val & 0xF0) >> 4;
