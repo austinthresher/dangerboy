@@ -69,10 +69,10 @@ byte apu_reg_read(word addr) {
          return ch1_sweep_val | (ch1_sweep_dir << 3) | (ch1_sweep_time << 4) | 0x80;
       case CH1LENGTH: 
          return ch1_len | (ch1_duty << 6);
-      case CH1ENV: // TODO: Envelope is a more accurate name
+      case CH1ENV:
          return ch1_env_len | (ch1_env_dir << 3) | (ch1_env_default << 4);
       case CH1LOFREQ: 
-         return 0xFF; // Write only
+         return 0xFF;
       case CH1HIFREQ: 
          return (ch1_continue << 6) | 0xBF;
       case CH2LENGTH: 

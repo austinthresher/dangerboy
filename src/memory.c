@@ -9,15 +9,8 @@
 #include "memory.h"
 
 typedef enum mbc_type_ { NONE = 0, MBC1 = 1, MBC2 = 2, MBC3 = 3 } mbc_type;
-
 typedef enum mbc_bankmode_ { ROM16_RAM8 = 0, ROM4_RAM32 = 1 } mbc_bankmode;
-
-typedef enum dma_state_ {
-   INACTIVE,
-   STARTING,
-   ACTIVE,
-   RESTARTING,
-} dma_state;
+typedef enum dma_state_ { INACTIVE, STARTING, ACTIVE, RESTARTING } dma_state;
 
 // ------------------
 // Internal variables
@@ -230,7 +223,6 @@ void start_dma(byte val) {
       dma     = STARTING;
       dma_src = val << 8;
       dma_dst = OAMSTART;
-      ;
    } else {
       dbg_log("OAM DMA Restarting");
       dma     = RESTARTING;
@@ -248,10 +240,8 @@ void mem_advance_time(cycle ticks) {
             continue;
          }
 
-         dwrite(dma_dst, rbyte(dma_src));
+         dwrite(dma_dst++, rbyte(dma_src++));
 
-         dma_dst++;
-         dma_src++;
          if (dma_dst >= OAMEND + 1 && dma != RESTARTING) {
             dma_dst = 0;
             dma_src = 0;

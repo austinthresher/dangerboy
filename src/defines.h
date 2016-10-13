@@ -62,6 +62,9 @@
 #define CH4POLY   0xFF22
 #define CH4CONSEC 0xFF23
 #define WAVETABLE 0xFF30
+#define VOLUME    0xFF24
+#define OUTSELECT 0xFF25
+#define SOUNDENABLE 0xFF26
 
 // ----------
 // Interrupts
