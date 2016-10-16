@@ -7,6 +7,9 @@
 
 #define BUFFER_SIZE 512
 #define TYPE int16_t
+#define LENGTH_CLOCK 16384
+#define ENVELOPE_CLOCK 65536
+#define SWEEP_CLOCK 32768
 
 // ------------------
 // Internal variables
@@ -57,12 +60,28 @@ bool ch4_env_dir;
 byte ch4_poly_ratio;
 bool ch4_poly_num;
 byte ch4_poly_clock;
+int length_timer;
+int sweep_timer;
+int envelope_timer;
+
+// ------------------
+// Internal functions
+// ------------------
+
+void advance_length();
+void advance_sweep();
+void advance_envelope();
 
 // --------------------
 // Function definitions
 // --------------------
 
-// TODO: Should write-only bits return 1 or 0?
+void apu_reset() {
+   length_timer   = 0;
+   sweep_timer    = 0;
+   envelope_timer = 0;
+}
+
 byte apu_reg_read(word addr) {
    switch (addr) {
       case CH1SWEEP:
@@ -194,5 +213,58 @@ void apu_reg_write(word addr, byte val) {
 }
 
 void apu_advance_time(cycle cycles) {
+   sweep_timer += cycles;
+   while (sweep_timer > SWEEP_CLOCK) {
+      sweep_timer -= SWEEP_CLOCK;
+      advance_sweep();
+   }
+
+   length_timer += cycles;
+   while (length_timer >= LENGTH_CLOCK) {
+      length_timer -= LENGTH_CLOCK;
+      advance_length();
+   }
+
+   envelope_timer += cycles;
+   while (envelope_timer >= ENVELOPE_CLOCK) {
+      envelope_timer -= ENVELOPE_CLOCK;
+      advance_envelope();
+   }
+}
+
+
+void advance_length() {
+   if (ch1_on) {
+      if (ch1_len) {
+         ch1_on = !!--ch1_len;
+      }
+   }
+
+   if (ch2_on) {
+      if (ch2_len) {
+         ch2_on = !!--ch2_len;
+      }
+   }
+
+   if (ch3_on) {
+      if (ch3_len) {
+         ch3_on = !!--ch3_len;
+      }
+   }
+
+   if (ch4_on) {
+      if (ch4_len) {
+         ch4_on = !!--ch4_len;
+      }
+   }
+}
+
+void advance_sweep() {
 
 }
+
+void advance_envelope() {
+
+}
+
+

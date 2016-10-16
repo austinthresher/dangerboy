@@ -39,7 +39,6 @@ byte win_ly;
 byte ly;
 byte x_pixel;
 byte framebuffer[160 * 144];
-bool stat_fired;
 bool disabled;
 bool ready;
 
@@ -49,13 +48,6 @@ bool stat_vbl_on;
 bool stat_hbl_on;
 bool stat_oam_on;
 bool stat_lyc_on;
-
-// These values are used to replicate the behavior found in
-// http://gameboy.mongenel.com/dmg/istat98.txt
-// This doesn't seem to be totally accurate, so this behavior
-// needs to be verified.
-bool vblank_fired;
-int ignore_oams;
 
 // Mooneye tests demonstrate that SCX affects
 // the length of the VRAM and HBLANK modes.
@@ -69,6 +61,8 @@ void draw_pixel(int x, int y);
 void draw_scanline();
 void set_mode(lcd_mode new_mode);
 void calc_timing();
+void fire_stat();
+void fire_vblank();
 void try_fire_oam();
 void try_fire_hblank();
 void try_fire_vblank();
@@ -129,14 +123,8 @@ byte color(byte col, byte pal) {
    return C_WHITE;
 }
 
-// Fires STAT, but only if STAT didn't fire last update
-bool fire_stat() {
-   if (!stat_fired) {
-      wbyte(IF, dread(IF) | INT_STAT);
-      stat_fired = true;
-      return true;
-   }
-   return false;
+void fire_stat() {
+   wbyte(IF, dread(IF) | INT_STAT);
 }
 
 // This fires the hardware VBLANK interrupt, not STAT
@@ -149,9 +137,6 @@ void lcd_reset() {
    disabled     = false;
    ready        = false;
    x_pixel      = 0;
-   vblank_fired = false;
-   ignore_oams  = 0;
-   stat_fired   = false;
    mode         = OAM;
    ly           = 0;
    win_ly       = 0;
@@ -165,47 +150,34 @@ void lcd_reset() {
 
 void try_fire_oam() {
    if (stat_oam_on) {
-      if (ignore_oams == 0) {
-         // STAT documentation indicates that the OAM after a STAT VBLANK
-         // should be skipped, but this causes mooneye intr_1_2_timing to
-         // fail, which is verified on real hardware.
-         //    if (!(ly == 0 && vblank_fired)) {
+      // According to the results in the oam_and_hblank
+      // test, having hblank enabled only causes one
+      // STAT interrupt to fire on each line, with the
+      // exception of line 0.
+      if (!stat_hbl_on || ly == 0) {
          fire_stat();
       }
    }
-   if (ignore_oams) {
-      ignore_oams--;
-   }
-   vblank_fired = false;
 }
 
 void try_fire_hblank() {
    if (stat_hbl_on) {
-      if (fire_stat()) {
-         ignore_oams = 1;
-      }
+      fire_stat();
    }
 }
 
 void try_fire_vblank() {
    if (stat_vbl_on) {
-      if (fire_stat()) {
-         vblank_fired = true;
-      }
+      fire_stat();
    } else if (ly == 144) {
-      // OAM interrupt still fires on ly == 144,
-      // but only if STAT VBLANK interrupt did not
+      // OAM interrupt still fires on ly == 144
       try_fire_oam();
    }
 }
 
 void try_fire_lyc() {
-   if (stat_lyc_on && lyc() && !vblank_fired) {
-      if (fire_stat()) {
-         if (ly < 0x90) {
-            ignore_oams = 1;
-         }
-      }
+   if (stat_lyc_on && lyc()) {
+      fire_stat();
    }
 }
 
@@ -304,8 +276,6 @@ void calc_timing() {
 
 // Advance the LCD state by a specified number of cycles.
 void lcd_advance_time(cycle cycles) {
-   stat_fired = false;
-
    if (disabled) {
       return;
    }
@@ -371,10 +341,6 @@ void lcd_advance_time(cycle cycles) {
          if (ly >= 153 && timer >= 56) {
             ly = 0;
             try_fire_lyc();
-            // After LYC == 0 at 99, the next 2 OAMs are ignored
-            if (ignore_oams == 1) {
-               ignore_oams = 2;
-            }
          } else if (timer >= 456) {
             timer -= 456;
             ly++;
