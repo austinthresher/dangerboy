@@ -41,6 +41,7 @@ byte x_pixel;
 byte framebuffer[160 * 144];
 bool disabled;
 bool ready;
+bool stat_raised;
 
 // These variables combined are the STAT register.
 lcd_mode mode;
@@ -123,6 +124,10 @@ byte color(byte col, byte pal) {
    return C_WHITE;
 }
 
+void raise_stat() {
+   stat_raised = true;
+}
+
 void fire_stat() {
    wbyte(IF, dread(IF) | INT_STAT);
 }
@@ -146,7 +151,9 @@ void lcd_reset() {
    stat_vbl_on  = false;
    stat_oam_on  = false;
    stat_lyc_on  = false;
+   stat_raised  = false;
 }
+
 
 void try_fire_oam() {
    if (stat_oam_on) {
@@ -155,20 +162,20 @@ void try_fire_oam() {
       // STAT interrupt to fire on each line, with the
       // exception of line 0.
       if (!stat_hbl_on || ly == 0) {
-         fire_stat();
+         raise_stat();
       }
    }
 }
 
 void try_fire_hblank() {
    if (stat_hbl_on) {
-      fire_stat();
+      raise_stat();
    }
 }
 
 void try_fire_vblank() {
    if (stat_vbl_on) {
-      fire_stat();
+      raise_stat();
    } else if (ly == 144) {
       // OAM interrupt still fires on ly == 144
       try_fire_oam();
@@ -177,7 +184,7 @@ void try_fire_vblank() {
 
 void try_fire_lyc() {
    if (stat_lyc_on && lyc()) {
-      fire_stat();
+      raise_stat();
    }
 }
 
@@ -251,6 +258,7 @@ void lcd_reg_write(word addr, byte val) {
          stat_hbl_on = val & BIT_HBLANK;
          stat_oam_on = val & BIT_OAM;
          stat_lyc_on = val & BIT_LYC;
+         // This fixes Road Rash
          if (mode == HBLANK || mode == VBLANK) {
             fire_stat();
          }
@@ -280,8 +288,14 @@ void lcd_advance_time(cycle cycles) {
       return;
    }
 
+   // It looks like STAT fires off of an edge detection?
+   // If the internal stat interrupt line doesn't change,
+   // STAT isn't fired. Here we store the previous STAT
+   // state, and fire the interrupt if it went from lo -> hi
+   bool no_stat    = !stat_raised;
    int vram_length = 172 + scroll_delay;
    cycle old_timer = timer;
+   stat_raised     = false;
 
    timer += cycles;
 
@@ -323,7 +337,6 @@ void lcd_advance_time(cycle cycles) {
             x_pixel = 0;
             ly++;
             dbg_notify_write(LY, ly);
-            try_fire_lyc();
             if (ly >= 144) {
                fire_vblank();
                set_mode(VBLANK);
@@ -356,6 +369,11 @@ void lcd_advance_time(cycle cycles) {
             }
          }
          break;
+   }
+
+   try_fire_lyc();
+   if (no_stat && stat_raised) {
+      fire_stat();
    }
 }
 
