@@ -249,6 +249,8 @@ void lcd_reg_write(word addr, byte val) {
                disabled = true;
                ly       = 0;
                dbg_notify_write(LY, 0);
+               // Mr. Do expects to find bit 2 set while the LCD
+               // is off. TODO: Test what should happen here.
                set_mode(HBLANK);
             }
          }
@@ -258,7 +260,8 @@ void lcd_reg_write(word addr, byte val) {
          stat_hbl_on = val & BIT_HBLANK;
          stat_oam_on = val & BIT_OAM;
          stat_lyc_on = val & BIT_LYC;
-         // This fixes Road Rash
+         // This fixes Road Rash. TODO: There's probably a more
+         // logical reason for this happening. Try more testing.
          if (mode == HBLANK || mode == VBLANK) {
             fire_stat();
          }
@@ -291,7 +294,7 @@ void lcd_advance_time(cycle cycles) {
    // It looks like STAT fires off of an edge detection?
    // If the internal stat interrupt line doesn't change,
    // STAT isn't fired. Here we store the previous STAT
-   // state, and fire the interrupt if it went from lo -> hi
+   // state, and fire the interrupt if it went from lo -> hi.
    bool no_stat    = !stat_raised;
    int vram_length = 172 + scroll_delay;
    cycle old_timer = timer;
@@ -322,7 +325,7 @@ void lcd_advance_time(cycle cycles) {
          }
 #endif
          // According to Mooneye tests, HBLANK STAT interrupt is 4 cycles early
-         if (old_timer < vram_length - 4 && timer >= vram_length - 4) {
+         if (timer >= vram_length - 4) {
             try_fire_hblank();
          }
          if (timer >= vram_length) {
@@ -340,10 +343,8 @@ void lcd_advance_time(cycle cycles) {
             if (ly >= 144) {
                fire_vblank();
                set_mode(VBLANK);
-               try_fire_vblank();
             } else {
                set_mode(OAM);
-               try_fire_oam();
             }
          }
          break;
@@ -353,7 +354,6 @@ void lcd_advance_time(cycle cycles) {
          // which makes LY == 0 last for 856
          if (ly >= 153 && timer >= 56) {
             ly = 0;
-            try_fire_lyc();
          } else if (timer >= 456) {
             timer -= 456;
             ly++;
@@ -361,17 +361,27 @@ void lcd_advance_time(cycle cycles) {
                ly     = 0;
                win_ly = 0;
                set_mode(OAM);
-               try_fire_oam();
-            }
-            // LY == 0 happens during VBLANK for LY == 153
-            if (ly != 0) {
-               try_fire_lyc();
             }
          }
          break;
    }
 
    try_fire_lyc();
+   switch (mode) {
+      case OAM:
+         try_fire_oam();
+         break;
+      case HBLANK:
+         // Although HBLANK fires 4 cycles early, we need
+         // to keep the flag raised to prevent an incorrect
+         // interrupt occuring by writing to STAT
+         try_fire_hblank();
+         break;
+      case VBLANK:
+         try_fire_vblank();
+         break;
+   }
+
    if (no_stat && stat_raised) {
       fire_stat();
    }
