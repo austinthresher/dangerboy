@@ -1,3 +1,8 @@
+# Copyright (C) 2014-2016 Joonas Javanainen <joonas.javanainen@gmail.com>
+#
+# This software may be modified and distributed under the terms
+# of the MIT license. See the LICENSE file for details.
+
 # This file is a modified portion of mooneye-gb
 # The original file, and the rest of the project, can be viewed at
 # https://github.com/Gekkio/mooneye-gb
