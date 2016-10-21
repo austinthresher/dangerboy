@@ -24,6 +24,7 @@ word last_pc;
 word system_timer;
 bool prev_timer;
 bool fire_tima;
+bool halt_bug;
 
 // Array of opcode function pointers
 void (*cpu_opcodes[0x100])();
@@ -171,6 +172,16 @@ void cpu_advance_time(cycle dt) {
    dwrite(DIV, system_timer >> 8);
 }
 
+byte next_opcode() {
+   last_pc = cpu.pc;
+   last_op = rbyte(cpu.pc);
+   if (!halt_bug) {
+      cpu.pc++;
+   }
+   halt_bug = false;
+   return last_op;
+}
+
 void cpu_execute_step() {
    // Check interrupts
    bool raised = false;
@@ -180,9 +191,6 @@ void cpu_execute_step() {
 
    if (irq && cpu.halted) {
       cpu.halted = false;
-      if (cpu.ime) {
-         cpu.ime_delay = false;
-      }
    }
 
    if ((intf & INT_INPUT) && cpu.stopped) {
@@ -233,9 +241,7 @@ void cpu_execute_step() {
 
    if (!raised) {
       if (!cpu.halted && !cpu.stopped) {
-         last_pc = cpu.pc;
-         last_op = rbyte(cpu.pc++);
-         (*cpu_opcodes[last_op])();
+         (*cpu_opcodes[next_opcode()])();
          dbg_notify_exec(cpu.pc);
       } else {
          cpu_nop();

@@ -6,7 +6,7 @@
 #include "lcd.h"
 #include "memory.h"
 
-#define INPUT_POLL_RATE 12 // Poll for input every 12 ms
+#define INPUT_POLL_RATE 7 // Poll for input every 7 ms
 #define SCALE_FACTOR 2
 
 int main(int argc, char* args[]) {
@@ -59,7 +59,6 @@ int main(int argc, char* args[]) {
    int t_prev      = SDL_GetTicks();
    int i_prev      = SDL_GetTicks();
    char* file      = args[1];
-   bool break_next = false;
 
    mem_init();
    mem_load_image(file);
@@ -141,9 +140,6 @@ int main(int argc, char* args[]) {
                case SDL_KEYDOWN:
                   if (event.key.keysym.sym == SDLK_d) {
                      dbg_break();
-                  }
-                  if (event.key.keysym.sym == SDLK_n) {
-                     break_next = true; // Break after the next input is given
                   }
                   if (event.key.keysym.sym == SDLK_SPACE) {
                      turbo = true;

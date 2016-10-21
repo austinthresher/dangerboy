@@ -1912,7 +1912,11 @@ void cpu_scf() {
 
 void cpu_halt() {
    TIME(1);
-   cpu.halted = true;
+   if (!cpu.ime && (dread(IE) & dread(IF) & 0x1F)) {
+      halt_bug = true;
+   } else {
+      cpu.halted = true;
+   }
 }
 
 void cpu_stop() {
