@@ -366,7 +366,7 @@ void bit(byte* inp, byte bit) {
       t = FETCH(cpu.h, cpu.l);
    }
 
-   cpu.zf = (!(t & (1 << bit)));
+   cpu.zf = !(t & (1 << bit));
    cpu.nf = (false);
    cpu.hf = (true);
 }

@@ -215,6 +215,9 @@ void set_mode(lcd_mode new_mode) {
 byte lcd_reg_read(word addr) {
    switch (addr) {
       case LY:
+         if (lcd_disabled) {
+            return 0;
+         }
          return ly;
       case STAT:
          return 0x80 | (stat_lyc_on << 6) | (stat_oam_on << 5)
@@ -240,6 +243,7 @@ void lcd_reg_write(word addr, byte val) {
                // According to Gambatte tests, this is supposed
                // to last the same length as OAM mode
                timer = 200 - 84;
+               ly    = 0;
                try_fire_lyc();
             }
             disabled = false;
@@ -247,7 +251,6 @@ void lcd_reg_write(word addr, byte val) {
             if (!disabled) {
                ready    = true;
                disabled = true;
-               ly       = 0;
                dbg_notify_write(LY, 0);
                // Mr. Do expects to find bit 2 set while the LCD
                // is off. TODO: Test what should happen here.

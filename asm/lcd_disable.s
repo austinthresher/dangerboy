@@ -109,7 +109,15 @@ print_finished:
    call print_newline
    print_string_literal "DONE."
    call print_newline
-   print_string_literal ""
+   print_string_literal "DMG / AGB:"
+   call print_newline
+   print_string_literal "808083"
+   call print_newline
+   print_string_literal "808082"
+   call print_newline
+   print_string_literal "808081"
+   call print_newline
+   print_string_literal "808080"
    ret
 
 newline:

@@ -241,7 +241,7 @@ void print_status_bar() {
    wmove(status_bar, 1, 0);
    wprintw(status_bar,
          "[PC:%04X SP:%04X]\t"
-         "[A:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X]",
+         "[A:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X",
          cpu.pc,
          cpu.sp,
          cpu.a,
@@ -251,6 +251,19 @@ void print_status_bar() {
          cpu.e,
          cpu.h,
          cpu.l);
+   if (cpu.zf) {
+      wprintw(status_bar, " Z");
+   }
+   if (cpu.cf) {
+      wprintw(status_bar, " C");
+   }
+   if (cpu.hf) {
+      wprintw(status_bar, " H");
+   }
+   if (cpu.nf) {
+      wprintw(status_bar, " N");
+   }
+   wprintw(status_bar, "]");
    wrefresh(status_bar);
 }
 
