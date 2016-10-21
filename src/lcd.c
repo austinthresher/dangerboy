@@ -215,9 +215,6 @@ void set_mode(lcd_mode new_mode) {
 byte lcd_reg_read(word addr) {
    switch (addr) {
       case LY:
-         if (lcd_disabled) {
-            return 0;
-         }
          return ly;
       case STAT:
          return 0x80 | (stat_lyc_on << 6) | (stat_oam_on << 5)
