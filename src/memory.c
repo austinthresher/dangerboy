@@ -236,7 +236,8 @@ void mem_advance_time(cycle ticks) {
    if (serial_timer) {
       if (!--serial_timer) {
          wbyte(SB, 0xFF); // If no GB is connected we receive 0xFF
-         wbyte(IF, rbyte(IF) | INT_SERIAL);
+         // TODO: Does the interrupt fire if we didn't receive data?
+//         wbyte(IF, rbyte(IF) | INT_SERIAL);
       }
    }
    if (dma != INACTIVE) {

@@ -79,7 +79,7 @@ void cpu_reset() {
 
    // Setup our in-memory registers
    wbyte(0xFF01, 0x00);
-   wbyte(0xFF02, 0x7E); // Serial Transfer Control
+   wbyte(0xFF02, 0x02); // Serial Transfer Control
    wbyte(0xFF05, 0x00); // TIMA
    wbyte(0xFF06, 0x00); // TMA
    wbyte(0xFF07, 0xF8); // TAC
