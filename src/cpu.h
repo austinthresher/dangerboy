@@ -24,7 +24,8 @@ void cpu_init();
 void cpu_reset();
 void cpu_advance_time(cycle dt);
 void cpu_reset_timer();
-
+void cpu_serial_transfer();
+bool cpu_serial_active();
 // For debugging
 byte get_last_op();
 word get_last_pc();

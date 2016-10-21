@@ -32,6 +32,7 @@ char rom_name[16];
 byte joy_dpad;
 byte joy_buttons;
 byte joy_last_write;
+int serial_timer;
 
 // ------------------
 // Internal functions
@@ -84,6 +85,7 @@ void mem_init(void) {
    joy_buttons    = 0x0F;
    joy_dpad       = 0x0F;
    joy_last_write = 0;
+   serial_timer   = 0;
    dma            = INACTIVE;
    for (int i = 0; i < 0xFF; ++i) {
       ram[0xFF00 + i] = 0xFF;
@@ -231,6 +233,12 @@ void start_dma(byte val) {
 }
 
 void mem_advance_time(cycle ticks) {
+   if (serial_timer) {
+      if (!--serial_timer) {
+         wbyte(SB, 0xFF); // If no GB is connected we receive 0xFF
+         wbyte(IF, rbyte(IF) | INT_SERIAL);
+      }
+   }
    if (dma != INACTIVE) {
       while (ticks > 0) {
          ticks -= 4;
@@ -421,6 +429,17 @@ void wbyte(word addr, byte val) {
 
    // HW Registers
    switch (addr) {
+      case SC:
+         val &= 0x83;
+         ram[SC] = val;
+         // Bit 7 starts a transfer, bit 1 sets this Game Boy as the
+         // clock source. We're never going to connect to another GB,
+         // so we don't need to fire an interrupt for received bits
+         // when we aren't the clock source.
+         if (val & 0x81) {
+            serial_timer = 512; // This should be 8 "ticks" at 8192hz
+         }
+         return;
       case DIV:
          // TIMA and DIV use the same internal counter,
          // so resetting DIV also resets TIMA
@@ -543,7 +562,9 @@ byte rbyte(word addr) {
 
    // Hardware registers
    switch (addr) {
-      case 0xFF00: // Input register
+      case SC:
+        return ~0x83 | ((serial_timer != 0) << 7) | (ram[SC] & 3);
+      case JOYP:
          if (joy_last_write == 0x00) {
             return 0xC0 | (joy_dpad & joy_buttons);
          }

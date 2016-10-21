@@ -25,6 +25,7 @@ word system_timer;
 bool prev_timer;
 bool fire_tima;
 bool halt_bug;
+int serial_timer;
 
 // Array of opcode function pointers
 void (*cpu_opcodes[0x100])();
@@ -45,9 +46,9 @@ void build_op_table();
 
 void cpu_init() {
    build_op_table();
-   fire_tima    = false;
-   system_timer = 0;
-   prev_timer = false;
+   fire_tima          = false;
+   system_timer       = 0;
+   prev_timer         = false;
    cpu_reset();
 }
 
@@ -143,6 +144,7 @@ void cpu_advance_time(cycle dt) {
          timer_bit <<= 7;
          break;
    }
+
    for (int i = 0; i < dt / 4; ++i) {
       system_timer += 4;
       cpu_ticks++;
