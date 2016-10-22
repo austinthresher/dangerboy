@@ -41,7 +41,7 @@ byte x_pixel;
 byte framebuffer[160 * 144];
 bool disabled;
 bool ready;
-bool stat_raised;
+bool stat_line;
 
 // These variables combined are the STAT register.
 lcd_mode mode;
@@ -125,7 +125,7 @@ byte color(byte col, byte pal) {
 }
 
 void raise_stat() {
-   stat_raised = true;
+   stat_line = true;
 }
 
 void fire_stat() {
@@ -151,7 +151,7 @@ void lcd_reset() {
    stat_vbl_on  = false;
    stat_oam_on  = false;
    stat_lyc_on  = false;
-   stat_raised  = false;
+   stat_line  = false;
 }
 
 
@@ -260,11 +260,11 @@ void lcd_reg_write(word addr, byte val) {
          stat_hbl_on = val & BIT_HBLANK;
          stat_oam_on = val & BIT_OAM;
          stat_lyc_on = val & BIT_LYC;
-         // This fixes Road Rash. TODO: There's probably a more
-         // logical reason for this happening. Try more testing.
-         if (mode == HBLANK || mode == VBLANK) {
-            fire_stat();
-         }
+         // This fixes Road Rash, but fails the stat_irq_blocking test.
+         // Disabled until tested further in favor of passing the test.
+         // if (mode == VBLANK || mode == HBLANK) {
+         //    raise_stat();
+         // }
          break;
       default:
          dwrite(addr, val);
@@ -295,10 +295,9 @@ void lcd_advance_time(cycle cycles) {
    // If the internal stat interrupt line doesn't change,
    // STAT isn't fired. Here we store the previous STAT
    // state, and fire the interrupt if it went from lo -> hi.
-   bool no_stat    = !stat_raised;
+   bool stat_lo    = !stat_line;
    int vram_length = 172 + scroll_delay;
-   cycle old_timer = timer;
-   stat_raised     = false;
+   stat_line       = false;
 
    timer += cycles;
 
@@ -382,7 +381,7 @@ void lcd_advance_time(cycle cycles) {
          break;
    }
 
-   if (no_stat && stat_raised) {
+   if (stat_lo && stat_line) {
       fire_stat();
    }
 }
