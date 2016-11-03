@@ -2,6 +2,8 @@
 
 Danger Boy is a Game Boy emulator written in C. It focuses on emulating the original DMG with cycle accurate timing. Compatibility is fairly high.
 
+For the most up to date version, use the Develop branch. For the better tested version, use Master.
+
 
 The following features are missing but planned:
 
